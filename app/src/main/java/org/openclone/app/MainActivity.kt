@@ -567,7 +567,7 @@ private fun OpenCloneHome() {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(clones.filter { it.cloneLabel.contains(query, true) || it.clonePackage.contains(query, true) }, key = { it.clonePackage }) { clone ->
-                        InstalledAppRow(app = clone.app, onClick = { selectedClone = clone })
+                        InstalledAppRow(app = clone.app, onClick = { selectedClone = clone }, subtitle = when { clone.updateAvailable -> "Update available"; clone.currentOriginalVersionCode == null -> "Original app unavailable"; else -> "Up to date" })
                     }
                 }
                 visibleApps.isEmpty() -> Column(
@@ -1014,7 +1014,7 @@ private fun suggestedClonePackage(original: String, packageManager: android.cont
 }
 
 @Composable
-private fun InstalledAppRow(app: InstalledApp, onClick: () -> Unit) {
+private fun InstalledAppRow(app: InstalledApp, onClick: () -> Unit, subtitle: String? = null) {
     val context = LocalContext.current
     val iconBitmap = remember(app.packageName) {
         runCatching {
@@ -1045,6 +1045,13 @@ private fun InstalledAppRow(app: InstalledApp, onClick: () -> Unit) {
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
+                subtitle?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (it == "Update available") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                    )
+                }
             }
             Text("›", style = MaterialTheme.typography.headlineMedium)
         }
