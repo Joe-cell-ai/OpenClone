@@ -109,7 +109,7 @@ class ApkCloneEngine(context: Context) {
                         IconBadger(appContext).replacements(iconSource, newPackage, badgePosition, customIconFile, markIcon)
                     }.getOrDefault(emptyMap()).also { entries ->
                         iconBadgeApplied = markIcon && entries.isNotEmpty()
-                        customIconApplied = customIconFile != null && entries.keys.any { !it.endsWith(".xml", ignoreCase = true) }
+                        customIconApplied = customIconFile?.isFile == true && entries.keys.any { it.endsWith(".png", ignoreCase = true) }
                     }
                 } else emptyMap()
                 val metadataEntry: (() -> Pair<String, ByteArray>)? = if (index == 0) {

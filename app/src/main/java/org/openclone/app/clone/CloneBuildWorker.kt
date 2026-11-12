@@ -42,6 +42,9 @@ class CloneBuildWorker(
                     applicationContext.packageManager.getApplicationInfo(packageName, 0)
                 }
             }
+            val customIconFile = inputData.getString(KEY_CUSTOM_ICON_PATH)?.let(::File)
+                ?.takeIf { it.isFile && it.canRead() }
+            val markIcon = inputData.getBoolean(KEY_MARK_ICON, false)
             val position = inputData.getString(KEY_BADGE_POSITION)
                 ?.let { runCatching { BadgePosition.valueOf(it) }.getOrNull() }
                 ?: BadgePosition.BOTTOM_RIGHT
@@ -54,7 +57,7 @@ class CloneBuildWorker(
                 onProgress = { value ->
                     setProgressAsync(Data.Builder().putInt(KEY_PROGRESS, value).build())
                 },
-                iconSource = iconSource.takeIf { inputData.getBoolean(KEY_MARK_ICON, false) },
+                iconSource = iconSource.takeIf { markIcon || customIconFile != null },
                 allowUpdate = inputData.getBoolean(KEY_ALLOW_UPDATE, false),
                 ensureActive = {
                     if (isStopped || Thread.currentThread().isInterrupted) {
@@ -62,9 +65,8 @@ class CloneBuildWorker(
                     }
                 },
                 badgePosition = position,
-                markIcon = inputData.getBoolean(KEY_MARK_ICON, false),
-                customIconFile = inputData.getString(KEY_CUSTOM_ICON_PATH)?.let(::File)
-                    ?.takeIf { it.isFile && it.canRead() }
+                markIcon = markIcon,
+                customIconFile = customIconFile
             )
             Result.success(
                 Data.Builder()
