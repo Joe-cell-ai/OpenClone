@@ -240,7 +240,7 @@ private fun OpenCloneHome() {
                                 SigningKeys.get(context).export(alias, output, password)
                             } ?: error("Could not open the selected backup destination.")
                         } finally {
-                            password.fill('\\u0000')
+                            password.fill('\u0000')
                         }
                     }
                 }
@@ -264,7 +264,7 @@ private fun OpenCloneHome() {
                                 SigningKeys.get(context).import(input, password, "", identityAlias)
                             } ?: error("Could not open the selected signing backup.")
                         } finally {
-                            password.fill('\\u0000')
+                            password.fill('\u0000')
                         }
                     }
                 }
