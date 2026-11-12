@@ -48,6 +48,7 @@ class CloneBuildWorker(
             val position = inputData.getString(KEY_BADGE_POSITION)
                 ?.let { runCatching { BadgePosition.valueOf(it) }.getOrNull() }
                 ?: BadgePosition.BOTTOM_RIGHT
+            var lastReportedProgress = -1
             val result = ApkCloneEngine(applicationContext).build(
                 sourceApks = sourceApks,
                 originalPackage = originalPackage,
@@ -55,7 +56,10 @@ class CloneBuildWorker(
                 newLabel = cloneLabel,
                 outputDirectory = File(applicationContext.filesDir, "openclone/builds/$clonePackage"),
                 onProgress = { value ->
-                    setProgressAsync(Data.Builder().putInt(KEY_PROGRESS, value).build())
+                    if (value != lastReportedProgress) {
+                        lastReportedProgress = value
+                        setProgressAsync(Data.Builder().putInt(KEY_PROGRESS, value).build())
+                    }
                 },
                 iconSource = iconSource.takeIf { markIcon || customIconFile != null },
                 allowUpdate = inputData.getBoolean(KEY_ALLOW_UPDATE, false),
