@@ -44,7 +44,7 @@ The CI workflow uploads the debug APK as an artifact when the build succeeds.
 
 ## Android package visibility and installation
 
-OpenClone requests `QUERY_ALL_PACKAGES` to provide its installed-app browser and `REQUEST_INSTALL_PACKAGES` to hand rebuilt APKs to Android's package installer. App stores may restrict these permissions to approved core use cases; distribution must follow the store and platform policies. Android displays its own installation confirmation, and Play Protect may warn about re-signed APKs.
+OpenClone requests `QUERY_ALL_PACKAGES` to provide its installed-app browser, `REQUEST_INSTALL_PACKAGES` to hand rebuilt APKs to Android's package installer, and `REQUEST_DELETE_PACKAGES` for user-confirmed clone removal. App stores may restrict these permissions to approved core use cases; distribution must follow the store and platform policies. Android displays its own installation confirmation, and Play Protect may warn about re-signed APKs.
 
 ## Safety and privacy
 

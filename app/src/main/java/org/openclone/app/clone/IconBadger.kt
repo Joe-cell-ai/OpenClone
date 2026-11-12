@@ -165,31 +165,29 @@ class IconBadger(private val context: Context) {
         // out differently on every app. A frame too faint to see makes every picture count as
         // filled edge to edge: all of them are then shrunk alike, and so are their dots.
         if (addBadge) {
-        paint.style = Paint.Style.STROKE
-        paint.strokeWidth = 1f
-        paint.color = Color.argb(FRAME_ALPHA, 255, 255, 255)
-        canvas.drawRect(0.5f, 0.5f, size - 0.5f, size - 0.5f, paint)
-        paint.style = Paint.Style.FILL
-
-        val ring = size * RING_SHARE / LEGACY_SCALE
-        val radius = size * DOT_SHARE / LEGACY_SCALE / 2
-        // As far out as the dot of an adaptive icon, or as far as the picture has room for.
-        val centerX = if (position.centerX < 0.5f) {
-            maxOf(size * (0.5f + (position.centerX - 0.5f) / LEGACY_SCALE), radius + ring)
-        } else {
-            minOf(size * (0.5f + (position.centerX - 0.5f) / LEGACY_SCALE), size - radius - ring)
-        }
-        val centerY = if (position.centerY < 0.5f) {
-            maxOf(size * (0.5f + (position.centerY - 0.5f) / LEGACY_SCALE), radius + ring)
-        } else {
-            minOf(size * (0.5f + (position.centerY - 0.5f) / LEGACY_SCALE), size - radius - ring)
-        }
-        paint.color = Color.WHITE
-        canvas.drawCircle(centerX, centerY, radius + ring, paint)
-        paint.color = color
-        canvas.drawCircle(centerX, centerY, radius, paint)
-        }
-        return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+            paint.strokeWidth = 1f
+            paint.color = Color.argb(FRAME_ALPHA, 255, 255, 255)
+            canvas.drawRect(0.5f, 0.5f, size - 0.5f, size - 0.5f, paint)
+            paint.style = Paint.Style.FILL
+    
+            val ring = size * RING_SHARE / LEGACY_SCALE
+            val radius = size * DOT_SHARE / LEGACY_SCALE / 2
+            // As far out as the dot of an adaptive icon, or as far as the picture has room for.
+            val centerX = if (position.centerX < 0.5f) {
+                maxOf(size * (0.5f + (position.centerX - 0.5f) / LEGACY_SCALE), radius + ring)
+            } else {
+                minOf(size * (0.5f + (position.centerX - 0.5f) / LEGACY_SCALE), size - radius - ring)
+            }
+            val centerY = if (position.centerY < 0.5f) {
+                maxOf(size * (0.5f + (position.centerY - 0.5f) / LEGACY_SCALE), radius + ring)
+            } else {
+                minOf(size * (0.5f + (position.centerY - 0.5f) / LEGACY_SCALE), size - radius - ring)
+            }
+            paint.color = Color.WHITE
+            canvas.drawCircle(centerX, centerY, radius + ring, paint)
+            paint.color = color
+            canvas.drawCircle(centerX, centerY, radius, paint)
+        }        return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
     }
 
     private fun ResXmlElement.reference(resourceId: Int) =

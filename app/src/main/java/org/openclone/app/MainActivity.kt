@@ -664,7 +664,7 @@ private fun OpenCloneHome() {
                             Image(preview, contentDescription = "Custom launcher icon preview", modifier = Modifier.size(56.dp))
                         }
                         Text(
-                            "Custom images replace raster PNG launcher resources. Apps whose launcher icon is entirely vector-based keep their original artwork.",
+                            "Custom images replace direct raster PNG launcher icons. Adaptive-icon XML and vector-based launcher icons keep their original artwork.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.secondary
                         )
