@@ -88,7 +88,7 @@ object ApkRebuilder {
                         // out of the APK, so they must stay stored and aligned.
                         copy.storedAt(counter.count, entry.size, entry.crc)
                         out.putNextEntry(copy)
-                        zip.getInputStream(entry).use { it.copyTo(out, 1 shl 16) }
+                        zip.getInputStream(entry).use { copyChecked(it, out, onStep) }
                     } else {
                         out.putNextEntry(copy)
                         zip.getInputStream(entry).use { it.copyTo(out, 1 shl 16) }
@@ -101,6 +101,17 @@ object ApkRebuilder {
                     out.closeEntry()
                 }
             }
+        }
+    }
+
+    /** Copies in bounded chunks and checks cancellation between chunks. */
+    private fun copyChecked(input: java.io.InputStream, output: OutputStream, onStep: (() -> Unit)?) {
+        val buffer = ByteArray(1 shl 16)
+        while (true) {
+            onStep?.invoke()
+            val count = input.read(buffer)
+            if (count < 0) break
+            output.write(buffer, 0, count)
         }
     }
 
