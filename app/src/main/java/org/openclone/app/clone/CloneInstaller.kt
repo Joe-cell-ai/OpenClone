@@ -61,7 +61,10 @@ class CloneInstallReceiver : BroadcastReceiver() {
                 @Suppress("DEPRECATION")
                 intent.getParcelableExtra(Intent.EXTRA_INTENT) as? Intent
             }
-            confirmation?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)?.let(context::startActivity)
+            confirmation?.let { pending ->
+                pending.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                context.startActivity(pending)
+            }
             return
         }
 

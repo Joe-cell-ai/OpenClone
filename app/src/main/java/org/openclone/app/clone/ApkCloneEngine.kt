@@ -39,6 +39,7 @@ class ApkCloneEngine(context: Context) {
         return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress)
     }
 
+    @Suppress("DEPRECATION")
     fun build(
         sourceApks: List<File>,
         originalPackage: String,
@@ -60,7 +61,6 @@ class ApkCloneEngine(context: Context) {
             if (Build.VERSION.SDK_INT >= 33) {
                 packageManager.getApplicationInfo(newPackage, PackageManager.ApplicationInfoFlags.of(0L))
             } else {
-                @Suppress("DEPRECATION")
                 packageManager.getApplicationInfo(newPackage, 0)
             }
         }.getOrNull()
