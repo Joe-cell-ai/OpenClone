@@ -69,7 +69,7 @@ class ApkCloneEngine(context: Context) {
         require(newLabel.isNotBlank() && newLabel.length <= 100) {
             "The app name must contain 1–100 characters."
         }
-        val signingKey = signingKeys.active
+        val selectedSigningKey = signingKeys.active
         val existing = runCatching {
             if (Build.VERSION.SDK_INT >= 33) {
                 packageManager.getApplicationInfo(newPackage, PackageManager.ApplicationInfoFlags.of(0L))
@@ -77,10 +77,18 @@ class ApkCloneEngine(context: Context) {
                 packageManager.getApplicationInfo(newPackage, 0)
             }
         }.getOrNull()
-        if (existing != null) {
-            require(allowUpdate && isMatchingOpenClone(existing, originalPackage, newPackage, signingKey.fingerprint)) {
-                "An app with package ID $newPackage is already installed. OpenClone only updates clones created with this signing key."
+        val signingKey = if (existing != null) {
+            val installedFingerprint = installedSigningFingerprint(newPackage)
+            val matchingKey = installedFingerprint?.let(signingKeys::matchingFingerprint)
+            require(
+                allowUpdate && matchingKey != null &&
+                    isMatchingOpenClone(existing, originalPackage, newPackage, matchingKey.fingerprint)
+            ) {
+                "An app with package ID $newPackage is already installed. OpenClone can only update clones signed by one of this device's saved identities."
             }
+            matchingKey!!
+        } else {
+            selectedSigningKey
         }
 
         outputDirectory.deleteRecursively()
