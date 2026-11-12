@@ -305,6 +305,8 @@ private fun OpenCloneHome() {
                     onFailure = { it.message ?: "Could not export the signing identity." }
                 )
             }
+        } else {
+            signingPassword = ""
         }
     }
 
@@ -334,6 +336,8 @@ private fun OpenCloneHome() {
                     signingMessage = it.message ?: "Could not restore the signing identity."
                 }
             }
+        } else {
+            signingPassword = ""
         }
     }
 
@@ -982,7 +986,7 @@ private fun OpenCloneHome() {
                     )
                 }
             },
-            confirmButton = { TextButton(onClick = { showSigningKeys = false }) { Text("Done") } }
+            confirmButton = { TextButton(onClick = { showSigningKeys = false; signingPassword = "" }) { Text("Done") } }
         )
     }
 
