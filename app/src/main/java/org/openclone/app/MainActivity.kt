@@ -55,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
@@ -131,6 +132,8 @@ private fun OpenCloneHome() {
     var signingAliases by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeSigningAlias by remember { mutableStateOf<String?>(null) }
     var signingAliasInput by remember { mutableStateOf("") }
+    var signingPassword by remember { mutableStateOf("") }
+    var pendingSigningExportAlias by remember { mutableStateOf<String?>(null) }
     var signingMessage by remember { mutableStateOf<String?>(null) }
 
     fun refreshApps() {
@@ -218,6 +221,61 @@ private fun OpenCloneHome() {
                     onFailure = { statusMessage = it.message ?: "Could not import this APK bundle." }
                 )
                 loading = false
+            }
+        }
+    }
+
+    val exportSigningIdentity = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/x-pkcs12")
+    ) { uri: Uri? ->
+        val alias = pendingSigningExportAlias
+        pendingSigningExportAlias = null
+        if (uri != null && alias != null) {
+            val password = signingPassword.toCharArray()
+            scope.launch {
+                val outcome = withContext(Dispatchers.IO) {
+                    runCatching {
+                        try {
+                            context.contentResolver.openOutputStream(uri)?.use { output ->
+                                SigningKeys.get(context).export(alias, output, password)
+                            } ?: error("Could not open the selected backup destination.")
+                        } finally {
+                            password.fill('\\u0000')
+                        }
+                    }
+                }
+                signingMessage = outcome.fold(
+                    onSuccess = { "Signing identity backup exported." },
+                    onFailure = { it.message ?: "Could not export the signing identity." }
+                )
+            }
+        }
+    }
+
+    val importSigningIdentity = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            val identityAlias = signingAliasInput.trim()
+            val password = signingPassword.toCharArray()
+            scope.launch {
+                val outcome = withContext(Dispatchers.IO) {
+                    runCatching {
+                        try {
+                            context.contentResolver.openInputStream(uri)?.use { input ->
+                                SigningKeys.get(context).import(input, password, "", identityAlias)
+                            } ?: error("Could not open the selected signing backup.")
+                        } finally {
+                            password.fill('\\u0000')
+                        }
+                    }
+                }
+                outcome.onSuccess {
+                    val keys = SigningKeys.get(context)
+                    signingAliases = keys.identityAliases
+                    activeSigningAlias = keys.activeAlias
+                    signingMessage = "Signing identity restored and encrypted on this device."
+                }.onFailure {
+                    signingMessage = it.message ?: "Could not restore the signing identity."
+                }
             }
         }
     }
@@ -704,6 +762,32 @@ private fun OpenCloneHome() {
                         singleLine = true,
                         label = { Text("New identity name") }
                     )
+                    OutlinedTextField(
+                        value = signingPassword,
+                        onValueChange = { signingPassword = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        label = { Text("Backup password") }
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        TextButton(onClick = {
+                            if (signingPassword.isBlank()) {
+                                signingMessage = "Enter the backup password first."
+                            } else {
+                                importSigningIdentity.launch(arrayOf("application/x-pkcs12", "application/octet-stream", "*/*"))
+                            }
+                        }) { Text("Restore backup") }
+                        TextButton(onClick = {
+                            val alias = activeSigningAlias
+                            if (alias == null) signingMessage = "Select a signing identity first."
+                            else if (signingPassword.isBlank()) signingMessage = "Enter the backup password first."
+                            else {
+                                pendingSigningExportAlias = alias
+                                exportSigningIdentity.launch("openclone-signing-identity.p12")
+                            }
+                        }) { Text("Export backup") }
+                    }
                     TextButton(onClick = {
                         val alias = signingAliasInput.trim()
                         if (alias.isBlank()) {
