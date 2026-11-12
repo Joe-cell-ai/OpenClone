@@ -405,7 +405,7 @@ private fun OpenCloneHome() {
 
     cloneSource?.let { source ->
         AlertDialog(
-            onDismissRequest = { if (!cloneBuilding) cloneSource = null },
+            onDismissRequest = { if (!cloneBuilding) { cloneSource = null; cloneUpdateMode = false } },
             title = { Text(if (cloneUpdateMode) "Update clone" else "Customize clone") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -461,7 +461,7 @@ private fun OpenCloneHome() {
 
     cloneResult?.let { result ->
         AlertDialog(
-            onDismissRequest = { cloneResult = null },
+            onDismissRequest = { cloneResult = null; cloneUpdateMode = false },
             title = { Text("Clone ready") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
