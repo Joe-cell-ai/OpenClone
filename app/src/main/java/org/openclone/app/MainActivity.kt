@@ -46,6 +46,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -114,7 +115,7 @@ private fun OpenCloneHome() {
     var cloneName by remember { mutableStateOf("") }
     var clonePackage by remember { mutableStateOf("") }
     var cloneBuilding by remember { mutableStateOf(false) }
-    var cloneWorkId by remember { mutableStateOf<UUID?>(null) }
+    var cloneWorkId by rememberSaveable { mutableStateOf<String?>(null) }
     var cloneWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
@@ -300,19 +301,19 @@ private fun OpenCloneHome() {
             .setInputData(input)
             .build()
         WorkManager.getInstance(context).enqueue(request)
-        cloneWorkId = request.id
+        cloneWorkId = request.id.toString()
         cloneWorkInfo = null
         cloneBuilding = true
         cloneProgress = 0
     }
 
     DisposableEffect(context, cloneWorkId) {
-        val workId = cloneWorkId
+        val workId = cloneWorkId?.let { runCatching { UUID.fromString(it) }.getOrNull() }
         if (workId == null) {
             onDispose { }
         } else {
             val liveData = WorkManager.getInstance(context).getWorkInfoByIdLiveData(workId)
-            val observer = Observer<WorkInfo?> { info ->
+            val observer = Observer<WorkInfo> { info ->
                 if (info != null) {
                     cloneWorkInfo = info
                     cloneProgress = info.progress.getInt(CloneBuildWorker.KEY_PROGRESS, cloneProgress)
@@ -558,7 +559,7 @@ private fun OpenCloneHome() {
                 TextButton(
                     onClick = {
                         if (cloneBuilding) {
-                            cloneWorkId?.let { WorkManager.getInstance(context).cancelWorkById(it) }
+                            cloneWorkId?.let { savedId -> runCatching { UUID.fromString(savedId) }.getOrNull()?.let { WorkManager.getInstance(context).cancelWorkById(it) } }
                         } else {
                             cloneSource = null
                             externalSource = null
