@@ -1,3 +1,4 @@
+// Adapted from APK Toolbox by bl3xand (GPL-3.0-only). Upstream: https://github.com/bl3xand/APK-Toolbox
 package org.openclone.app.clone
 
 import android.content.Context
