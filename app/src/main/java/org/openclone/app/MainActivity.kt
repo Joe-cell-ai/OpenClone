@@ -244,6 +244,7 @@ private fun OpenCloneHome() {
                         }
                     }
                 }
+                signingPassword = ""
                 signingMessage = outcome.fold(
                     onSuccess = { "Signing identity backup exported." },
                     onFailure = { it.message ?: "Could not export the signing identity." }
@@ -268,6 +269,7 @@ private fun OpenCloneHome() {
                         }
                     }
                 }
+                signingPassword = ""
                 outcome.onSuccess {
                     val keys = SigningKeys.get(context)
                     signingAliases = keys.identityAliases
@@ -731,7 +733,7 @@ private fun OpenCloneHome() {
 
     if (showSigningKeys) {
         AlertDialog(
-            onDismissRequest = { showSigningKeys = false },
+            onDismissRequest = { showSigningKeys = false; signingPassword = "" },
             title = { Text("Signing identities") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
