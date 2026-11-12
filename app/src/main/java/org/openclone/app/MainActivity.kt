@@ -316,6 +316,7 @@ private fun OpenCloneHome() {
             val observer = Observer<WorkInfo> { info ->
                 if (info != null) {
                     cloneWorkInfo = info
+                    cloneBuilding = !info.state.isFinished
                     cloneProgress = info.progress.getInt(CloneBuildWorker.KEY_PROGRESS, cloneProgress)
                     if (info.state.isFinished) {
                         cloneBuilding = false
