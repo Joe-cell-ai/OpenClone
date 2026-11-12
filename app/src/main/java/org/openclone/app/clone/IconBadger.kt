@@ -105,7 +105,7 @@ class IconBadger(private val context: Context) {
         layers["monochrome"]?.takeIf { it != 0 }?.let { monochrome ->
             val themed = root.newElement("monochrome").newElement("layer-list")
             themed.newElement("item").reference(monochrome)
-            themed.newElement("item").disc(DOT_SHARE + 2 * RING_SHARE, Color.WHITE)
+            themed.newElement("item").disc(DOT_SHARE + 2 * RING_SHARE, Color.WHITE, position.centerX, position.centerY)
         }
         document.refreshFull()
         return document.bytes

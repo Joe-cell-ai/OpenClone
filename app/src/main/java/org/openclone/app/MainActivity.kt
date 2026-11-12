@@ -380,7 +380,7 @@ private fun OpenCloneHome() {
             onDispose { }
         } else {
             val liveData = WorkManager.getInstance(context).getWorkInfoByIdLiveData(workId)
-            val observer = Observer<WorkInfo> { info ->
+            val observer = Observer<WorkInfo?> { info ->
                 if (info != null) {
                     cloneWorkInfo = info
                     cloneBuilding = !info.state.isFinished
