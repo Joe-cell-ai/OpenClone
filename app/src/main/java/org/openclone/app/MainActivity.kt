@@ -826,16 +826,26 @@ private fun OpenCloneHome() {
             dismissButton = {
                 Row {
                     TextButton(onClick = {
-                        val original = apps.firstOrNull { it.packageName == clone.originalPackage }
-                        if (original == null) {
-                            statusMessage = "The original app must be installed before this clone can be updated."
-                        } else {
-                            cloneSource = original
-                            cloneName = clone.cloneLabel
-                            clonePackage = clone.clonePackage
-                            cloneUpdateMode = true
-                            cloneError = null
-                            selectedClone = null
+                        val cachedApps = apps
+                        scope.launch {
+                            val original = withContext(Dispatchers.IO) {
+                                cachedApps.firstOrNull { it.packageName == clone.originalPackage }
+                                    ?: runCatching {
+                                        InstalledAppRepository(context.packageManager)
+                                            .getInstalledApps(includeSystem = true)
+                                            .firstOrNull { it.packageName == clone.originalPackage }
+                                    }.getOrNull()
+                            }
+                            if (original == null) {
+                                statusMessage = "The original app must be installed before this clone can be updated."
+                            } else {
+                                cloneSource = original
+                                cloneName = clone.cloneLabel
+                                clonePackage = clone.clonePackage
+                                cloneUpdateMode = true
+                                cloneError = null
+                                selectedClone = null
+                            }
                         }
                     }) { Text("Update") }
                     TextButton(onClick = {
