@@ -25,13 +25,20 @@ import org.xmlpull.v1.XmlPullParser
  * equivalent one that stacks the dot on top of the app's own layers, so the size of the app and
  * of its resource table does not matter.
  */
+enum class BadgePosition(val centerX: Float, val centerY: Float) {
+    TOP_LEFT(0.24f, 0.24f),
+    TOP_RIGHT(0.76f, 0.24f),
+    BOTTOM_LEFT(0.24f, 0.76f),
+    BOTTOM_RIGHT(0.76f, 0.76f)
+}
+
 class IconBadger(private val context: Context) {
 
     /**
      * Files of the base APK to replace, by path inside it, to mark the icon of [app]. Empty when
      * the icon is built in a way this cannot safely rewrite. [seed] picks the colour of the dot.
      */
-    fun replacements(app: ApplicationInfo, seed: String): Map<String, ByteArray> {
+    fun replacements(app: ApplicationInfo, seed: String, position: BadgePosition = BadgePosition.BOTTOM_RIGHT): Map<String, ByteArray> {
         val packageManager = context.packageManager
         val resources = packageManager.getResourcesForApplication(app)
         val color = Color.HSVToColor(floatArrayOf(((seed.hashCode() and 0x7FFFFFFF) % 360).toFloat(), 0.75f, 0.9f))
@@ -53,7 +60,7 @@ class IconBadger(private val context: Context) {
                     if (density == 0) resources.getValue(icon, value, true) else resources.getValueForDensity(icon, density, value, true)
                     val path = value.string?.toString() ?: return@runCatching
                     if (path in result) return@runCatching
-                    val replacement = if (path.endsWith(".xml")) adaptiveIcon(resources, icon, color) else bitmapIcon(resources, icon, density, color)
+                    val replacement = if (path.endsWith(".xml")) adaptiveIcon(resources, icon, color, position) else bitmapIcon(resources, icon, density, color, position)
                     if (replacement != null) result[path] = replacement
                 }
             }
@@ -65,7 +72,7 @@ class IconBadger(private val context: Context) {
      * The app's `<adaptive-icon>` again, with the same background, and a foreground that is the
      * original one plus the dot. Null if the original is not a plain adaptive icon.
      */
-    private fun adaptiveIcon(resources: Resources, icon: Int, color: Int): ByteArray? {
+    private fun adaptiveIcon(resources: Resources, icon: Int, color: Int, position: BadgePosition): ByteArray? {
         val layers = HashMap<String, Int>()
         resources.getXml(icon).use { parser ->
             var depth = 0
@@ -91,8 +98,8 @@ class IconBadger(private val context: Context) {
         stack.newElement("item").reference(foreground)
         // A white disc with a coloured one on top. A stroke would do for the ring, but its width
         // is a fixed length while everything else here is a share of the icon.
-        stack.newElement("item").disc(DOT_SHARE + 2 * RING_SHARE, Color.WHITE)
-        stack.newElement("item").disc(DOT_SHARE, color)
+        stack.newElement("item").disc(DOT_SHARE + 2 * RING_SHARE, Color.WHITE, position.centerX, position.centerY)
+        stack.newElement("item").disc(DOT_SHARE, color, position.centerX, position.centerY)
         // Themed icons are drawn from this layer alone, in one colour: the dot goes here too,
         // or a clone on a themed home screen would look exactly like the original.
         layers["monochrome"]?.takeIf { it != 0 }?.let { monochrome ->
@@ -109,21 +116,23 @@ class IconBadger(private val context: Context) {
      * placed with insets, which are fractions of the layer, so it keeps its place and size at
      * any icon size.
      */
-    private fun ResXmlElement.disc(share: Float, color: Int) {
-        val start = (LAYER_MARGIN + VISIBLE_DP * (DOT_CENTER - share / 2)) / LAYER_DP
-        val end = 1f - (LAYER_MARGIN + VISIBLE_DP * (DOT_CENTER + share / 2)) / LAYER_DP
+    private fun ResXmlElement.disc(share: Float, color: Int, centerX: Float, centerY: Float) {
+        val startX = (LAYER_MARGIN + VISIBLE_DP * (centerX - share / 2)) / LAYER_DP
+        val endX = 1f - (LAYER_MARGIN + VISIBLE_DP * (centerX + share / 2)) / LAYER_DP
+        val startY = (LAYER_MARGIN + VISIBLE_DP * (centerY - share / 2)) / LAYER_DP
+        val endY = 1f - (LAYER_MARGIN + VISIBLE_DP * (centerY + share / 2)) / LAYER_DP
         val shape = newElement("inset").apply {
-            fraction("insetLeft", android.R.attr.insetLeft, start)
-            fraction("insetTop", android.R.attr.insetTop, start)
-            fraction("insetRight", android.R.attr.insetRight, end)
-            fraction("insetBottom", android.R.attr.insetBottom, end)
+            fraction("insetLeft", android.R.attr.insetLeft, startX)
+            fraction("insetTop", android.R.attr.insetTop, startY)
+            fraction("insetRight", android.R.attr.insetRight, endX)
+            fraction("insetBottom", android.R.attr.insetBottom, endY)
         }.newElement("shape")
         shape.value("shape", android.R.attr.shape, ValueType.DEC, SHAPE_OVAL)
         shape.newElement("solid").value("color", android.R.attr.color, ValueType.COLOR_ARGB8, color)
     }
 
     /** A plain bitmap icon: the same picture, redrawn with the dot on it. */
-    private fun bitmapIcon(resources: Resources, icon: Int, density: Int, color: Int): ByteArray {
+    private fun bitmapIcon(resources: Resources, icon: Int, density: Int, color: Int, position: BadgePosition): ByteArray {
         val drawable = if (density == 0) resources.getDrawable(icon, null) else resources.getDrawableForDensity(icon, density, null)!!
         val size = drawable.intrinsicWidth.coerceIn(MIN_BITMAP, MAX_BITMAP)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
@@ -143,11 +152,20 @@ class IconBadger(private val context: Context) {
         val ring = size * RING_SHARE / LEGACY_SCALE
         val radius = size * DOT_SHARE / LEGACY_SCALE / 2
         // As far out as the dot of an adaptive icon, or as far as the picture has room for.
-        val center = minOf(size * (0.5f + (DOT_CENTER - 0.5f) / LEGACY_SCALE), size - radius - ring)
+        val centerX = if (position.centerX < 0.5f) {
+            maxOf(size * (0.5f + (position.centerX - 0.5f) / LEGACY_SCALE), radius + ring)
+        } else {
+            minOf(size * (0.5f + (position.centerX - 0.5f) / LEGACY_SCALE), size - radius - ring)
+        }
+        val centerY = if (position.centerY < 0.5f) {
+            maxOf(size * (0.5f + (position.centerY - 0.5f) / LEGACY_SCALE), radius + ring)
+        } else {
+            minOf(size * (0.5f + (position.centerY - 0.5f) / LEGACY_SCALE), size - radius - ring)
+        }
         paint.color = Color.WHITE
-        canvas.drawCircle(center, center, radius + ring, paint)
+        canvas.drawCircle(centerX, centerY, radius + ring, paint)
         paint.color = color
-        canvas.drawCircle(center, center, radius, paint)
+        canvas.drawCircle(centerX, centerY, radius, paint)
         return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
     }
 

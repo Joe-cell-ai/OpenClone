@@ -39,11 +39,12 @@ class ApkCloneEngine(context: Context) {
         onProgress: (Int) -> Unit = {},
         markIcon: Boolean = true,
         allowUpdate: Boolean = false,
-        ensureActive: () -> Unit = {}
+        ensureActive: () -> Unit = {},
+        badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
-        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon }, allowUpdate, ensureActive)
+        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon }, allowUpdate, ensureActive, badgePosition)
     }
 
     @Suppress("DEPRECATION")
@@ -56,7 +57,8 @@ class ApkCloneEngine(context: Context) {
         onProgress: (Int) -> Unit = {},
         iconSource: android.content.pm.ApplicationInfo? = null,
         allowUpdate: Boolean = false,
-        ensureActive: () -> Unit = {}
+        ensureActive: () -> Unit = {},
+        badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
@@ -90,7 +92,7 @@ class ApkCloneEngine(context: Context) {
             sourceApks.forEachIndexed { index, source ->
                 ensureActive()
                 val replacements = if (index == 0 && iconSource != null) {
-                    runCatching { IconBadger(appContext).replacements(iconSource, newPackage) }.getOrDefault(emptyMap()).also {
+                    runCatching { IconBadger(appContext).replacements(iconSource, newPackage, badgePosition) }.getOrDefault(emptyMap()).also {
                         iconBadgeApplied = it.isNotEmpty()
                     }
                 } else emptyMap()

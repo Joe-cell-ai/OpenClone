@@ -62,6 +62,7 @@ import java.util.concurrent.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.openclone.app.clone.ApkCloneEngine
+import org.openclone.app.clone.BadgePosition
 import org.openclone.app.clone.CloneBuildResult
 import org.openclone.app.clone.CloneInstaller
 import org.openclone.app.data.ApkInspection
@@ -111,6 +112,7 @@ private fun OpenCloneHome() {
     var cloneBuildCancellation by remember { mutableStateOf<AtomicBoolean?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
+    var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var cloneError by remember { mutableStateOf<String?>(null) }
     var cloneUpdateMode by remember { mutableStateOf(false) }
     var cloneResult by remember { mutableStateOf<CloneBuildResult?>(null) }
@@ -293,7 +295,8 @@ private fun OpenCloneHome() {
                             onProgress = { value -> scope.launch { cloneProgress = value } },
                             markIcon = markCloneIcon,
                             allowUpdate = cloneUpdateMode,
-                            ensureActive = { if (cancellation.get()) throw CancellationException("Clone build cancelled by user.") }
+                            ensureActive = { if (cancellation.get()) throw CancellationException("Clone build cancelled by user.") },
+                            badgePosition = badgePosition
                         )
                     } else {
                         engine.build(
@@ -305,7 +308,8 @@ private fun OpenCloneHome() {
                             onProgress = { value -> scope.launch { cloneProgress = value } },
                             iconSource = null,
                             allowUpdate = cloneUpdateMode,
-                            ensureActive = { if (cancellation.get()) throw CancellationException("Clone build cancelled by user.") }
+                            ensureActive = { if (cancellation.get()) throw CancellationException("Clone build cancelled by user.") },
+                            badgePosition = badgePosition
                         )
                     }
                 }
@@ -502,6 +506,21 @@ private fun OpenCloneHome() {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                         Text("Mark clone icon with a dot")
                         Switch(checked = markCloneIcon, onCheckedChange = { markCloneIcon = it })
+                    }
+                    if (markCloneIcon && cloneSource != null) {
+                        Text("Badge position", style = MaterialTheme.typography.labelMedium)
+                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
+                            BadgePosition.values().forEach { position ->
+                                TextButton(onClick = { badgePosition = position }) {
+                                    Text((if (badgePosition == position) "• " else "") + when (position) {
+                                        BadgePosition.TOP_LEFT -> "Top left"
+                                        BadgePosition.TOP_RIGHT -> "Top right"
+                                        BadgePosition.BOTTOM_LEFT -> "Bottom left"
+                                        BadgePosition.BOTTOM_RIGHT -> "Bottom right"
+                                    })
+                                }
+                            }
+                        }
                     }
                     Text(
                         if (cloneUpdateMode) "The update is signed with the same OpenClone key. Android should preserve this clone's existing data if the update is accepted." else "A new signing key is generated for this OpenClone installation and kept encrypted in app-private storage. Cloned apps will not share data with the original.",
