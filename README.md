@@ -11,7 +11,7 @@ OpenClone is an open-source Android app cloner and APK inspection tool.
 - Build a clone from an installed app's base APK and its installed split APKs.
 - Change the clone's app label and package ID.
 - Optionally mark the launcher icon with a coloured badge in one of four corners so the clone is easy to distinguish.
-- Upload and preview a custom PNG launcher icon for apps that use direct raster PNG launcher resources.
+- Upload and preview a custom PNG launcher icon for installed-app clones that use direct raster PNG launcher resources.
 - Run clone rebuilds as persistent WorkManager jobs, with progress reporting and user cancellation.
 - Rewrite the compiled binary manifest and resource table, then re-sign every APK with a selected RSA signing identity encrypted at rest using Android Keystore.
 - Create and select multiple signing identities, and import/export password-protected PKCS#12 backups.
@@ -24,7 +24,7 @@ OpenClone is an open-source Android app cloner and APK inspection tool.
 
 No cloner can guarantee that every Android app will work after cloning. OpenClone currently changes the binary manifest and resource table, but does not rewrite arbitrary DEX string constants or bypass app integrity checks. Apps that hard-code their original package name, check their signing certificate, use package-bound Google services, licensing, anti-cheat, DRM, or server-side registration may fail or refuse to run. Clones start with separate, empty app data; original app data and sign-ins are not copied.
 
-Custom icon replacement is limited to direct raster PNG launcher resources; adaptive-icon XML and vector-based launcher icons retain their original artwork. Safe DEX package-string compatibility rewriting is not implemented yet. OpenClone deliberately does not patch DEX integrity, signature, licensing, DRM, anti-cheat, or security checks. External bundle import requires a complete base APK plus matching split APKs; OBB expansion data is not imported. The optional icon badge marks the existing launcher icon with a coloured dot in one of four selectable corners. Clone update detection compares the original app's installed version code with the version recorded at clone build time. Rebuilding an update requires the original app to remain installed and a matching saved signing identity to be available.
+Custom icon replacement is limited to direct raster PNG launcher resources in installed apps; adaptive-icon XML, vector-based icons, and non-PNG raster resources retain their original artwork. The optional badge is applied only to supported adaptive-icon XML and PNG resources. Safe DEX package-string compatibility rewriting is not implemented yet. OpenClone deliberately does not patch DEX integrity, signature, licensing, DRM, anti-cheat, or security checks. External bundle import requires a complete base APK plus matching split APKs; OBB expansion data is not imported. The optional icon badge marks the existing launcher icon with a coloured dot in one of four selectable corners. Clone update detection compares the original app's installed version code with the version recorded at clone build time. Rebuilding an update requires the original app to remain installed and a matching saved signing identity to be available.
 
 ## Technology
 
