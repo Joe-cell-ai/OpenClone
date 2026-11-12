@@ -137,7 +137,10 @@ class ApkCloneEngine(context: Context) {
                     patcher = patcher,
                     replacements = replacements,
                     extraEntry = metadataEntry,
-                    onStep = ensureActive
+                    onStep = ensureActive,
+                    onProgress = { localProgress ->
+                        onProgress(((index * 100) + localProgress) / sourceApks.size)
+                    }
                 )
 
                 ensureActive()

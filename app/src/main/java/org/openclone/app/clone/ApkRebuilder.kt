@@ -42,11 +42,14 @@ object ApkRebuilder {
         extraEntry: (() -> Pair<String, ByteArray>)?,
         originalManifest: ByteArray? = null,
         onStep: (() -> Unit)? = null,
+        onProgress: (Int) -> Unit = {},
     ) {
         val counter = CountingOutputStream(BufferedOutputStream(target.outputStream(), 1 shl 16))
         ZipFile(source).use { zip ->
             ZipOutputStream(counter).use { out ->
                 val seen = HashSet<String>()
+                val totalEntries = zip.entries().asSequence().count().coerceAtLeast(1)
+                var processedEntries = 0
                 // Patched up front: the resource table needs the old package name, and nothing
                 // says the manifest comes before it in the archive.
                 val manifest = zip.getEntry(MANIFEST)?.let { entry ->
@@ -57,7 +60,11 @@ object ApkRebuilder {
                 onStep?.invoke()
                 for (entry in zip.entries()) {
                     onStep?.invoke()
-                    if (entry.isDirectory || !seen.add(entry.name)) continue
+                    if (entry.isDirectory || !seen.add(entry.name)) {
+                        processedEntries++
+                        onProgress(processedEntries * 100 / totalEntries)
+                        continue
+                    }
                     if (SIGNATURE_FILE.matches(entry.name) || entry.name.startsWith("META-INF/apkclon") || entry.name == "META-INF/openclone.properties") continue
 
                     val copy = ZipEntry(entry.name).apply { if (entry.time != -1L) time = entry.time }
@@ -94,6 +101,8 @@ object ApkRebuilder {
                         zip.getInputStream(entry).use { copyChecked(it, out, onStep) }
                     }
                     out.closeEntry()
+                    processedEntries++
+                    onProgress(processedEntries * 100 / totalEntries)
                 }
                 extraEntry?.invoke()?.let { (name, data) ->
                     out.putNextEntry(ZipEntry(name))
