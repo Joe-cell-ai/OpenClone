@@ -30,11 +30,17 @@ class ApkInspector(private val context: Context) {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(tempFile).use { output -> input.copyTo(output) }
             } ?: error("The selected file could not be opened.")
-            val flags = if (Build.VERSION.SDK_INT >= 33) {
-                PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong())
-            } else PackageManager.GET_PERMISSIONS
-            val packageInfo = context.packageManager.getPackageArchiveInfo(tempFile.absolutePath, flags)
-                ?: error("This file is not a readable Android APK.")
+            val packageInfo = if (Build.VERSION.SDK_INT >= 33) {
+                context.packageManager.getPackageArchiveInfo(
+                    tempFile.absolutePath,
+                    PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong())
+                )
+            } else {
+                context.packageManager.getPackageArchiveInfo(
+                    tempFile.absolutePath,
+                    PackageManager.GET_PERMISSIONS
+                )
+            } ?: error("This file is not a readable Android APK.")
             val appInfo = packageInfo.applicationInfo ?: error("APK application metadata is missing.")
             appInfo.sourceDir = tempFile.absolutePath
             appInfo.publicSourceDir = tempFile.absolutePath
