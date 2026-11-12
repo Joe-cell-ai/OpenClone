@@ -12,4 +12,7 @@ data class InstalledClone(
 ) {
     val updateAvailable: Boolean
         get() = CloneUpdateStatus.isUpdateAvailable(sourceVersionCode, currentOriginalVersionCode)
+
+    val updateStatus: String
+        get() = CloneUpdateStatus.label(sourceVersionCode, currentOriginalVersionCode)
 }

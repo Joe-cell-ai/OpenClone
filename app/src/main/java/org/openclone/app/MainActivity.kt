@@ -567,7 +567,7 @@ private fun OpenCloneHome() {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(clones.filter { it.cloneLabel.contains(query, true) || it.clonePackage.contains(query, true) }, key = { it.clonePackage }) { clone ->
-                        InstalledAppRow(app = clone.app, onClick = { selectedClone = clone }, subtitle = when { clone.updateAvailable -> "Update available"; clone.currentOriginalVersionCode == null -> "Original app unavailable"; else -> "Up to date" })
+                        InstalledAppRow(app = clone.app, onClick = { selectedClone = clone }, subtitle = clone.updateStatus)
                     }
                 }
                 visibleApps.isEmpty() -> Column(
@@ -806,14 +806,7 @@ private fun OpenCloneHome() {
                     DetailLine("Signing key", clone.signingFingerprint.take(20) + "…")
                     DetailLine("Clone source version", clone.sourceVersionCode.takeIf { it > 0L }?.toString() ?: "Unknown")
                     DetailLine("Installed original version", clone.currentOriginalVersionCode?.toString() ?: "Original app not installed")
-                    DetailLine(
-                        "Update status",
-                        when {
-                            clone.updateAvailable -> "Update available"
-                            clone.currentOriginalVersionCode == null -> "Original app not installed"
-                            else -> "Up to date"
-                        }
-                    )
+                    DetailLine("Update status", clone.updateStatus)
                 }
             },
             confirmButton = {
