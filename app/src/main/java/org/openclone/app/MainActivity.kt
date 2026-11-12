@@ -271,7 +271,7 @@ private fun OpenCloneHome() {
 
     LaunchedEffect(includeSystem) { refreshApps() }
     LaunchedEffect(apps) {
-        clones = withContext(Dispatchers.IO) { InstalledCloneRepository().findClones(apps) }
+        clones = withContext(Dispatchers.IO) { InstalledCloneRepository(context.packageManager).findClones(apps) }
     }
 
     val visibleApps = remember(apps, query) {

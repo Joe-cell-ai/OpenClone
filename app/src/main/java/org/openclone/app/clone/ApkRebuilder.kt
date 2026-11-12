@@ -58,7 +58,7 @@ object ApkRebuilder {
                 onStep?.invoke()
                 for (entry in zip.entries()) {
                     if (entry.isDirectory || !seen.add(entry.name)) continue
-                    if (SIGNATURE_FILE.matches(entry.name) || entry.name.startsWith("META-INF/apkclon")) continue
+                    if (SIGNATURE_FILE.matches(entry.name) || entry.name.startsWith("META-INF/apkclon") || entry.name == "META-INF/openclone.properties") continue
 
                     val copy = ZipEntry(entry.name).apply { if (entry.time != -1L) time = entry.time }
                     if (entry.name == MANIFEST) {
