@@ -269,6 +269,8 @@ private fun OpenCloneHome() {
                         cloneError = null
                         cloneUpdateMode = false
                         markCloneIcon = true
+                        customIconPath = null
+                        badgePosition = BadgePosition.BOTTOM_RIGHT
                         statusMessage = "Imported ${source.apkFiles.size} APK component(s) from ${source.archiveName}."
                     },
                     onFailure = { statusMessage = it.message ?: "Could not import this APK bundle." }
@@ -621,6 +623,8 @@ private fun OpenCloneHome() {
                     clonePackage = suggestedClonePackage(app.packageName, context.packageManager)
                     cloneError = null
                     markCloneIcon = true
+                    customIconPath = null
+                    badgePosition = BadgePosition.BOTTOM_RIGHT
                     cloneUpdateMode = false
                     selectedApp = null
                 }) { Text("Create clone") }
@@ -837,6 +841,8 @@ private fun OpenCloneHome() {
                                 clonePackage = clone.clonePackage
                                 cloneUpdateMode = true
                                 cloneError = null
+                                customIconPath = null
+                                badgePosition = BadgePosition.BOTTOM_RIGHT
                                 selectedClone = null
                             }
                         }
