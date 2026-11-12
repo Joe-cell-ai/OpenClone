@@ -34,11 +34,12 @@ class ApkCloneEngine(context: Context) {
         newLabel: String,
         outputDirectory: File,
         onProgress: (Int) -> Unit = {},
-        markIcon: Boolean = true
+        markIcon: Boolean = true,
+        sourceVersionCode: Long = 0L
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
-        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon })
+        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon }, sourceVersionCode)
     }
 
     @Suppress("DEPRECATION")
@@ -49,7 +50,8 @@ class ApkCloneEngine(context: Context) {
         newLabel: String,
         outputDirectory: File,
         onProgress: (Int) -> Unit = {},
-        iconSource: android.content.pm.ApplicationInfo? = null
+        iconSource: android.content.pm.ApplicationInfo? = null,
+        sourceVersionCode: Long = 0L
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
@@ -86,6 +88,7 @@ class ApkCloneEngine(context: Context) {
                     val metadataText = listOf(
                         "format=1",
                         "originalPackage=$originalPackage",
+                        "sourceVersionCode=$sourceVersionCode",
                         "clonePackage=$newPackage",
                         "cloneLabelBase64=${java.util.Base64.getEncoder().encodeToString(newLabel.toByteArray(Charsets.UTF_8))}",
                         "createdAt=${System.currentTimeMillis()}",
