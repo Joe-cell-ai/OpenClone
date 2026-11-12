@@ -251,7 +251,8 @@ private fun OpenCloneHome() {
                         newLabel = targetLabel,
                         outputDirectory = File(context.cacheDir, "openclone/builds/$targetPackage"),
                         onProgress = { value -> scope.launch { cloneProgress = value } },
-                        markIcon = markCloneIcon
+                        markIcon = markCloneIcon,
+                        sourceVersionCode = source.versionCode
                     )
                 }
             }
@@ -495,6 +496,13 @@ private fun OpenCloneHome() {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     DetailLine("Clone package", clone.clonePackage)
                     DetailLine("Original package", clone.originalPackage)
+                    DetailLine("Source version at clone", if (clone.sourceVersionCode > 0L) clone.sourceVersionCode.toString() else "Not recorded (older clone)")
+                    clone.installedSourceVersionCode?.let { current ->
+                        DetailLine("Current source version", current.toString())
+                        if (clone.sourceUpdateAvailable) {
+                            Text("Source app updated — rebuild this clone to use the newer version.", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
                     DetailLine(
                         "Created",
                         java.text.DateFormat.getDateTimeInstance().format(java.util.Date(clone.createdAtMillis))
