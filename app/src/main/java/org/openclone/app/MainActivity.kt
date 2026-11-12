@@ -134,6 +134,7 @@ private fun OpenCloneHome() {
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingExport by remember { mutableStateOf<CloneBuildResult?>(null) }
     var showSigningKeys by remember { mutableStateOf(false) }
+    var showAbout by remember { mutableStateOf(false) }
     var signingAliases by remember { mutableStateOf<List<String>>(emptyList()) }
     var activeSigningAlias by remember { mutableStateOf<String?>(null) }
     var signingAliasInput by remember { mutableStateOf("") }
@@ -500,6 +501,7 @@ private fun OpenCloneHome() {
                 activeSigningAlias = keys.activeAlias
                 showSigningKeys = true
             }) { Text("Signing identities") }
+            TextButton(onClick = { showAbout = true }) { Text("About & licenses") }
             Spacer(Modifier.height(14.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -832,6 +834,39 @@ private fun OpenCloneHome() {
                         }
                     }) { Text("Uninstall") }
                     TextButton(onClick = { selectedClone = null }) { Text("Close") }
+                }
+            }
+        )
+    }
+
+    if (showAbout) {
+        AlertDialog(
+            onDismissRequest = { showAbout = false },
+            title = { Text("About OpenClone") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("OpenClone is free software licensed under GNU General Public License version 3 only (GPL-3.0-only).")
+                    Text("This program comes without warranty, to the extent permitted by applicable law.")
+                    Text("APK rebuilding components are adapted from APK Toolbox by bl3xand. ARSCLib is licensed under Apache License 2.0.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAbout = false
+                    runCatching {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Joe-cell-ai/OpenClone/blob/main/LICENSE")))
+                    }.onFailure { statusMessage = "Could not open the license page." }
+                }) { Text("View GPL license") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        showAbout = false
+                        runCatching {
+                            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/Joe-cell-ai/OpenClone/blob/main/THIRD_PARTY_NOTICES.md")))
+                        }.onFailure { statusMessage = "Could not open third-party notices." }
+                    }) { Text("Third-party notices") }
+                    TextButton(onClick = { showAbout = false }) { Text("Close") }
                 }
             }
         )
