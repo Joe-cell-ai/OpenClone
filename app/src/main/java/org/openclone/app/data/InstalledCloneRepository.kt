@@ -19,6 +19,8 @@ class InstalledCloneRepository(private val packageManager: PackageManager) {
                     val original = properties.getProperty("originalPackage").orEmpty()
                     val clonePackage = properties.getProperty("clonePackage").orEmpty()
                     val recordedFingerprint = properties.getProperty("signingFingerprint").orEmpty()
+                    val sourceVersionCode = properties.getProperty("sourceVersionCode")?.toLongOrNull() ?: 0L
+                    val installedSourceVersionCode = packageVersionCode(original)
                     val installedFingerprint = signingFingerprint(app.packageName)
                     if (
                         original.isBlank() ||
@@ -38,13 +40,25 @@ class InstalledCloneRepository(private val packageManager: PackageManager) {
                                 }.getOrNull()
                             } ?: app.label,
                             createdAtMillis = properties.getProperty("createdAt")?.toLongOrNull() ?: 0L,
-                            signingFingerprint = recordedFingerprint
+                            signingFingerprint = recordedFingerprint,
+                            sourceVersionCode = sourceVersionCode,
+                            installedSourceVersionCode = installedSourceVersionCode
                         )
                     }
                 }
             }.getOrNull()
         }.filterNotNull().sortedBy { it.cloneLabel.lowercase() }
     }
+
+    @Suppress("DEPRECATION")
+    private fun packageVersionCode(packageName: String): Long? = runCatching {
+        val info = if (Build.VERSION.SDK_INT >= 33) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0L))
+        } else {
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+    }.getOrNull()
 
     private fun signingFingerprint(packageName: String): String? = runCatching {
         val flags = if (Build.VERSION.SDK_INT >= 28) {
