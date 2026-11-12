@@ -246,11 +246,7 @@ class SigningKeys private constructor(private val context: Context) {
         return identities.values.firstOrNull { it.fingerprint.equals(fingerprint, ignoreCase = true) }
     }
 
-    private fun validateAlias(alias: String) {
-        require(alias.matches(Regex("[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}"))) {
-            "Use a signing identity name with 1–64 letters, numbers, spaces, dots, underscores, or hyphens."
-        }
-    }
+    private fun validateAlias(alias: String) = SigningIdentityAlias.validate(alias)
 
     private fun persist() {
         if (identities.isEmpty()) {
