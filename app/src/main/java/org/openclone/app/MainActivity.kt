@@ -64,6 +64,8 @@ import org.openclone.app.clone.CloneBuildResult
 import org.openclone.app.clone.CloneInstaller
 import org.openclone.app.data.ApkInspection
 import org.openclone.app.data.ApkInspector
+import org.openclone.app.data.ExternalApkSet
+import org.openclone.app.data.ExternalApkImporter
 import org.openclone.app.data.InstalledApp
 import org.openclone.app.data.InstalledAppRepository
 import org.openclone.app.data.InstalledClone
@@ -93,6 +95,7 @@ private fun OpenCloneHome() {
     var includeSystem by remember { mutableStateOf(false) }
     var loading by remember { mutableStateOf(true) }
     var selectedApp by remember { mutableStateOf<InstalledApp?>(null) }
+    var externalSource by remember { mutableStateOf<ExternalApkSet?>(null) }
     var inspection by remember { mutableStateOf<ApkInspection?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var showClones by remember { mutableStateOf(false) }
@@ -175,6 +178,31 @@ private fun OpenCloneHome() {
         }
     }
 
+    val importBundle = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            loading = true
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching { ExternalApkImporter(context).import(uri) }
+                }
+                result.fold(
+                    onSuccess = { source ->
+                        externalSource = source
+                        cloneSource = null
+                        cloneName = "${source.label} Clone".take(100)
+                        clonePackage = suggestedClonePackage(source.packageName, context.packageManager)
+                        cloneError = null
+                        cloneUpdateMode = false
+                        markCloneIcon = true
+                        statusMessage = "Imported ${source.apkFiles.size} APK component(s) from ${source.archiveName}."
+                    },
+                    onFailure = { statusMessage = it.message ?: "Could not import this APK bundle." }
+                )
+                loading = false
+            }
+        }
+    }
+
     val exportClone = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/zip")
     ) { uri: Uri? ->
@@ -228,7 +256,10 @@ private fun OpenCloneHome() {
     }
 
     fun startCloneBuild() {
-        val source = cloneSource ?: return
+        val installedSource = cloneSource
+        val importedSource = externalSource
+        if (installedSource == null && importedSource == null) return
+        val sourcePackage = installedSource?.packageName ?: importedSource!!.packageName
         val targetPackage = clonePackage.trim()
         val targetLabel = cloneName.trim()
         cloneError = null
@@ -245,16 +276,31 @@ private fun OpenCloneHome() {
         scope.launch {
             val outcome = withContext(Dispatchers.IO) {
                 runCatching {
-                    ApkCloneEngine(context).buildInstalled(
-                        applicationInfo = source.applicationInfo,
-                        originalPackage = source.packageName,
-                        newPackage = targetPackage,
-                        newLabel = targetLabel,
-                        outputDirectory = File(context.cacheDir, "openclone/builds/$targetPackage"),
-                        onProgress = { value -> scope.launch { cloneProgress = value } },
-                        markIcon = markCloneIcon,
-                        allowUpdate = cloneUpdateMode
-                    )
+                    val engine = ApkCloneEngine(context)
+                    val outputDirectory = File(context.cacheDir, "openclone/builds/$targetPackage")
+                    if (installedSource != null) {
+                        engine.buildInstalled(
+                            applicationInfo = installedSource.applicationInfo,
+                            originalPackage = sourcePackage,
+                            newPackage = targetPackage,
+                            newLabel = targetLabel,
+                            outputDirectory = outputDirectory,
+                            onProgress = { value -> scope.launch { cloneProgress = value } },
+                            markIcon = markCloneIcon,
+                            allowUpdate = cloneUpdateMode
+                        )
+                    } else {
+                        engine.build(
+                            sourceApks = importedSource!!.apkFiles,
+                            originalPackage = sourcePackage,
+                            newPackage = targetPackage,
+                            newLabel = targetLabel,
+                            outputDirectory = outputDirectory,
+                            onProgress = { value -> scope.launch { cloneProgress = value } },
+                            iconSource = null,
+                            allowUpdate = cloneUpdateMode
+                        )
+                    }
                 }
             }
             cloneBuilding = false
@@ -262,6 +308,7 @@ private fun OpenCloneHome() {
                 onSuccess = {
                     cloneResult = it
                     cloneSource = null
+                    externalSource = null
                     statusMessage = "Clone APK set built and signature-verified."
                 },
                 onFailure = {
@@ -297,6 +344,10 @@ private fun OpenCloneHome() {
                     Text("Refresh apps")
                 }
             }
+            Button(
+                onClick = { importBundle.launch(arrayOf("*/*")) },
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Import APK / bundle to clone") }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { showClones = false }) { Text("Installed apps") }
@@ -403,9 +454,11 @@ private fun OpenCloneHome() {
         )
     }
 
-    cloneSource?.let { source ->
+    if (cloneSource != null || externalSource != null) {
+        val sourcePackage = cloneSource?.packageName ?: externalSource!!.packageName
+        val sourceLabel = cloneSource?.label ?: externalSource!!.label
         AlertDialog(
-            onDismissRequest = { if (!cloneBuilding) { cloneSource = null; cloneUpdateMode = false } },
+            onDismissRequest = { if (!cloneBuilding) { cloneSource = null; externalSource = null; cloneUpdateMode = false } },
             title = { Text(if (cloneUpdateMode) "Update clone" else "Customize clone") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -424,7 +477,7 @@ private fun OpenCloneHome() {
                         label = { Text("New package ID") }
                     )
                     Text(
-                        "Original: ${source.packageName}",
+                        "Original: $sourcePackage · $sourceLabel",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.secondary
                     )
@@ -454,7 +507,7 @@ private fun OpenCloneHome() {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { cloneSource = null; cloneUpdateMode = false }, enabled = !cloneBuilding) { Text("Cancel") }
+                TextButton(onClick = { cloneSource = null; externalSource = null; cloneUpdateMode = false }, enabled = !cloneBuilding) { Text("Cancel") }
             }
         )
     }
