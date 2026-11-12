@@ -6,6 +6,9 @@ import android.os.Build
 import com.android.apksig.ApkSigner
 import com.android.apksig.ApkVerifier
 import java.io.File
+import java.security.MessageDigest
+import java.util.Properties
+import java.util.zip.ZipFile
 
 data class CloneBuildResult(
     val originalPackage: String,
@@ -34,11 +37,12 @@ class ApkCloneEngine(context: Context) {
         newLabel: String,
         outputDirectory: File,
         onProgress: (Int) -> Unit = {},
-        markIcon: Boolean = true
+        markIcon: Boolean = true,
+        allowUpdate: Boolean = false
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
-        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon })
+        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon }, allowUpdate)
     }
 
     @Suppress("DEPRECATION")
@@ -49,7 +53,8 @@ class ApkCloneEngine(context: Context) {
         newLabel: String,
         outputDirectory: File,
         onProgress: (Int) -> Unit = {},
-        iconSource: android.content.pm.ApplicationInfo? = null
+        iconSource: android.content.pm.ApplicationInfo? = null,
+        allowUpdate: Boolean = false
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
@@ -60,6 +65,7 @@ class ApkCloneEngine(context: Context) {
         require(newLabel.isNotBlank() && newLabel.length <= 100) {
             "The app name must contain 1–100 characters."
         }
+        val signingKey = signingKeys.active
         val existing = runCatching {
             if (Build.VERSION.SDK_INT >= 33) {
                 packageManager.getApplicationInfo(newPackage, PackageManager.ApplicationInfoFlags.of(0L))
@@ -67,14 +73,17 @@ class ApkCloneEngine(context: Context) {
                 packageManager.getApplicationInfo(newPackage, 0)
             }
         }.getOrNull()
-        require(existing == null) { "An app with package ID $newPackage is already installed." }
+        if (existing != null) {
+            require(allowUpdate && isMatchingOpenClone(existing, originalPackage, newPackage, signingKey.fingerprint)) {
+                "An app with package ID $newPackage is already installed. OpenClone only updates clones created with this signing key."
+            }
+        }
 
         outputDirectory.deleteRecursively()
         check(outputDirectory.mkdirs()) { "Could not create the clone output directory." }
         val unsigned = File(outputDirectory, "unsigned.tmp")
         val outputs = mutableListOf<File>()
         try {
-            val signingKey = signingKeys.active
             var iconBadgeApplied = false
             sourceApks.forEachIndexed { index, source ->
                 val replacements = if (index == 0 && iconSource != null) {
@@ -131,6 +140,42 @@ class ApkCloneEngine(context: Context) {
             unsigned.delete()
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun isMatchingOpenClone(
+        installedInfo: android.content.pm.ApplicationInfo,
+        originalPackage: String,
+        clonePackage: String,
+        fingerprint: String
+    ): Boolean {
+        val path = installedInfo.sourceDir ?: return false
+        val metadata = runCatching {
+            ZipFile(path).use { zip ->
+                val entry = zip.getEntry("META-INF/openclone.properties") ?: return@use null
+                Properties().apply { zip.getInputStream(entry).use { load(it) } }
+            }
+        }.getOrNull() ?: return false
+        if (metadata.getProperty("originalPackage") != originalPackage ||
+            metadata.getProperty("clonePackage") != clonePackage ||
+            metadata.getProperty("signingFingerprint") != fingerprint) return false
+        return installedSigningFingerprint(clonePackage) == fingerprint
+    }
+
+    @Suppress("DEPRECATION")
+    private fun installedSigningFingerprint(packageName: String): String? = runCatching {
+        val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
+        val info = if (Build.VERSION.SDK_INT >= 33) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(flags.toLong()))
+        } else {
+            packageManager.getPackageInfo(packageName, flags)
+        }
+        val certificate = if (Build.VERSION.SDK_INT >= 28) {
+            info.signingInfo?.apkContentsSigners?.firstOrNull()?.toByteArray()
+        } else {
+            info.signatures?.firstOrNull()?.toByteArray()
+        } ?: return null
+        MessageDigest.getInstance("SHA-256").digest(certificate).joinToString(":") { "%02X".format(it) }
+    }.getOrNull()
 
     companion object {
         val PACKAGE_NAME = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")

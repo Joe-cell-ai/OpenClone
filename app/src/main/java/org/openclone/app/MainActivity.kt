@@ -106,6 +106,7 @@ private fun OpenCloneHome() {
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
     var cloneError by remember { mutableStateOf<String?>(null) }
+    var cloneUpdateMode by remember { mutableStateOf(false) }
     var cloneResult by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingExport by remember { mutableStateOf<CloneBuildResult?>(null) }
@@ -251,7 +252,8 @@ private fun OpenCloneHome() {
                         newLabel = targetLabel,
                         outputDirectory = File(context.cacheDir, "openclone/builds/$targetPackage"),
                         onProgress = { value -> scope.launch { cloneProgress = value } },
-                        markIcon = markCloneIcon
+                        markIcon = markCloneIcon,
+                        allowUpdate = cloneUpdateMode
                     )
                 }
             }
@@ -393,6 +395,7 @@ private fun OpenCloneHome() {
                     clonePackage = suggestedClonePackage(app.packageName, context.packageManager)
                     cloneError = null
                     markCloneIcon = true
+                    cloneUpdateMode = false
                     selectedApp = null
                 }) { Text("Create clone") }
             },
@@ -403,7 +406,7 @@ private fun OpenCloneHome() {
     cloneSource?.let { source ->
         AlertDialog(
             onDismissRequest = { if (!cloneBuilding) cloneSource = null },
-            title = { Text("Customize clone") },
+            title = { Text(if (cloneUpdateMode) "Update clone" else "Customize clone") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
@@ -440,18 +443,18 @@ private fun OpenCloneHome() {
                         Switch(checked = markCloneIcon, onCheckedChange = { markCloneIcon = it })
                     }
                     Text(
-                        "A new signing key is generated for this OpenClone installation and kept encrypted in app-private storage. Cloned apps will not share data with the original.",
+                        if (cloneUpdateMode) "The update is signed with the same OpenClone key. Android should preserve this clone's existing data if the update is accepted." else "A new signing key is generated for this OpenClone installation and kept encrypted in app-private storage. Cloned apps will not share data with the original.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
             },
             confirmButton = {
                 TextButton(onClick = { startCloneBuild() }, enabled = !cloneBuilding) {
-                    Text(if (cloneBuilding) "Building…" else "Build clone")
+                    Text(if (cloneBuilding) "Building…" else if (cloneUpdateMode) "Build update" else "Build clone")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { cloneSource = null }, enabled = !cloneBuilding) { Text("Cancel") }
+                TextButton(onClick = { cloneSource = null; cloneUpdateMode = false }, enabled = !cloneBuilding) { Text("Cancel") }
             }
         )
     }
@@ -473,7 +476,7 @@ private fun OpenCloneHome() {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { installClone(result) }) { Text("Install clone") }
+                TextButton(onClick = { installClone(result) }) { Text(if (cloneUpdateMode) "Install update" else "Install clone") }
             },
             dismissButton = {
                 Row {
@@ -481,7 +484,7 @@ private fun OpenCloneHome() {
                         pendingExport = result
                         exportClone.launch("${result.clonePackage}-clone-apk-set.zip")
                     }) { Text("Export") }
-                    TextButton(onClick = { cloneResult = null }) { Text("Close") }
+                    TextButton(onClick = { cloneResult = null; cloneUpdateMode = false }) { Text("Close") }
                 }
             }
         )
@@ -511,6 +514,19 @@ private fun OpenCloneHome() {
             },
             dismissButton = {
                 Row {
+                    TextButton(onClick = {
+                        val original = apps.firstOrNull { it.packageName == clone.originalPackage }
+                        if (original == null) {
+                            statusMessage = "The original app must be installed before this clone can be updated."
+                        } else {
+                            cloneSource = original
+                            cloneName = clone.cloneLabel
+                            clonePackage = clone.clonePackage
+                            cloneUpdateMode = true
+                            cloneError = null
+                            selectedClone = null
+                        }
+                    }) { Text("Update") }
                     TextButton(onClick = {
                         scope.launch {
                             val outcome = withContext(Dispatchers.IO) {
