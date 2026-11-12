@@ -56,15 +56,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
+import androidx.lifecycle.Observer
+import androidx.work.Data
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkInfo
+import androidx.work.WorkManager
 import kotlinx.coroutines.Dispatchers
-import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.CancellationException
+import java.util.UUID
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.openclone.app.clone.ApkCloneEngine
 import org.openclone.app.clone.BadgePosition
 import org.openclone.app.clone.CloneBuildResult
 import org.openclone.app.clone.CloneInstaller
+import org.openclone.app.clone.CloneBuildWorker
 import org.openclone.app.data.ApkInspection
 import org.openclone.app.data.ApkInspector
 import org.openclone.app.data.ExternalApkSet
@@ -109,7 +114,8 @@ private fun OpenCloneHome() {
     var cloneName by remember { mutableStateOf("") }
     var clonePackage by remember { mutableStateOf("") }
     var cloneBuilding by remember { mutableStateOf(false) }
-    var cloneBuildCancellation by remember { mutableStateOf<AtomicBoolean?>(null) }
+    var cloneWorkId by remember { mutableStateOf<UUID?>(null) }
+    var cloneWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
@@ -276,57 +282,72 @@ private fun OpenCloneHome() {
             cloneError = "The app name must contain 1–100 characters."
             return
         }
+
+        val sourceApks = installedSource?.let { source ->
+            (listOfNotNull(source.applicationInfo.sourceDir) + source.applicationInfo.splitSourceDirs.orEmpty()).map(::File)
+        } ?: importedSource!!.apkFiles
+        val input = Data.Builder()
+            .putStringArray(CloneBuildWorker.KEY_SOURCE_APKS, sourceApks.map { it.absolutePath }.toTypedArray())
+            .putString(CloneBuildWorker.KEY_ORIGINAL_PACKAGE, sourcePackage)
+            .putString(CloneBuildWorker.KEY_CLONE_PACKAGE, targetPackage)
+            .putString(CloneBuildWorker.KEY_CLONE_LABEL, targetLabel)
+            .putBoolean(CloneBuildWorker.KEY_MARK_ICON, markCloneIcon && installedSource != null)
+            .putBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, cloneUpdateMode)
+            .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)
+            .putString(CloneBuildWorker.KEY_BADGE_POSITION, badgePosition.name)
+            .build()
+        val request = OneTimeWorkRequestBuilder<CloneBuildWorker>()
+            .setInputData(input)
+            .build()
+        WorkManager.getInstance(context).enqueue(request)
+        cloneWorkId = request.id
+        cloneWorkInfo = null
         cloneBuilding = true
         cloneProgress = 0
-        val cancellation = AtomicBoolean(false)
-        cloneBuildCancellation = cancellation
-        scope.launch {
-            val outcome = withContext(Dispatchers.IO) {
-                runCatching {
-                    val engine = ApkCloneEngine(context)
-                    val outputDirectory = File(context.cacheDir, "openclone/builds/$targetPackage")
-                    if (installedSource != null) {
-                        engine.buildInstalled(
-                            applicationInfo = installedSource.applicationInfo,
-                            originalPackage = sourcePackage,
-                            newPackage = targetPackage,
-                            newLabel = targetLabel,
-                            outputDirectory = outputDirectory,
-                            onProgress = { value -> scope.launch { cloneProgress = value } },
-                            markIcon = markCloneIcon,
-                            allowUpdate = cloneUpdateMode,
-                            ensureActive = { if (cancellation.get()) throw CancellationException("Clone build cancelled by user.") },
-                            badgePosition = badgePosition
-                        )
-                    } else {
-                        engine.build(
-                            sourceApks = importedSource!!.apkFiles,
-                            originalPackage = sourcePackage,
-                            newPackage = targetPackage,
-                            newLabel = targetLabel,
-                            outputDirectory = outputDirectory,
-                            onProgress = { value -> scope.launch { cloneProgress = value } },
-                            iconSource = null,
-                            allowUpdate = cloneUpdateMode,
-                            ensureActive = { if (cancellation.get()) throw CancellationException("Clone build cancelled by user.") },
-                            badgePosition = badgePosition
-                        )
+    }
+
+    DisposableEffect(context, cloneWorkId) {
+        val workId = cloneWorkId
+        if (workId == null) {
+            onDispose { }
+        } else {
+            val liveData = WorkManager.getInstance(context).getWorkInfoByIdLiveData(workId)
+            val observer = Observer<WorkInfo?> { info ->
+                if (info != null) {
+                    cloneWorkInfo = info
+                    cloneProgress = info.progress.getInt(CloneBuildWorker.KEY_PROGRESS, cloneProgress)
+                    if (info.state.isFinished) {
+                        cloneBuilding = false
+                        cloneWorkId = null
+                        when (info.state) {
+                            WorkInfo.State.SUCCEEDED -> {
+                                val outputFiles = info.outputData.getStringArray(CloneBuildWorker.KEY_OUTPUT_APKS)
+                                    ?.map(::File).orEmpty()
+                                if (outputFiles.isNotEmpty() && outputFiles.all { it.isFile }) {
+                                    cloneResult = CloneBuildResult(
+                                        originalPackage = info.outputData.getString(CloneBuildWorker.KEY_ORIGINAL_PACKAGE).orEmpty(),
+                                        clonePackage = info.outputData.getString(CloneBuildWorker.KEY_CLONE_PACKAGE).orEmpty(),
+                                        cloneLabel = info.outputData.getString(CloneBuildWorker.KEY_CLONE_LABEL).orEmpty(),
+                                        apks = outputFiles,
+                                        iconBadgeApplied = info.outputData.getBoolean(CloneBuildWorker.KEY_ICON_BADGE_APPLIED, false)
+                                    )
+                                    cloneSource = null
+                                    externalSource = null
+                                    statusMessage = "Clone APK set built and signature-verified."
+                                } else {
+                                    cloneError = "The background build finished without all expected APK files."
+                                }
+                            }
+                            WorkInfo.State.CANCELLED -> cloneError = "Clone build cancelled."
+                            WorkInfo.State.FAILED -> cloneError = info.outputData.getString(CloneBuildWorker.KEY_ERROR)
+                                ?: "Clone build failed."
+                            else -> Unit
+                        }
                     }
                 }
             }
-            cloneBuilding = false
-            cloneBuildCancellation = null
-            outcome.fold(
-                onSuccess = {
-                    cloneResult = it
-                    cloneSource = null
-                    externalSource = null
-                    statusMessage = "Clone APK set built and signature-verified."
-                },
-                onFailure = {
-                    cloneError = it.message ?: "Clone build failed."
-                }
-            )
+            liveData.observeForever(observer)
+            onDispose { liveData.removeObserver(observer) }
         }
     }
 
@@ -537,7 +558,7 @@ private fun OpenCloneHome() {
                 TextButton(
                     onClick = {
                         if (cloneBuilding) {
-                            cloneBuildCancellation?.set(true)
+                            cloneWorkId?.let { WorkManager.getInstance(context).cancelWorkById(it) }
                         } else {
                             cloneSource = null
                             externalSource = null
