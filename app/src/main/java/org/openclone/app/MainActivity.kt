@@ -210,9 +210,19 @@ private fun OpenCloneHome() {
             scope.launch {
                 val outcome = withContext(Dispatchers.IO) {
                     runCatching {
-                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                            ?: error("Could not read the selected image.")
-                        require(bytes.size <= 10 * 1024 * 1024) { "Choose an image smaller than 10 MB." }
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
+                            val buffer = ByteArrayOutputStream()
+                            val chunk = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = input.read(chunk)
+                                if (count < 0) break
+                                total += count
+                                require(total <= 10 * 1024 * 1024) { "Choose an image smaller than 10 MB." }
+                                buffer.write(chunk, 0, count)
+                            }
+                            buffer.toByteArray()
+                        } ?: error("Could not read the selected image.")
                         val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
                             ?: error("The selected file is not a supported image.")
                         require(bitmap.width in 1..4096 && bitmap.height in 1..4096) {
