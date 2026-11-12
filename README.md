@@ -15,12 +15,13 @@ OpenClone is an open-source Android app cloner and APK inspection tool.
 - Install the rebuilt APK set through Android's PackageInstaller confirmation flow.
 - Export the rebuilt APK set as a ZIP archive.
 - Browse OpenClone-created clones, launch them, and uninstall them with Android's system confirmation.
+- Record the source app version in clone metadata and detect when the installed original app has a newer version.
 
 ## Compatibility limitations
 
 No cloner can guarantee that every Android app will work after cloning. OpenClone currently changes the binary manifest and resource table, but does not rewrite arbitrary DEX string constants or bypass app integrity checks. Apps that hard-code their original package name, check their signing certificate, use package-bound Google services, licensing, anti-cheat, DRM, or server-side registration may fail or refuse to run. Clones start with separate, empty app data; original app data and sign-ins are not copied.
 
-User-selected custom icon upload, DEX compatibility patches, clone update management, and clone uninstall management are not implemented yet. The optional icon badge marks the existing launcher icon with a coloured dot.
+User-selected custom icon upload, DEX compatibility patches, and automatic clone rebuilding after a source update are not implemented yet. Existing clones created before source-version metadata was added cannot be checked for source updates. The optional icon badge marks the existing launcher icon with a coloured dot.
 
 ## Technology
 
