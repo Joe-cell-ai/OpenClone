@@ -92,8 +92,14 @@ class SigningKeys private constructor(private val context: Context) {
     fun select(alias: String) {
         ensureLoaded()
         require(alias in identities) { "No signing identity named \"$alias\" exists." }
+        val previous = selectedAlias
         selectedAlias = alias
-        persist()
+        try {
+            persist()
+        } catch (error: Exception) {
+            selectedAlias = previous
+            throw error
+        }
     }
 
     /** Creates a new RSA identity and makes it active. [alias] is the name shown in OpenClone. */
@@ -104,9 +110,16 @@ class SigningKeys private constructor(private val context: Context) {
         require(alias !in identities) { "A signing identity named \"$alias\" already exists." }
         val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(KEY_BITS) }.generateKeyPair()
         val certificate = SelfSignedCertificate.create(pair.private, pair.public.encoded, commonName, VALIDITY_YEARS)
+        val previous = selectedAlias
         identities[alias] = SigningKey(pair.private, certificate)
         selectedAlias = alias
-        persist()
+        try {
+            persist()
+        } catch (error: Exception) {
+            identities.remove(alias)
+            selectedAlias = previous
+            throw error
+        }
     }
 
     /** Backwards-compatible convenience method: creates a unique alias from the common name. */
@@ -155,9 +168,16 @@ class SigningKeys private constructor(private val context: Context) {
                 val targetAlias = identityAlias.ifBlank { entryAlias }
                 validateAlias(targetAlias)
                 require(targetAlias !in identities) { "A signing identity named \"$targetAlias\" already exists." }
+                val previous = selectedAlias
                 identities[targetAlias] = SigningKey(key, certificate)
                 selectedAlias = targetAlias
-                persist()
+                try {
+                    persist()
+                } catch (error: Exception) {
+                    identities.remove(targetAlias)
+                    selectedAlias = previous
+                    throw error
+                }
                 return
             } catch (error: Exception) {
                 failure = error
@@ -190,9 +210,16 @@ class SigningKeys private constructor(private val context: Context) {
     fun delete(alias: String) {
         ensureLoaded()
         require(alias in identities) { "No signing identity named \"$alias\" exists." }
-        identities.remove(alias)
+        val removed = identities.remove(alias)
+        val previous = selectedAlias
         if (selectedAlias == alias) selectedAlias = identities.keys.firstOrNull()
-        persist()
+        try {
+            persist()
+        } catch (error: Exception) {
+            identities[alias] = removed ?: error("Signing identity disappeared during deletion.")
+            selectedAlias = previous
+            throw error
+        }
     }
 
     /** Removes every custom identity. A new per-install key is created on next use. */
@@ -202,6 +229,8 @@ class SigningKeys private constructor(private val context: Context) {
         selectedAlias = null
         storage.delete()
         legacyStorage.delete()
+        File(storage.parentFile, "keys.tmp").delete()
+        loadFailure = null
     }
 
     /** Finds the identity that signed an installed clone, even if it is not currently selected. */
