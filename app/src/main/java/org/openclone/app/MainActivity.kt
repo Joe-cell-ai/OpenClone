@@ -34,6 +34,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -71,6 +72,7 @@ import org.openclone.app.clone.BadgePosition
 import org.openclone.app.clone.CloneBuildResult
 import org.openclone.app.clone.CloneInstaller
 import org.openclone.app.clone.CloneBuildWorker
+import org.openclone.app.clone.SigningKeys
 import org.openclone.app.data.ApkInspection
 import org.openclone.app.data.ApkInspector
 import org.openclone.app.data.ExternalApkSet
@@ -125,6 +127,11 @@ private fun OpenCloneHome() {
     var cloneResult by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingExport by remember { mutableStateOf<CloneBuildResult?>(null) }
+    var showSigningKeys by remember { mutableStateOf(false) }
+    var signingAliases by remember { mutableStateOf<List<String>>(emptyList()) }
+    var activeSigningAlias by remember { mutableStateOf<String?>(null) }
+    var signingAliasInput by remember { mutableStateOf("") }
+    var signingMessage by remember { mutableStateOf<String?>(null) }
 
     fun refreshApps() {
         loading = true
@@ -369,6 +376,12 @@ private fun OpenCloneHome() {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 18.dp)) {
             Text("OpenClone", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
             Text("Installed app browser", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+            TextButton(onClick = {
+                val keys = SigningKeys.get(context)
+                signingAliases = keys.identityAliases
+                activeSigningAlias = keys.activeAlias
+                showSigningKeys = true
+            }) { Text("Signing identities") }
             Spacer(Modifier.height(14.dp))
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -655,6 +668,68 @@ private fun OpenCloneHome() {
                     TextButton(onClick = { selectedClone = null }) { Text("Close") }
                 }
             }
+        )
+    }
+
+    if (showSigningKeys) {
+        AlertDialog(
+            onDismissRequest = { showSigningKeys = false },
+            title = { Text("Signing identities") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Select the signing identity used for new clones and updates.")
+                    if (signingAliases.isEmpty()) {
+                        Text("No custom identities are stored yet.")
+                    }
+                    signingAliases.forEach { alias ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(
+                                selected = activeSigningAlias == alias,
+                                onClick = {
+                                    runCatching { SigningKeys.get(context).select(alias) }
+                                        .onSuccess {
+                                            activeSigningAlias = alias
+                                            signingMessage = "Active identity changed."
+                                        }
+                                        .onFailure { signingMessage = it.message }
+                                }
+                            )
+                            Text(alias)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = signingAliasInput,
+                        onValueChange = { signingAliasInput = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("New identity name") }
+                    )
+                    TextButton(onClick = {
+                        val alias = signingAliasInput.trim()
+                        if (alias.isBlank()) {
+                            signingMessage = "Enter an identity name."
+                        } else {
+                            runCatching { SigningKeys.get(context).generate(alias, "OpenClone " + alias) }
+                                .onSuccess {
+                                    val keys = SigningKeys.get(context)
+                                    signingAliases = keys.identityAliases
+                                    activeSigningAlias = keys.activeAlias
+                                    signingAliasInput = ""
+                                    signingMessage = "New identity created and selected."
+                                }
+                                .onFailure { signingMessage = it.message }
+                        }
+                    }) { Text("Create identity") }
+                    signingMessage?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    }
+                    Text(
+                        "Private keys are encrypted with Android Keystore. PKCS#12 password-protected backup and restore are supported by the signing-key service.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { showSigningKeys = false }) { Text("Done") } }
         )
     }
 
