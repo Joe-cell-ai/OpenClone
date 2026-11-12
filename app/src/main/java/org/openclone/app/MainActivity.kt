@@ -66,6 +66,8 @@ import org.openclone.app.data.ApkInspection
 import org.openclone.app.data.ApkInspector
 import org.openclone.app.data.InstalledApp
 import org.openclone.app.data.InstalledAppRepository
+import org.openclone.app.data.InstalledClone
+import org.openclone.app.data.InstalledCloneRepository
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -93,6 +95,9 @@ private fun OpenCloneHome() {
     var selectedApp by remember { mutableStateOf<InstalledApp?>(null) }
     var inspection by remember { mutableStateOf<ApkInspection?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
+    var showClones by remember { mutableStateOf(false) }
+    var clones by remember { mutableStateOf<List<InstalledClone>>(emptyList()) }
+    var selectedClone by remember { mutableStateOf<InstalledClone?>(null) }
 
     var cloneSource by remember { mutableStateOf<InstalledApp?>(null) }
     var cloneName by remember { mutableStateOf("") }
@@ -201,12 +206,13 @@ private fun OpenCloneHome() {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 val packageName = intent.getStringExtra(CloneInstaller.EXTRA_PACKAGE_NAME).orEmpty()
+                val operation = intent.getStringExtra(CloneInstaller.EXTRA_OPERATION).orEmpty()
                 val status = intent.getIntExtra(CloneInstaller.EXTRA_STATUS, -1)
                 val detail = intent.getStringExtra(CloneInstaller.EXTRA_STATUS_MESSAGE).orEmpty()
                 statusMessage = if (status == android.content.pm.PackageInstaller.STATUS_SUCCESS) {
-                    "Clone installed successfully: $packageName"
+                    if (operation == "uninstall") "Clone uninstalled: $packageName" else "Clone installed successfully: $packageName"
                 } else {
-                    "Installation failed for $packageName${if (detail.isBlank()) "" else ": $detail"}"
+                    "${if (operation == "uninstall") "Uninstall" else "Installation"} failed for $packageName${if (detail.isBlank()) "" else ": $detail"}"
                 }
                 refreshApps()
             }
@@ -264,6 +270,9 @@ private fun OpenCloneHome() {
     }
 
     LaunchedEffect(includeSystem) { refreshApps() }
+    LaunchedEffect(apps) {
+        clones = withContext(Dispatchers.IO) { InstalledCloneRepository().findClones(apps) }
+    }
 
     val visibleApps = remember(apps, query) {
         apps.filter {
@@ -287,13 +296,17 @@ private fun OpenCloneHome() {
                 }
             }
 
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { showClones = false }) { Text("Installed apps") }
+                TextButton(onClick = { showClones = true }) { Text("My clones (${clones.size})") }
+            }
             Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                label = { Text("Search installed apps") }
+                label = { Text(if (showClones) "Search clones" else "Search installed apps") }
             )
             Row(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
@@ -315,6 +328,19 @@ private fun OpenCloneHome() {
                     CircularProgressIndicator()
                     Spacer(Modifier.height(12.dp))
                     Text("Loading app information…")
+                }
+                showClones && clones.isEmpty() -> Column(
+                    modifier = Modifier.fillMaxWidth().weight(1f),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) { Text("No OpenClone clones found yet.") }
+                showClones -> LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(clones.filter { it.cloneLabel.contains(query, true) || it.clonePackage.contains(query, true) }, key = { it.clonePackage }) { clone ->
+                        InstalledAppRow(app = clone.app, onClick = { selectedClone = clone })
+                    }
                 }
                 visibleApps.isEmpty() -> Column(
                     modifier = Modifier.fillMaxWidth().weight(1f),
@@ -456,6 +482,48 @@ private fun OpenCloneHome() {
                         exportClone.launch("${result.clonePackage}-clone-apk-set.zip")
                     }) { Text("Export") }
                     TextButton(onClick = { cloneResult = null }) { Text("Close") }
+                }
+            }
+        )
+    }
+
+    selectedClone?.let { clone ->
+        AlertDialog(
+            onDismissRequest = { selectedClone = null },
+            title = { Text(clone.cloneLabel) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    DetailLine("Clone package", clone.clonePackage)
+                    DetailLine("Original package", clone.originalPackage)
+                    DetailLine(
+                        "Created",
+                        java.text.DateFormat.getDateTimeInstance().format(java.util.Date(clone.createdAtMillis))
+                    )
+                    DetailLine("Signing key", clone.signingFingerprint.take(20) + "…")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val launchIntent = context.packageManager.getLaunchIntentForPackage(clone.clonePackage)
+                    if (launchIntent != null) context.startActivity(launchIntent)
+                    else statusMessage = "No launcher activity was found for this clone."
+                }) { Text("Open clone") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        scope.launch {
+                            val outcome = withContext(Dispatchers.IO) {
+                                runCatching { CloneInstaller.uninstall(context, clone.clonePackage) }
+                            }
+                            statusMessage = outcome.fold(
+                                onSuccess = { "Uninstall request sent. Confirm the Android system prompt." },
+                                onFailure = { it.message ?: "Could not start uninstall." }
+                            )
+                            selectedClone = null
+                        }
+                    }) { Text("Uninstall") }
+                    TextButton(onClick = { selectedClone = null }) { Text("Close") }
                 }
             }
         )

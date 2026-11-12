@@ -82,6 +82,19 @@ class ApkCloneEngine(context: Context) {
                         iconBadgeApplied = it.isNotEmpty()
                     }
                 } else emptyMap()
+                val metadataEntry: (() -> Pair<String, ByteArray>)? = if (index == 0) {
+                    val metadataText = listOf(
+                        "format=1",
+                        "originalPackage=$originalPackage",
+                        "clonePackage=$newPackage",
+                        "cloneLabel=$newLabel",
+                        "createdAt=${System.currentTimeMillis()}",
+                        "signingFingerprint=${signingKey.fingerprint}"
+                    ).joinToString(separator = "\n", postfix = "\n")
+                    ({
+                        "META-INF/openclone.properties" to metadataText.toByteArray(Charsets.UTF_8)
+                    })
+                } else null
                 val patcher = ManifestPatcher(
                     newPackage = newPackage,
                     newLabel = newLabel.takeIf { index == 0 },
@@ -92,7 +105,7 @@ class ApkCloneEngine(context: Context) {
                     target = unsigned,
                     patcher = patcher,
                     replacements = replacements,
-                    extraEntry = null
+                    extraEntry = metadataEntry
                 )
 
                 val output = File(outputDirectory, if (index == 0) "base.apk" else "split_$index.apk")
