@@ -38,7 +38,7 @@ Custom icon replacement is limited to direct raster PNG launcher resources in in
 Open the project in Android Studio and sync Gradle. CI runs:
 
 ```bash
-gradle testDebugUnitTest assembleDebug
+gradle testDebugUnitTest lintDebug assembleDebug
 ```
 
 The CI workflow uploads the debug APK as an artifact when the build succeeds.
