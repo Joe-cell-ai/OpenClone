@@ -91,7 +91,7 @@ object ApkRebuilder {
                         zip.getInputStream(entry).use { copyChecked(it, out, onStep) }
                     } else {
                         out.putNextEntry(copy)
-                        zip.getInputStream(entry).use { it.copyTo(out, 1 shl 16) }
+                        zip.getInputStream(entry).use { copyChecked(it, out, onStep) }
                     }
                     out.closeEntry()
                 }
