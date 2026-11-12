@@ -4,6 +4,8 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
@@ -82,7 +84,9 @@ import org.openclone.app.data.InstalledApp
 import org.openclone.app.data.InstalledAppRepository
 import org.openclone.app.data.InstalledClone
 import org.openclone.app.data.InstalledCloneRepository
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
@@ -122,6 +126,7 @@ private fun OpenCloneHome() {
     var cloneWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
+    var customIconPath by rememberSaveable { mutableStateOf<String?>(null) }
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var cloneError by remember { mutableStateOf<String?>(null) }
     var cloneUpdateMode by remember { mutableStateOf(false) }
@@ -196,6 +201,43 @@ private fun OpenCloneHome() {
                     null
                 }
                 loading = false
+            }
+        }
+    }
+
+    val chooseCustomIcon = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val outcome = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                            ?: error("Could not read the selected image.")
+                        require(bytes.size <= 10 * 1024 * 1024) { "Choose an image smaller than 10 MB." }
+                        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                            ?: error("The selected file is not a supported image.")
+                        require(bitmap.width in 1..4096 && bitmap.height in 1..4096) {
+                            "The image dimensions must not exceed 4096 × 4096."
+                        }
+                        val scale = minOf(1f, 512f / maxOf(bitmap.width, bitmap.height))
+                        val width = (bitmap.width * scale).toInt().coerceAtLeast(1)
+                        val height = (bitmap.height * scale).toInt().coerceAtLeast(1)
+                        val resized = Bitmap.createScaledBitmap(bitmap, width, height, true)
+                        val destination = File(context.filesDir, "openclone/custom-icon.png")
+                        destination.parentFile?.mkdirs()
+                        FileOutputStream(destination).use { output ->
+                            check(resized.compress(Bitmap.CompressFormat.PNG, 100, output)) {
+                                "Could not save the custom icon."
+                            }
+                        }
+                        destination.absolutePath
+                    }
+                }
+                outcome.onSuccess {
+                    customIconPath = it
+                    statusMessage = "Custom launcher icon uploaded and preview is ready."
+                }.onFailure {
+                    statusMessage = it.message ?: "Could not load the custom icon."
+                }
             }
         }
     }
@@ -362,6 +404,7 @@ private fun OpenCloneHome() {
             .putBoolean(CloneBuildWorker.KEY_MARK_ICON, markCloneIcon && installedSource != null)
             .putBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, cloneUpdateMode)
             .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)
+            .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
             .putString(CloneBuildWorker.KEY_BADGE_POSITION, badgePosition.name)
             .build()
         val request = OneTimeWorkRequestBuilder<CloneBuildWorker>()
@@ -398,7 +441,8 @@ private fun OpenCloneHome() {
                                         clonePackage = info.outputData.getString(CloneBuildWorker.KEY_CLONE_PACKAGE).orEmpty(),
                                         cloneLabel = info.outputData.getString(CloneBuildWorker.KEY_CLONE_LABEL).orEmpty(),
                                         apks = outputFiles,
-                                        iconBadgeApplied = info.outputData.getBoolean(CloneBuildWorker.KEY_ICON_BADGE_APPLIED, false)
+                                        iconBadgeApplied = info.outputData.getBoolean(CloneBuildWorker.KEY_ICON_BADGE_APPLIED, false),
+                                        customIconApplied = info.outputData.getBoolean(CloneBuildWorker.KEY_CUSTOM_ICON_APPLIED, false)
                                     )
                                     cloneSource = null
                                     externalSource = null
@@ -423,6 +467,10 @@ private fun OpenCloneHome() {
     LaunchedEffect(includeSystem) { refreshApps() }
     LaunchedEffect(apps) {
         clones = withContext(Dispatchers.IO) { InstalledCloneRepository(context.packageManager).findClones(apps) }
+    }
+
+    val customIconPreview = remember(customIconPath) {
+        customIconPath?.let { BitmapFactory.decodeFile(it)?.asImageBitmap() }
     }
 
     val visibleApps = remember(apps, query) {
@@ -603,6 +651,24 @@ private fun OpenCloneHome() {
                         Text("Mark clone icon with a dot")
                         Switch(checked = markCloneIcon, onCheckedChange = { markCloneIcon = it })
                     }
+                    if (cloneSource != null) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { chooseCustomIcon.launch(arrayOf("image/*")) }) {
+                                Text(if (customIconPath == null) "Upload custom icon" else "Change custom icon")
+                            }
+                            if (customIconPath != null) {
+                                TextButton(onClick = { customIconPath = null }) { Text("Remove") }
+                            }
+                        }
+                        customIconPreview?.let { preview ->
+                            Image(preview, contentDescription = "Custom launcher icon preview", modifier = Modifier.size(56.dp))
+                        }
+                        Text(
+                            "Custom images replace raster PNG launcher resources. Apps whose launcher icon is entirely vector-based keep their original artwork.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
                     if (markCloneIcon && cloneSource != null) {
                         Text("Badge position", style = MaterialTheme.typography.labelMedium)
                         Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
@@ -654,7 +720,8 @@ private fun OpenCloneHome() {
                     DetailLine("App name", result.cloneLabel)
                     DetailLine("Package ID", result.clonePackage)
                     DetailLine("APK files", result.apks.size.toString())
-                    DetailLine("Icon badge", if (result.iconBadgeApplied) "Applied" else "Original icon kept")
+                    DetailLine("Icon badge", if (result.iconBadgeApplied) "Applied" else "Not applied")
+                    if (customIconPath != null) DetailLine("Custom icon", if (result.customIconApplied) "Applied" else "Not supported by this app's icon resources")
                     Text(
                         "All output APKs passed signature verification. Android will still show its own install confirmation. Some apps depend on their original signature, package name, or server registration and may not work as clones.",
                         style = MaterialTheme.typography.bodySmall
