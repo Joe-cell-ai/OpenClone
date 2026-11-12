@@ -97,6 +97,11 @@ class ApkCloneEngine(context: Context) {
 
         outputDirectory.deleteRecursively()
         check(outputDirectory.mkdirs()) { "Could not create the clone output directory." }
+        val sourceVersionCode = runCatching {
+            val archive = packageManager.getPackageArchiveInfo(sourceApks.first().absolutePath, 0)
+                ?: error("Could not read the source APK version.")
+            if (Build.VERSION.SDK_INT >= 28) archive.longVersionCode else archive.versionCode.toLong()
+        }.getOrDefault(0L)
         val unsigned = File(outputDirectory, "unsigned.tmp")
         val outputs = mutableListOf<File>()
         try {
@@ -116,6 +121,7 @@ class ApkCloneEngine(context: Context) {
                     val metadataText = listOf(
                         "format=1",
                         "originalPackage=$originalPackage",
+                        "originalVersionCode=$sourceVersionCode",
                         "clonePackage=$newPackage",
                         "cloneLabelBase64=${java.util.Base64.getEncoder().encodeToString(newLabel.toByteArray(Charsets.UTF_8))}",
                         "createdAt=${System.currentTimeMillis()}",

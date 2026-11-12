@@ -9,6 +9,7 @@ import java.util.zip.ZipFile
 class InstalledCloneRepository(private val packageManager: PackageManager) {
     @Suppress("DEPRECATION")
     fun findClones(apps: List<InstalledApp>): List<InstalledClone> {
+        val appsByPackage = apps.associateBy { it.packageName }
         return apps.mapNotNull { app ->
             val apkPath = app.applicationInfo.sourceDir ?: return@mapNotNull null
             runCatching {
@@ -38,7 +39,9 @@ class InstalledCloneRepository(private val packageManager: PackageManager) {
                                 }.getOrNull()
                             } ?: app.label,
                             createdAtMillis = properties.getProperty("createdAt")?.toLongOrNull() ?: 0L,
-                            signingFingerprint = recordedFingerprint
+                            signingFingerprint = recordedFingerprint,
+                            sourceVersionCode = properties.getProperty("originalVersionCode")?.toLongOrNull() ?: 0L,
+                            currentOriginalVersionCode = appsByPackage[original]?.versionCode
                         )
                     }
                 }

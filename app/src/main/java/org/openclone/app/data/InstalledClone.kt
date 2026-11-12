@@ -6,5 +6,10 @@ data class InstalledClone(
     val clonePackage: String,
     val cloneLabel: String,
     val createdAtMillis: Long,
-    val signingFingerprint: String
-)
+    val signingFingerprint: String,
+    val sourceVersionCode: Long = 0L,
+    val currentOriginalVersionCode: Long? = null
+) {
+    val updateAvailable: Boolean
+        get() = currentOriginalVersionCode != null && currentOriginalVersionCode > sourceVersionCode
+}

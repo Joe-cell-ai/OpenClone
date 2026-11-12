@@ -804,6 +804,16 @@ private fun OpenCloneHome() {
                         java.text.DateFormat.getDateTimeInstance().format(java.util.Date(clone.createdAtMillis))
                     )
                     DetailLine("Signing key", clone.signingFingerprint.take(20) + "…")
+                    DetailLine("Clone source version", clone.sourceVersionCode.takeIf { it > 0L }?.toString() ?: "Unknown")
+                    DetailLine("Installed original version", clone.currentOriginalVersionCode?.toString() ?: "Original app not installed")
+                    DetailLine(
+                        "Update status",
+                        when {
+                            clone.updateAvailable -> "Update available"
+                            clone.currentOriginalVersionCode == null -> "Original app not installed"
+                            else -> "Up to date"
+                        }
+                    )
                 }
             },
             confirmButton = {
