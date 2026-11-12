@@ -61,7 +61,10 @@ class CloneBuildWorker(
                         throw CancellationException("Clone build cancelled.")
                     }
                 },
-                badgePosition = position
+                badgePosition = position,
+                markIcon = inputData.getBoolean(KEY_MARK_ICON, false),
+                customIconFile = inputData.getString(KEY_CUSTOM_ICON_PATH)?.let(::File)
+                    ?.takeIf { it.isFile && it.canRead() }
             )
             Result.success(
                 Data.Builder()
@@ -70,6 +73,7 @@ class CloneBuildWorker(
                     .putString(KEY_CLONE_LABEL, result.cloneLabel)
                     .putStringArray(KEY_OUTPUT_APKS, result.apks.map { it.absolutePath }.toTypedArray())
                     .putBoolean(KEY_ICON_BADGE_APPLIED, result.iconBadgeApplied)
+                    .putBoolean(KEY_CUSTOM_ICON_APPLIED, result.customIconApplied)
                     .build()
             )
         }
@@ -91,6 +95,8 @@ class CloneBuildWorker(
         const val KEY_PROGRESS = "progress"
         const val KEY_OUTPUT_APKS = "output_apks"
         const val KEY_ICON_BADGE_APPLIED = "icon_badge_applied"
+        const val KEY_CUSTOM_ICON_PATH = "custom_icon_path"
+        const val KEY_CUSTOM_ICON_APPLIED = "custom_icon_applied"
         const val KEY_ERROR = "error"
     }
 }

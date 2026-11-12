@@ -6,6 +6,7 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -15,6 +16,7 @@ import com.reandroid.arsc.chunk.xml.ResXmlDocument
 import com.reandroid.arsc.chunk.xml.ResXmlElement
 import com.reandroid.arsc.value.ValueType
 import java.io.ByteArrayOutputStream
+import java.io.File
 import org.xmlpull.v1.XmlPullParser
 
 /**
@@ -38,10 +40,11 @@ class IconBadger(private val context: Context) {
      * Files of the base APK to replace, by path inside it, to mark the icon of [app]. Empty when
      * the icon is built in a way this cannot safely rewrite. [seed] picks the colour of the dot.
      */
-    fun replacements(app: ApplicationInfo, seed: String, position: BadgePosition = BadgePosition.BOTTOM_RIGHT): Map<String, ByteArray> {
+    fun replacements(app: ApplicationInfo, seed: String, position: BadgePosition = BadgePosition.BOTTOM_RIGHT, customIconFile: File? = null, addBadge: Boolean = true): Map<String, ByteArray> {
         val packageManager = context.packageManager
         val resources = packageManager.getResourcesForApplication(app)
         val color = Color.HSVToColor(floatArrayOf(((seed.hashCode() and 0x7FFFFFFF) % 360).toFloat(), 0.75f, 0.9f))
+        val customBitmap = customIconFile?.takeIf { it.isFile && it.canRead() }?.let { BitmapFactory.decodeFile(it.absolutePath) }
 
         // Activities may carry an icon of their own, which the launcher prefers.
         val activityIcons = runCatching {
@@ -60,7 +63,15 @@ class IconBadger(private val context: Context) {
                     if (density == 0) resources.getValue(icon, value, true) else resources.getValueForDensity(icon, density, value, true)
                     val path = value.string?.toString() ?: return@runCatching
                     if (path in result) return@runCatching
-                    val replacement = if (path.endsWith(".xml")) adaptiveIcon(resources, icon, color, position) else bitmapIcon(resources, icon, density, color, position)
+                    val replacement = if (path.endsWith(".xml")) {
+                        if (addBadge) adaptiveIcon(resources, icon, color, position) else null
+                    } else if (addBadge || (customBitmap != null && path.endsWith(".png", ignoreCase = true))) {
+                        bitmapIcon(
+                            resources, icon, density, color, position,
+                            customBitmap.takeIf { path.endsWith(".png", ignoreCase = true) },
+                            addBadge
+                        )
+                    } else null
                     if (replacement != null) result[path] = replacement
                 }
             }
@@ -132,17 +143,28 @@ class IconBadger(private val context: Context) {
     }
 
     /** A plain bitmap icon: the same picture, redrawn with the dot on it. */
-    private fun bitmapIcon(resources: Resources, icon: Int, density: Int, color: Int, position: BadgePosition): ByteArray {
-        val drawable = if (density == 0) resources.getDrawable(icon, null) else resources.getDrawableForDensity(icon, density, null)!!
-        val size = drawable.intrinsicWidth.coerceIn(MIN_BITMAP, MAX_BITMAP)
+    private fun bitmapIcon(resources: Resources, icon: Int, density: Int, color: Int, position: BadgePosition, customBitmap: Bitmap? = null, addBadge: Boolean = true): ByteArray {
+        val drawable = if (customBitmap == null) {
+            if (density == 0) resources.getDrawable(icon, null) else resources.getDrawableForDensity(icon, density, null)!!
+        } else null
+        val size = (drawable?.intrinsicWidth ?: customBitmap!!.width).coerceIn(MIN_BITMAP, MAX_BITMAP)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
-        drawable.setBounds(0, 0, size, size)
-        drawable.draw(canvas)
+        if (customBitmap != null) {
+            val scale = minOf(size.toFloat() / customBitmap.width, size.toFloat() / customBitmap.height)
+            val width = customBitmap.width * scale
+            val height = customBitmap.height * scale
+            val destination = android.graphics.RectF((size - width) / 2f, (size - height) / 2f, (size + width) / 2f, (size + height) / 2f)
+            canvas.drawBitmap(customBitmap, null, destination, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        } else {
+            drawable!!.setBounds(0, 0, size, size)
+            drawable.draw(canvas)
+        }
         val paint = Paint(Paint.ANTI_ALIAS_FLAG)
         // A launcher sizes a plain picture by how much of it is filled, so the dot would come
         // out differently on every app. A frame too faint to see makes every picture count as
         // filled edge to edge: all of them are then shrunk alike, and so are their dots.
+        if (addBadge) {
         paint.style = Paint.Style.STROKE
         paint.strokeWidth = 1f
         paint.color = Color.argb(FRAME_ALPHA, 255, 255, 255)
@@ -166,6 +188,7 @@ class IconBadger(private val context: Context) {
         canvas.drawCircle(centerX, centerY, radius + ring, paint)
         paint.color = color
         canvas.drawCircle(centerX, centerY, radius, paint)
+        }
         return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
     }
 

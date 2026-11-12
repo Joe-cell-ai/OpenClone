@@ -15,7 +15,8 @@ data class CloneBuildResult(
     val clonePackage: String,
     val cloneLabel: String,
     val apks: List<File>,
-    val iconBadgeApplied: Boolean = false
+    val iconBadgeApplied: Boolean = false,
+    val customIconApplied: Boolean = false
 )
 
 /**
@@ -40,11 +41,12 @@ class ApkCloneEngine(context: Context) {
         markIcon: Boolean = true,
         allowUpdate: Boolean = false,
         ensureActive: () -> Unit = {},
-        badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT
+        badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT,
+        customIconFile: File? = null
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
-        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon }, allowUpdate, ensureActive, badgePosition)
+        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon || customIconFile != null }, allowUpdate, ensureActive, badgePosition, markIcon, customIconFile)
     }
 
     @Suppress("DEPRECATION")
@@ -58,7 +60,9 @@ class ApkCloneEngine(context: Context) {
         iconSource: android.content.pm.ApplicationInfo? = null,
         allowUpdate: Boolean = false,
         ensureActive: () -> Unit = {},
-        badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT
+        badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT,
+        markIcon: Boolean = true,
+        customIconFile: File? = null
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
@@ -97,11 +101,15 @@ class ApkCloneEngine(context: Context) {
         val outputs = mutableListOf<File>()
         try {
             var iconBadgeApplied = false
+            var customIconApplied = false
             sourceApks.forEachIndexed { index, source ->
                 ensureActive()
-                val replacements = if (index == 0 && iconSource != null) {
-                    runCatching { IconBadger(appContext).replacements(iconSource, newPackage, badgePosition) }.getOrDefault(emptyMap()).also {
-                        iconBadgeApplied = it.isNotEmpty()
+                val replacements = if (index == 0 && iconSource != null && (markIcon || customIconFile != null)) {
+                    runCatching {
+                        IconBadger(appContext).replacements(iconSource, newPackage, badgePosition, customIconFile, markIcon)
+                    }.getOrDefault(emptyMap()).also { entries ->
+                        iconBadgeApplied = markIcon && entries.isNotEmpty()
+                        customIconApplied = customIconFile != null && entries.keys.any { !it.endsWith(".xml", ignoreCase = true) }
                     }
                 } else emptyMap()
                 val metadataEntry: (() -> Pair<String, ByteArray>)? = if (index == 0) {
@@ -149,7 +157,7 @@ class ApkCloneEngine(context: Context) {
                 outputs += output
                 onProgress(((index + 1) * 100 / sourceApks.size).coerceIn(0, 100))
             }
-            return CloneBuildResult(originalPackage, newPackage, newLabel, outputs.toList(), iconBadgeApplied)
+            return CloneBuildResult(originalPackage, newPackage, newLabel, outputs.toList(), iconBadgeApplied, customIconApplied)
         } catch (error: Exception) {
             outputDirectory.deleteRecursively()
             throw error
