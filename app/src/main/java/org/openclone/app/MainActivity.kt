@@ -832,7 +832,7 @@ private fun OpenCloneHome() {
                                 cachedApps.firstOrNull { it.packageName == clone.originalPackage }
                                     ?: runCatching {
                                         InstalledAppRepository(context.packageManager)
-                                            .getInstalledApps(includeSystem = true)
+                                            .getInstalledApps(includeSystemApps = true)
                                             .firstOrNull { it.packageName == clone.originalPackage }
                                     }.getOrNull()
                             }
