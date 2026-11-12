@@ -460,11 +460,18 @@ private fun OpenCloneHome() {
                                     statusMessage = "Clone APK set built and signature-verified."
                                 } else {
                                     cloneError = "The background build finished without all expected APK files."
+                                    statusMessage = cloneError
                                 }
                             }
-                            WorkInfo.State.CANCELLED -> cloneError = "Clone build cancelled."
-                            WorkInfo.State.FAILED -> cloneError = info.outputData.getString(CloneBuildWorker.KEY_ERROR)
-                                ?: "Clone build failed."
+                            WorkInfo.State.CANCELLED -> {
+                                cloneError = "Clone build cancelled."
+                                statusMessage = cloneError
+                            }
+                            WorkInfo.State.FAILED -> {
+                                cloneError = info.outputData.getString(CloneBuildWorker.KEY_ERROR)
+                                    ?: "Clone build failed."
+                                statusMessage = cloneError
+                            }
                             else -> Unit
                         }
                     }
