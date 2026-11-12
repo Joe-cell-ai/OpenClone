@@ -216,7 +216,7 @@ class SigningKeys private constructor(private val context: Context) {
         try {
             persist()
         } catch (error: Exception) {
-            identities[alias] = removed ?: error("Signing identity disappeared during deletion.")
+            identities[alias] = checkNotNull(removed)
             selectedAlias = previous
             throw error
         }
@@ -229,7 +229,7 @@ class SigningKeys private constructor(private val context: Context) {
         selectedAlias = null
         storage.delete()
         legacyStorage.delete()
-        File(storage.parentFile, "keys.tmp").delete()
+        storage.parentFile?.let { File(it, "keys.tmp").delete() }
         loadFailure = null
     }
 
