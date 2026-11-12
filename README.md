@@ -1,35 +1,50 @@
 # OpenClone
 
-OpenClone is an open-source Android project for inspecting installed applications and exploring how independent app copies can be created.
+OpenClone is an open-source Android app cloner and APK inspection tool.
 
-## Current implementation
-- Browse installed user applications and optionally system applications.
-- Search by app label or package name.
-- View package name, version, and APK component count.
-- Export an installed app's base APK and available split APK files as a ZIP archive.
-- Import one APK file and inspect its label, package ID, version, SDK levels, and requested permission count.
+## Working features
 
-## Planned cloning workflow
-- Inspect APKs and split APK sets.
-- Customize clone display name, icon, and application ID where technically feasible.
-- Rebuild and sign modified APKs for user-controlled installation.
-- Track generated builds and provide compatibility diagnostics.
+- Browse installed user apps and optionally system apps.
+- Search installed apps by name or package ID.
+- Inspect a single APK's package, version, SDK levels, and requested permissions.
+- Build a clone from an installed app's base APK and its installed split APKs.
+- Change the clone's app label and package ID.
+- Rewrite the compiled binary manifest and resource table, then re-sign every APK with a unique per-install RSA signing identity.
+- Verify each rebuilt APK signature before offering installation.
+- Install the rebuilt APK set through Android's PackageInstaller confirmation flow.
+- Export the rebuilt APK set as a ZIP archive.
 
-**Cloning status:** APK transformation, package-ID rewriting, signing pipeline, and clone installation are not implemented yet. Exporting an APK set is a backup/export feature, not cloning.
+## Compatibility limitations
+
+No cloner can guarantee that every Android app will work after cloning. OpenClone currently changes the binary manifest and resource table, but does not rewrite arbitrary DEX string constants or bypass app integrity checks. Apps that hard-code their original package name, check their signing certificate, use package-bound Google services, licensing, anti-cheat, DRM, or server-side registration may fail or refuse to run. Clones start with separate, empty app data; original app data and sign-ins are not copied.
+
+Custom icon replacement, DEX compatibility patches, clone update management, and clone uninstall management are not implemented yet. The app keeps the original icon in this milestone.
 
 ## Technology
-- Kotlin, Jetpack Compose, Material 3
-- Minimum Android SDK 26 (Android 8.0)
+
+- Kotlin and Jetpack Compose / Material 3
+- Android minimum SDK 26 (Android 8.0)
 - JDK 17, Android Gradle Plugin 8.9.1, Gradle 8.11.1
+- Android apksig for APK signing and verification
 
 ## Build
-Open in Android Studio and sync Gradle. CI builds with `gradle assembleDebug`.
 
-## Android package visibility
-The app requests `QUERY_ALL_PACKAGES` for its core installed-app browser. Google Play restricts this permission to approved core use cases; alternative distribution must still follow platform policies.
+Open the project in Android Studio and sync Gradle. CI runs:
+
+```bash
+gradle testDebugUnitTest assembleDebug
+```
+
+The CI workflow uploads the debug APK as an artifact when the build succeeds.
+
+## Android package visibility and installation
+
+OpenClone requests `QUERY_ALL_PACKAGES` to provide its installed-app browser and `REQUEST_INSTALL_PACKAGES` to hand rebuilt APKs to Android's package installer. App stores may restrict these permissions to approved core use cases; distribution must follow the store and platform policies. Android displays its own installation confirmation, and Play Protect may warn about re-signed APKs.
 
 ## Safety and privacy
-OpenClone is for legitimate personal use with apps the user is authorized to inspect or modify. It will not bypass DRM, licensing, account security, anti-cheat, or app-integrity protections. Respect app terms, copyright, and applicable law. Files stay on-device unless explicitly exported.
+
+OpenClone is intended for legitimate personal use with apps the user is authorized to inspect or modify. It does not attempt to bypass DRM, licensing, account security, anti-cheat, or integrity protections. Respect app terms, copyright, and applicable law. APKs and generated builds stay on-device unless explicitly exported.
 
 ## License
-GNU GPL version 3 only (GPL-3.0-only). See [LICENSE](LICENSE) and the [official text](https://www.gnu.org/licenses/gpl-3.0.html).
+
+GNU General Public License version 3 only (GPL-3.0-only). See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
