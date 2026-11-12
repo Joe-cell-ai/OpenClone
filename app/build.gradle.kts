@@ -3,6 +3,16 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+val arsclibOriginal: Configuration by configurations.creating { isTransitive = false }
+
+val strippedArsclib = tasks.register<Jar>("strippedArsclib") {
+    archiveFileName.set("arsclib-stripped.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("stripped-libs"))
+    from({ arsclibOriginal.map { zipTree(it) } }) {
+        exclude("android/**", "org/xmlpull/**")
+    }
+}
+
 android {
     namespace = "org.openclone.app"
     compileSdk = 35
@@ -37,6 +47,8 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material3:material3")
     implementation("com.android.tools.build:apksig:8.9.1")
+    arsclibOriginal("io.github.reandroid:ARSCLib:1.4.0")
+    implementation(files(strippedArsclib))
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")

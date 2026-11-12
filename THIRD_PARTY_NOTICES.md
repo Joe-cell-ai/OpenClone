@@ -16,6 +16,6 @@ These components are distributed under **GNU General Public License version 3 on
 
 OpenClone's own code in this repository is also distributed under GPL-3.0-only. No code from the separate App Cloner repository was copied.
 
-## ARSCLib test dependency
+## ARSCLib dependency
 
-[ARSCLib](https://github.com/REAndroid/ARSCLib) by REAndroid is used only by the JVM unit tests to create binary Android XML fixtures. It is not packaged into the application. ARSCLib is licensed under Apache License 2.0.
+[ARSCLib](https://github.com/REAndroid/ARSCLib) by REAndroid is used at runtime to generate adaptive-icon XML for the optional clone badge and by JVM unit tests to create binary Android XML fixtures. OpenClone packages a stripped jar without ARSCLib's duplicate Android framework and XML-pull stubs. ARSCLib is licensed under Apache License 2.0.
