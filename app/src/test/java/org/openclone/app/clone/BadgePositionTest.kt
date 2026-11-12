@@ -1,6 +1,7 @@
 package org.openclone.app.clone
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class BadgePositionTest {
@@ -19,8 +20,8 @@ class BadgePositionTest {
     @Test
     fun everyPositionStaysInsideTheVisibleIconBounds() {
         BadgePosition.values().forEach { position ->
-            assert(position.centerX in 0.0f..1.0f)
-            assert(position.centerY in 0.0f..1.0f)
+            assertTrue(position.centerX in 0.0f..1.0f)
+            assertTrue(position.centerY in 0.0f..1.0f)
         }
     }
 }
