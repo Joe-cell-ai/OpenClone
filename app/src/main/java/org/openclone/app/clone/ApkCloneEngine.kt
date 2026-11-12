@@ -38,11 +38,12 @@ class ApkCloneEngine(context: Context) {
         outputDirectory: File,
         onProgress: (Int) -> Unit = {},
         markIcon: Boolean = true,
-        allowUpdate: Boolean = false
+        allowUpdate: Boolean = false,
+        ensureActive: () -> Unit = {}
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
-        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon }, allowUpdate)
+        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon }, allowUpdate, ensureActive)
     }
 
     @Suppress("DEPRECATION")
@@ -54,7 +55,8 @@ class ApkCloneEngine(context: Context) {
         outputDirectory: File,
         onProgress: (Int) -> Unit = {},
         iconSource: android.content.pm.ApplicationInfo? = null,
-        allowUpdate: Boolean = false
+        allowUpdate: Boolean = false,
+        ensureActive: () -> Unit = {}
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
@@ -86,6 +88,7 @@ class ApkCloneEngine(context: Context) {
         try {
             var iconBadgeApplied = false
             sourceApks.forEachIndexed { index, source ->
+                ensureActive()
                 val replacements = if (index == 0 && iconSource != null) {
                     runCatching { IconBadger(appContext).replacements(iconSource, newPackage) }.getOrDefault(emptyMap()).also {
                         iconBadgeApplied = it.isNotEmpty()
@@ -109,14 +112,17 @@ class ApkCloneEngine(context: Context) {
                     newLabel = newLabel.takeIf { index == 0 },
                     isSplitApk = index > 0
                 )
+                ensureActive()
                 ApkRebuilder.rebuild(
                     source = source,
                     target = unsigned,
                     patcher = patcher,
                     replacements = replacements,
-                    extraEntry = metadataEntry
+                    extraEntry = metadataEntry,
+                    onStep = ensureActive
                 )
 
+                ensureActive()
                 val output = File(outputDirectory, if (index == 0) "base.apk" else "split_$index.apk")
                 ApkSigner.Builder(listOf(signingKey.signerConfig))
                     .setInputApk(unsigned)
@@ -125,6 +131,7 @@ class ApkCloneEngine(context: Context) {
                     .build()
                     .sign()
 
+                ensureActive()
                 val verification = ApkVerifier.Builder(output).build().verify()
                 check(verification.isVerified) {
                     "The rebuilt APK did not pass signature verification: ${verification.errors.joinToString()}"

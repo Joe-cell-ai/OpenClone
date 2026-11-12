@@ -41,7 +41,6 @@ object ApkRebuilder {
         replacements: Map<String, ByteArray>,
         extraEntry: (() -> Pair<String, ByteArray>)?,
         originalManifest: ByteArray? = null,
-        dexPatcher: ((name: String, data: ByteArray, onPass: () -> Unit) -> ByteArray)? = null,
         onStep: (() -> Unit)? = null,
     ) {
         val counter = CountingOutputStream(BufferedOutputStream(target.outputStream(), 1 shl 16))
@@ -57,6 +56,7 @@ object ApkRebuilder {
                 // The manifest rewrite is a step like any patch pass; counted up front with the rest.
                 onStep?.invoke()
                 for (entry in zip.entries()) {
+                    onStep?.invoke()
                     if (entry.isDirectory || !seen.add(entry.name)) continue
                     if (SIGNATURE_FILE.matches(entry.name) || entry.name.startsWith("META-INF/apkclon") || entry.name == "META-INF/openclone.properties") continue
 
@@ -83,18 +83,6 @@ object ApkRebuilder {
                     } else if (entry.name in replacements) {
                         out.putNextEntry(copy)
                         out.write(replacements.getValue(entry.name))
-                    } else if (dexPatcher != null && isDexEntry(entry.name)) {
-                        // Opt-in: neutralize the app's own integrity/signature check in the dex.
-                        // Checked before STORED: uncompressed dex entries (common - APKs are built
-                        // with them extract-native-libs-free) must be patched too, and then
-                        // re-stored with the patched bytes' own size and CRC.
-                        val patched = dexPatcher(entry.name, zip.getInputStream(entry).use { it.readBytes() }) { onStep?.invoke() }
-                        if (entry.method == ZipEntry.STORED) {
-                            val checksum = CRC32().apply { patched.forEach { update(it.toInt()) } }
-                            copy.storedAt(counter.count, patched.size.toLong(), checksum.value)
-                        }
-                        out.putNextEntry(copy)
-                        out.write(patched)
                     } else if (entry.method == ZipEntry.STORED) {
                         // resources.arsc and uncompressed native libraries are mmap-ed straight
                         // out of the APK, so they must stay stored and aligned.
@@ -114,15 +102,6 @@ object ApkRebuilder {
                 }
             }
         }
-    }
-
-    /** A classes*.dex entry, without a Regex: R8-minified Kotlin Regex broke this check once. */
-    internal fun isDexEntry(name: String): Boolean {
-        val verdict = name.endsWith(".dex") && run {
-            val base = name.removeSuffix(".dex")
-            base == "classes" || (base.startsWith("classes") && base.substring("classes".length).all { it in '0'..'9' })
-        }
-        return verdict
     }
 
     /** Makes this entry a stored, aligned copy with the given size and checksum. */

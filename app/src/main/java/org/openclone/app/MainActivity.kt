@@ -57,6 +57,8 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.drawable.toBitmap
 import kotlinx.coroutines.Dispatchers
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.CancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.openclone.app.clone.ApkCloneEngine
@@ -106,6 +108,7 @@ private fun OpenCloneHome() {
     var cloneName by remember { mutableStateOf("") }
     var clonePackage by remember { mutableStateOf("") }
     var cloneBuilding by remember { mutableStateOf(false) }
+    var cloneBuildCancellation by remember { mutableStateOf<AtomicBoolean?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
     var cloneError by remember { mutableStateOf<String?>(null) }
@@ -273,6 +276,8 @@ private fun OpenCloneHome() {
         }
         cloneBuilding = true
         cloneProgress = 0
+        val cancellation = AtomicBoolean(false)
+        cloneBuildCancellation = cancellation
         scope.launch {
             val outcome = withContext(Dispatchers.IO) {
                 runCatching {
@@ -287,7 +292,8 @@ private fun OpenCloneHome() {
                             outputDirectory = outputDirectory,
                             onProgress = { value -> scope.launch { cloneProgress = value } },
                             markIcon = markCloneIcon,
-                            allowUpdate = cloneUpdateMode
+                            allowUpdate = cloneUpdateMode,
+                            ensureActive = { if (cancellation.get()) throw CancellationException("Clone build cancelled by user.") }
                         )
                     } else {
                         engine.build(
@@ -298,12 +304,14 @@ private fun OpenCloneHome() {
                             outputDirectory = outputDirectory,
                             onProgress = { value -> scope.launch { cloneProgress = value } },
                             iconSource = null,
-                            allowUpdate = cloneUpdateMode
+                            allowUpdate = cloneUpdateMode,
+                            ensureActive = { if (cancellation.get()) throw CancellationException("Clone build cancelled by user.") }
                         )
                     }
                 }
             }
             cloneBuilding = false
+            cloneBuildCancellation = null
             outcome.fold(
                 onSuccess = {
                     cloneResult = it
@@ -507,7 +515,17 @@ private fun OpenCloneHome() {
                 }
             },
             dismissButton = {
-                TextButton(onClick = { cloneSource = null; externalSource = null; cloneUpdateMode = false }, enabled = !cloneBuilding) { Text("Cancel") }
+                TextButton(
+                    onClick = {
+                        if (cloneBuilding) {
+                            cloneBuildCancellation?.set(true)
+                        } else {
+                            cloneSource = null
+                            externalSource = null
+                            cloneUpdateMode = false
+                        }
+                    }
+                ) { Text(if (cloneBuilding) "Cancel build" else "Cancel") }
             }
         )
     }
