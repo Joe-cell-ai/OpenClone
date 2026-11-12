@@ -4,6 +4,7 @@ import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.content.pm.PackageInstaller
 import android.os.Build
 import java.io.File
@@ -55,6 +56,7 @@ object CloneInstaller {
             .setAction(ACTION_INSTALL_RESULT)
             .putExtra(EXTRA_PACKAGE_NAME, packageName)
             .putExtra(EXTRA_OPERATION, "uninstall")
+            .setData(Uri.parse("openclone://uninstall/$packageName"))
         val mutableFlag = if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0
         val pending = PendingIntent.getBroadcast(
             context,

@@ -21,7 +21,9 @@ class InstalledCloneRepository {
                             app = app,
                             originalPackage = original,
                             clonePackage = clonePackage,
-                            cloneLabel = properties.getProperty("cloneLabel") ?: app.label,
+                            cloneLabel = properties.getProperty("cloneLabelBase64")?.let { encoded ->
+                                runCatching { String(java.util.Base64.getDecoder().decode(encoded), Charsets.UTF_8) }.getOrNull()
+                            } ?: app.label,
                             createdAtMillis = properties.getProperty("createdAt")?.toLongOrNull() ?: 0L,
                             signingFingerprint = properties.getProperty("signingFingerprint").orEmpty()
                         )

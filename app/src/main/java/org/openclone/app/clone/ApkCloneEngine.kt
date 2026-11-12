@@ -87,7 +87,7 @@ class ApkCloneEngine(context: Context) {
                         "format=1",
                         "originalPackage=$originalPackage",
                         "clonePackage=$newPackage",
-                        "cloneLabel=$newLabel",
+                        "cloneLabelBase64=${java.util.Base64.getEncoder().encodeToString(newLabel.toByteArray(Charsets.UTF_8))}",
                         "createdAt=${System.currentTimeMillis()}",
                         "signingFingerprint=${signingKey.fingerprint}"
                     ).joinToString(separator = "\n", postfix = "\n")
