@@ -165,6 +165,7 @@ class IconBadger(private val context: Context) {
         // out differently on every app. A frame too faint to see makes every picture count as
         // filled edge to edge: all of them are then shrunk alike, and so are their dots.
         if (addBadge) {
+            paint.style = Paint.Style.STROKE
             paint.strokeWidth = 1f
             paint.color = Color.argb(FRAME_ALPHA, 255, 255, 255)
             canvas.drawRect(0.5f, 0.5f, size - 0.5f, size - 0.5f, paint)
@@ -187,7 +188,8 @@ class IconBadger(private val context: Context) {
             canvas.drawCircle(centerX, centerY, radius + ring, paint)
             paint.color = color
             canvas.drawCircle(centerX, centerY, radius, paint)
-        }        return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
+        }
+        return ByteArrayOutputStream().also { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }.toByteArray()
     }
 
     private fun ResXmlElement.reference(resourceId: Int) =
