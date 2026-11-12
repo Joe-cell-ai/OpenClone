@@ -117,6 +117,10 @@ class SigningKeys private constructor(private val context: Context) {
                     ?: error("No private key under \"$entryAlias\"")
                 val certificate = keystore.getCertificate(entryAlias) as? X509Certificate
                     ?: error("No certificate under \"$entryAlias\"")
+                require(key.algorithm.equals("RSA", ignoreCase = true) &&
+                    certificate.publicKey.algorithm.equals("RSA", ignoreCase = true)) {
+                    "OpenClone currently supports RSA signing identities only."
+                }
                 val targetAlias = identityAlias.ifBlank { entryAlias }
                 validateAlias(targetAlias)
                 require(targetAlias !in identities) { "A signing identity named \"$targetAlias\" already exists." }
