@@ -27,6 +27,8 @@ import java.util.Date
 import java.util.LinkedHashMap
 import java.util.Locale
 import java.util.TimeZone
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -44,24 +46,41 @@ class SigningKeys private constructor(private val context: Context) {
 
     @Volatile
     private var selectedAlias: String? = null
+    @Volatile
+    private var loadFailure: Exception? = null
 
     init {
-        runCatching { load() }
+        try {
+            load()
+        } catch (error: Exception) {
+            // Preserve the encrypted file and refuse to overwrite it if it cannot be opened.
+            loadFailure = error
+        }
+    }
+
+    private fun ensureLoaded() {
+        loadFailure?.let {
+            throw IllegalStateException(
+                "Saved signing identities could not be decrypted. The original backup file was preserved; reset the Android Keystore only if you accept losing those identities.",
+                it
+            )
+        }
     }
 
     /** The currently selected user identity, or null when the per-install key has not been created. */
     val custom: SigningKey?
-        get() = synchronized(this) { selectedAlias?.let(identities::get) }
+        get() = synchronized(this) { ensureLoaded(); selectedAlias?.let(identities::get) }
 
     val activeAlias: String?
-        get() = synchronized(this) { selectedAlias }
+        get() = synchronized(this) { ensureLoaded(); selectedAlias }
 
     val identityAliases: List<String>
-        get() = synchronized(this) { identities.keys.toList() }
+        get() = synchronized(this) { ensureLoaded(); identities.keys.toList() }
 
     /** What new clones are signed with. A default per-install identity is created on first use. */
     val active: SigningKey
         get() = synchronized(this) {
+            ensureLoaded()
             custom ?: run {
                 generate("OpenClone")
                 custom ?: error("Could not create signing key")
@@ -71,6 +90,7 @@ class SigningKeys private constructor(private val context: Context) {
     /** Selects which stored identity new clones and updates will use. */
     @Synchronized
     fun select(alias: String) {
+        ensureLoaded()
         require(alias in identities) { "No signing identity named \"$alias\" exists." }
         selectedAlias = alias
         persist()
@@ -79,6 +99,7 @@ class SigningKeys private constructor(private val context: Context) {
     /** Creates a new RSA identity and makes it active. [alias] is the name shown in OpenClone. */
     @Synchronized
     fun generate(alias: String, commonName: String) {
+        ensureLoaded()
         validateAlias(alias)
         require(alias !in identities) { "A signing identity named \"$alias\" already exists." }
         val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(KEY_BITS) }.generateKeyPair()
@@ -91,6 +112,7 @@ class SigningKeys private constructor(private val context: Context) {
     /** Backwards-compatible convenience method: creates a unique alias from the common name. */
     @Synchronized
     fun generate(commonName: String) {
+        ensureLoaded()
         val base = commonName.trim().take(48).ifBlank { "OpenClone" }
         var alias = base
         var suffix = 2
@@ -107,7 +129,9 @@ class SigningKeys private constructor(private val context: Context) {
      */
     @Synchronized
     fun import(input: InputStream, password: CharArray, alias: String, identityAlias: String = alias) {
+        ensureLoaded()
         val bytes = input.readBytes()
+        require(bytes.size <= MAX_KEYSTORE_BYTES) { "The signing backup is too large." }
         var failure: Exception? = null
         for (type in listOf("PKCS12", "BKS")) {
             try {
@@ -145,6 +169,8 @@ class SigningKeys private constructor(private val context: Context) {
     /** Writes the named identity as a password-protected PKCS#12 backup. */
     @Synchronized
     fun export(alias: String, output: OutputStream, password: CharArray) {
+        ensureLoaded()
+        require(password.isNotEmpty()) { "Choose a non-empty backup password." }
         val key = identities[alias] ?: error("No signing identity named \"$alias\" exists.")
         KeyStore.getInstance("PKCS12").apply {
             load(null, null)
@@ -156,6 +182,7 @@ class SigningKeys private constructor(private val context: Context) {
     /** Removes an identity. If it was active, another remaining identity becomes active. */
     @Synchronized
     fun delete(alias: String) {
+        ensureLoaded()
         require(alias in identities) { "No signing identity named \"$alias\" exists." }
         identities.remove(alias)
         if (selectedAlias == alias) selectedAlias = identities.keys.firstOrNull()
@@ -173,12 +200,16 @@ class SigningKeys private constructor(private val context: Context) {
 
     /** Finds the identity that signed an installed clone, even if it is not currently selected. */
     @Synchronized
-    fun matching(certificateBytes: ByteArray): SigningKey? =
-        identities.values.firstOrNull { it.signs(certificateBytes) }
+    fun matching(certificateBytes: ByteArray): SigningKey? {
+        ensureLoaded()
+        return identities.values.firstOrNull { it.signs(certificateBytes) }
+    }
 
     @Synchronized
-    fun matchingFingerprint(fingerprint: String): SigningKey? =
-        identities.values.firstOrNull { it.fingerprint.equals(fingerprint, ignoreCase = true) }
+    fun matchingFingerprint(fingerprint: String): SigningKey? {
+        ensureLoaded()
+        return identities.values.firstOrNull { it.fingerprint.equals(fingerprint, ignoreCase = true) }
+    }
 
     private fun validateAlias(alias: String) {
         require(alias.matches(Regex("[A-Za-z0-9][A-Za-z0-9 _.-]{0,63}"))) {
@@ -216,9 +247,16 @@ class SigningKeys private constructor(private val context: Context) {
             out.write(cipher.iv)
             out.write(cipher.doFinal(plain))
         }
-        if (!temporary.renameTo(storage)) {
-            storage.delete()
-            check(temporary.renameTo(storage)) { "Could not safely save signing identities." }
+        try {
+            Files.move(
+                temporary.toPath(),
+                storage.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        } catch (error: Exception) {
+            temporary.delete()
+            throw IllegalStateException("Could not atomically save signing identities; the previous encrypted file was preserved.", error)
         }
     }
 
@@ -233,6 +271,8 @@ class SigningKeys private constructor(private val context: Context) {
                 require(count in 1..MAX_IDENTITIES) { "Invalid signing identity count." }
                 repeat(count) {
                     val alias = input.readUTF()
+                    validateAlias(alias)
+                    require(alias !in identities) { "Duplicate signing identity name in encrypted storage." }
                     val privateBytes = ByteArray(readSize(input)).also(input::readFully)
                     val certificateBytes = ByteArray(readSize(input)).also(input::readFully)
                     identities[alias] = decodeKey(privateBytes, certificateBytes)
@@ -307,6 +347,7 @@ class SigningKeys private constructor(private val context: Context) {
         private const val FORMAT_VERSION = 2
         private const val MAX_IDENTITIES = 32
         private const val MAX_KEY_BYTES = 1024 * 1024
+        private const val MAX_KEYSTORE_BYTES = 4 * 1024 * 1024
 
         @Volatile
         private var instance: SigningKeys? = null
