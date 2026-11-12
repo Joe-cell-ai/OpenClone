@@ -32,4 +32,4 @@ The app requests `QUERY_ALL_PACKAGES` for its core installed-app browser. Google
 OpenClone is for legitimate personal use with apps the user is authorized to inspect or modify. It will not bypass DRM, licensing, account security, anti-cheat, or app-integrity protections. Respect app terms, copyright, and applicable law. Files stay on-device unless explicitly exported.
 
 ## License
-GNU GPL version 3 or later. See [LICENSE](LICENSE) and the [official text](https://www.gnu.org/licenses/gpl-3.0.html).
+GNU GPL version 3 only (GPL-3.0-only). See [LICENSE](LICENSE) and the [official text](https://www.gnu.org/licenses/gpl-3.0.html).
