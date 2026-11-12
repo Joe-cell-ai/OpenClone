@@ -11,5 +11,5 @@ data class InstalledClone(
     val currentOriginalVersionCode: Long? = null
 ) {
     val updateAvailable: Boolean
-        get() = currentOriginalVersionCode != null && currentOriginalVersionCode > sourceVersionCode
+        get() = CloneUpdateStatus.isUpdateAvailable(sourceVersionCode, currentOriginalVersionCode)
 }
