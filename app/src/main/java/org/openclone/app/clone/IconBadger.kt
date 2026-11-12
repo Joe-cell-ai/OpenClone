@@ -65,10 +65,10 @@ class IconBadger(private val context: Context) {
                     if (path in result) return@runCatching
                     val replacement = if (path.endsWith(".xml")) {
                         if (addBadge) adaptiveIcon(resources, icon, color, position) else null
-                    } else if (addBadge || (customBitmap != null && path.endsWith(".png", ignoreCase = true))) {
+                    } else if (path.endsWith(".png", ignoreCase = true) && (addBadge || customBitmap != null)) {
                         bitmapIcon(
                             resources, icon, density, color, position,
-                            customBitmap.takeIf { path.endsWith(".png", ignoreCase = true) },
+                            customBitmap,
                             addBadge
                         )
                     } else null
