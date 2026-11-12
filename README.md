@@ -41,7 +41,7 @@ Open the project in Android Studio and sync Gradle. CI runs unit tests, Android 
 gradle testDebugUnitTest lintDebug assembleDebug
 ```
 
-A separate Android emulator matrix runs instrumentation smoke tests on API 26 (minimum supported) and API 35. The CI workflow uploads the debug APK as an artifact when the build succeeds.
+A separate Android emulator matrix runs instrumentation smoke tests on API 26 (minimum supported) and API 34. The CI workflow uploads the debug APK as an artifact when the build succeeds.
 
 ## Android package visibility and installation
 
