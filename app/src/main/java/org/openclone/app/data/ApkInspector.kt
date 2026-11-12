@@ -24,35 +24,26 @@ class ApkInspector(private val context: Context) {
     fun inspect(uri: Uri): ApkInspection {
         val displayName = context.contentResolver.query(
             uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
-        )?.use { cursor ->
-            if (cursor.moveToFirst()) cursor.getString(0) else null
-        } ?: "selected.apk"
-
+        )?.use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null } ?: "selected.apk"
         val tempFile = File.createTempFile("openclone-inspect-", ".apk", context.cacheDir)
         try {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(tempFile).use { output -> input.copyTo(output) }
             } ?: error("The selected file could not be opened.")
-
             val flags = if (Build.VERSION.SDK_INT >= 33) {
                 PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong())
-            } else {
-                PackageManager.GET_PERMISSIONS
-            }
+            } else PackageManager.GET_PERMISSIONS
             val packageInfo = context.packageManager.getPackageArchiveInfo(tempFile.absolutePath, flags)
                 ?: error("This file is not a readable Android APK.")
             val appInfo = packageInfo.applicationInfo ?: error("APK application metadata is missing.")
             appInfo.sourceDir = tempFile.absolutePath
             appInfo.publicSourceDir = tempFile.absolutePath
-
             return ApkInspection(
                 fileName = displayName,
-                label = runCatching { appInfo.loadLabel(context.packageManager).toString() }
-                    .getOrDefault(packageInfo.packageName),
+                label = runCatching { appInfo.loadLabel(context.packageManager).toString() }.getOrDefault(packageInfo.packageName),
                 packageName = packageInfo.packageName,
                 versionName = packageInfo.versionName,
-                versionCode = if (Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode
-                    else packageInfo.versionCode.toLong(),
+                versionCode = if (Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode else packageInfo.versionCode.toLong(),
                 minSdk = appInfo.minSdkVersion,
                 targetSdk = appInfo.targetSdkVersion,
                 requestedPermissions = packageInfo.requestedPermissions?.toList().orEmpty()

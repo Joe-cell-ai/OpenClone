@@ -20,18 +20,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Android
-import androidx.compose.material.icons.outlined.Archive
-import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -165,11 +158,9 @@ private fun OpenCloneHome() {
 
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(onClick = { importApk.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.FolderOpen, contentDescription = null)
                     Text(" Inspect APK")
                 }
                 Button(onClick = { refreshApps() }, modifier = Modifier.weight(1f)) {
-                    Icon(Icons.Outlined.Android, contentDescription = null)
                     Text(" Refresh apps")
                 }
             }
@@ -180,7 +171,6 @@ private fun OpenCloneHome() {
                 onValueChange = { query = it },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                leadingIcon = { Icon(Icons.Outlined.Search, contentDescription = null) },
                 label = { Text("Search installed apps") }
             )
             Row(
@@ -191,7 +181,7 @@ private fun OpenCloneHome() {
                 Text("Include system apps")
                 Switch(checked = includeSystem, onCheckedChange = { includeSystem = it })
             }
-            Divider()
+            androidx.compose.material3.HorizontalDivider()
             Spacer(Modifier.height(8.dp))
 
             when {
@@ -305,7 +295,7 @@ private fun InstalledAppRow(app: InstalledApp, onClick: () -> Unit) {
             if (iconBitmap != null) {
                 Image(iconBitmap, contentDescription = null, modifier = Modifier.size(44.dp))
             } else {
-                Icon(Icons.Outlined.Android, contentDescription = null, modifier = Modifier.size(44.dp))
+                Text("A", modifier = Modifier.size(44.dp), style = MaterialTheme.typography.headlineMedium)
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(app.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -316,7 +306,7 @@ private fun InstalledAppRow(app: InstalledApp, onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.secondary
                 )
             }
-            Icon(Icons.Outlined.Archive, contentDescription = "App package details")
+            Text("›", style = MaterialTheme.typography.headlineMedium)
         }
     }
 }
