@@ -2,7 +2,7 @@ name: Android CI
 on:
   workflow_dispatch:
   push:
-    branches: [main, development]
+    branches: [main, development, feature/complete-roadmap]
   pull_request:
     branches: [main]
 permissions:
