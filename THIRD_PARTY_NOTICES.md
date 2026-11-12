@@ -10,6 +10,7 @@ Adapted files:
 - `ApkRebuilder.kt`
 - `SigningKey.kt`
 - `SigningKeys.kt`
+- `IconBadger.kt`
 
 These components are distributed under **GNU General Public License version 3 only (GPL-3.0-only)**. Their source headers identify the upstream project. The full license is included in [LICENSE](LICENSE).
 

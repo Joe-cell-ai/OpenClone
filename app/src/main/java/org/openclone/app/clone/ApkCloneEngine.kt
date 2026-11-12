@@ -11,7 +11,8 @@ data class CloneBuildResult(
     val originalPackage: String,
     val clonePackage: String,
     val cloneLabel: String,
-    val apks: List<File>
+    val apks: List<File>,
+    val iconBadgeApplied: Boolean = false
 )
 
 /**
@@ -32,11 +33,12 @@ class ApkCloneEngine(context: Context) {
         newPackage: String,
         newLabel: String,
         outputDirectory: File,
-        onProgress: (Int) -> Unit = {}
+        onProgress: (Int) -> Unit = {},
+        markIcon: Boolean = true
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
-        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress)
+        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon })
     }
 
     @Suppress("DEPRECATION")
@@ -46,7 +48,8 @@ class ApkCloneEngine(context: Context) {
         newPackage: String,
         newLabel: String,
         outputDirectory: File,
-        onProgress: (Int) -> Unit = {}
+        onProgress: (Int) -> Unit = {},
+        iconSource: android.content.pm.ApplicationInfo? = null
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
@@ -72,7 +75,13 @@ class ApkCloneEngine(context: Context) {
         val outputs = mutableListOf<File>()
         try {
             val signingKey = signingKeys.active
+            var iconBadgeApplied = false
             sourceApks.forEachIndexed { index, source ->
+                val replacements = if (index == 0 && iconSource != null) {
+                    runCatching { IconBadger(appContext).replacements(iconSource, newPackage) }.getOrDefault(emptyMap()).also {
+                        iconBadgeApplied = it.isNotEmpty()
+                    }
+                } else emptyMap()
                 val patcher = ManifestPatcher(
                     newPackage = newPackage,
                     newLabel = newLabel.takeIf { index == 0 },
@@ -82,7 +91,7 @@ class ApkCloneEngine(context: Context) {
                     source = source,
                     target = unsigned,
                     patcher = patcher,
-                    replacements = emptyMap(),
+                    replacements = replacements,
                     extraEntry = null
                 )
 
@@ -101,7 +110,7 @@ class ApkCloneEngine(context: Context) {
                 outputs += output
                 onProgress(((index + 1) * 100 / sourceApks.size).coerceIn(0, 100))
             }
-            return CloneBuildResult(originalPackage, newPackage, newLabel, outputs.toList())
+            return CloneBuildResult(originalPackage, newPackage, newLabel, outputs.toList(), iconBadgeApplied)
         } catch (error: Exception) {
             outputDirectory.deleteRecursively()
             throw error

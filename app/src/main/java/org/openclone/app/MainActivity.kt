@@ -99,6 +99,7 @@ private fun OpenCloneHome() {
     var clonePackage by remember { mutableStateOf("") }
     var cloneBuilding by remember { mutableStateOf(false) }
     var cloneProgress by remember { mutableStateOf(0) }
+    var markCloneIcon by remember { mutableStateOf(true) }
     var cloneError by remember { mutableStateOf<String?>(null) }
     var cloneResult by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
@@ -243,7 +244,8 @@ private fun OpenCloneHome() {
                         newPackage = targetPackage,
                         newLabel = targetLabel,
                         outputDirectory = File(context.cacheDir, "openclone/builds/$targetPackage"),
-                        onProgress = { value -> scope.launch { cloneProgress = value } }
+                        onProgress = { value -> scope.launch { cloneProgress = value } },
+                        markIcon = markCloneIcon
                     )
                 }
             }
@@ -364,6 +366,7 @@ private fun OpenCloneHome() {
                     cloneName = "${app.label} Clone".take(100)
                     clonePackage = suggestedClonePackage(app.packageName, context.packageManager)
                     cloneError = null
+                    markCloneIcon = true
                     selectedApp = null
                 }) { Text("Create clone") }
             },
@@ -406,6 +409,10 @@ private fun OpenCloneHome() {
                         )
                         Text("Building and signing APKs… $cloneProgress%")
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Mark clone icon with a dot")
+                        Switch(checked = markCloneIcon, onCheckedChange = { markCloneIcon = it })
+                    }
                     Text(
                         "A new signing key is generated for this OpenClone installation and kept encrypted in app-private storage. Cloned apps will not share data with the original.",
                         style = MaterialTheme.typography.bodySmall
@@ -432,6 +439,7 @@ private fun OpenCloneHome() {
                     DetailLine("App name", result.cloneLabel)
                     DetailLine("Package ID", result.clonePackage)
                     DetailLine("APK files", result.apks.size.toString())
+                    DetailLine("Icon badge", if (result.iconBadgeApplied) "Applied" else "Original icon kept")
                     Text(
                         "All output APKs passed signature verification. Android will still show its own install confirmation. Some apps depend on their original signature, package name, or server registration and may not work as clones.",
                         style = MaterialTheme.typography.bodySmall
