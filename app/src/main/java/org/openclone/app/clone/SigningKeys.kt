@@ -130,8 +130,17 @@ class SigningKeys private constructor(private val context: Context) {
     @Synchronized
     fun import(input: InputStream, password: CharArray, alias: String, identityAlias: String = alias) {
         ensureLoaded()
-        val bytes = input.readBytes()
-        require(bytes.size <= MAX_KEYSTORE_BYTES) { "The signing backup is too large." }
+        val buffer = ByteArrayOutputStream()
+        val chunk = ByteArray(8192)
+        var total = 0
+        while (true) {
+            val count = input.read(chunk)
+            if (count < 0) break
+            total += count
+            require(total <= MAX_KEYSTORE_BYTES) { "The signing backup is too large." }
+            buffer.write(chunk, 0, count)
+        }
+        val bytes = buffer.toByteArray()
         var failure: Exception? = null
         for (type in listOf("PKCS12", "BKS")) {
             try {
@@ -142,10 +151,7 @@ class SigningKeys private constructor(private val context: Context) {
                     ?: error("No private key under \"$entryAlias\"")
                 val certificate = keystore.getCertificate(entryAlias) as? X509Certificate
                     ?: error("No certificate under \"$entryAlias\"")
-                require(key.algorithm.equals("RSA", ignoreCase = true) &&
-                    certificate.publicKey.algorithm.equals("RSA", ignoreCase = true)) {
-                    "OpenClone currently supports RSA signing identities only."
-                }
+                validateKeyPair(key, certificate)
                 val targetAlias = identityAlias.ifBlank { entryAlias }
                 validateAlias(targetAlias)
                 require(targetAlias !in identities) { "A signing identity named \"$targetAlias\" already exists." }
@@ -310,12 +316,32 @@ class SigningKeys private constructor(private val context: Context) {
     private fun readSize(input: DataInputStream): Int =
         input.readInt().also { require(it in 1..MAX_KEY_BYTES) { "Invalid signing key data size." } }
 
-    private fun decodeKey(privateBytes: ByteArray, certificateBytes: ByteArray): SigningKey =
-        SigningKey(
-            KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(privateBytes)),
-            CertificateFactory.getInstance("X.509")
-                .generateCertificate(ByteArrayInputStream(certificateBytes)) as X509Certificate
-        )
+    private fun decodeKey(privateBytes: ByteArray, certificateBytes: ByteArray): SigningKey {
+        val key = KeyFactory.getInstance("RSA").generatePrivate(PKCS8EncodedKeySpec(privateBytes))
+        val certificate = CertificateFactory.getInstance("X.509")
+            .generateCertificate(ByteArrayInputStream(certificateBytes)) as X509Certificate
+        validateKeyPair(key, certificate)
+        return SigningKey(key, certificate)
+    }
+
+    private fun validateKeyPair(key: PrivateKey, certificate: X509Certificate) {
+        require(key.algorithm.equals("RSA", ignoreCase = true) &&
+            certificate.publicKey.algorithm.equals("RSA", ignoreCase = true)) {
+            "OpenClone currently supports RSA signing identities only."
+        }
+        val challenge = ByteArray(32).also(SecureRandom()::nextBytes)
+        val signature = Signature.getInstance("SHA256withRSA").run {
+            initSign(key)
+            update(challenge)
+            sign()
+        }
+        val matches = Signature.getInstance("SHA256withRSA").run {
+            initVerify(certificate.publicKey)
+            update(challenge)
+            verify(signature)
+        }
+        require(matches) { "The private key does not match its signing certificate." }
+    }
 
     /**
      * The signing key has to be usable by apksig as plain key material, so it cannot live in the
