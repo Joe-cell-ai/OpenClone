@@ -14,7 +14,7 @@ class InstalledAppRepository(private val packageManager: PackageManager) {
                 if (!includeSystemApps && system) return@mapNotNull null
                 val packageInfo = runCatching {
                     if (Build.VERSION.SDK_INT >= 33) {
-                        packageManager.getPackageInfo(info.packageName, PackageManager.PackageInfoFlags.of(0))
+                        packageManager.getPackageInfo(info.packageName, PackageManager.PackageInfoFlags.of(0L))
                     } else {
                         packageManager.getPackageInfo(info.packageName, 0)
                     }
