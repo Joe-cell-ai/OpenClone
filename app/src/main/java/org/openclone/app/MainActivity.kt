@@ -721,6 +721,35 @@ private fun OpenCloneHome() {
         )
     }
 
+    if (cloneWorkId != null && cloneSource == null && externalSource == null) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Clone build in progress") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    LinearProgressIndicator(
+                        progress = { cloneProgress / 100f },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("Building and signing APKs… $cloneProgress%")
+                    Text(
+                        "This build continues in the background. You can cancel it here.",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    cloneWorkId?.let { savedId ->
+                        runCatching { UUID.fromString(savedId) }.getOrNull()?.let {
+                            WorkManager.getInstance(context).cancelWorkById(it)
+                        }
+                    }
+                }) { Text("Cancel build") }
+            }
+        )
+    }
+
     cloneResult?.let { result ->
         AlertDialog(
             onDismissRequest = { cloneResult = null; cloneUpdateMode = false },
