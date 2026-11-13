@@ -17,6 +17,8 @@ class ManifestPatcher(
     private val newLabel: String?,
     /** Permissions, by their name in the original, that the result must not ask for. */
     private val removedPermissions: Set<String> = emptySet(),
+    private val versionNameOverride: String? = null,
+    private val versionCodeOverride: Int? = null,
     /**
      * Keep the ORIGINAL package name (and provider authorities / sharedUserId) in the manifest
      * instead of renaming to [newPackage]. The clone then thinks it is the original app: its
@@ -123,6 +125,8 @@ class ManifestPatcher(
                 val value = stringValue(attr)
                 when {
                     name == "label" && tag == "application" -> applicationLabel = attr
+                    tag == "manifest" && name == "versionName" && versionNameOverride != null -> setString(attr, versionNameOverride)
+                    tag == "manifest" && name == "versionCode" && versionCodeOverride != null -> setInt(attr, versionCodeOverride)
                     name == "label" && (tag == "activity" || tag == "activity-alias") -> componentLabel = attr
                     value == null -> Unit
                     // When keepPackage the manifest keeps its ORIGINAL package name, so every
@@ -289,6 +293,14 @@ class ManifestPatcher(
     private fun stringValue(attr: Int): String? =
         if (buf.get(attr + 15).toInt() == TYPE_STRING) strings.getOrNull(buf.getInt(attr + 16)) else null
 
+    private fun setInt(attr: Int, value: Int) {
+        buf.putInt(attr + 8, -1)
+        buf.putShort(attr + 12, 8)
+        buf.put(attr + 14, 0)
+        buf.put(attr + 15, TYPE_INT_DEC.toByte())
+        buf.putInt(attr + 16, value)
+    }
+
     private fun setString(attr: Int, value: String) {
         val index = appended.getOrPut(value) { strings.add(value); strings.size - 1 }
         buf.putInt(attr + 8, index)
@@ -360,6 +372,7 @@ class ManifestPatcher(
         const val POOL_HEADER_SIZE = 28
         const val FLAG_UTF8 = 1 shl 8
         const val TYPE_STRING = 0x03
+        const val TYPE_INT_DEC = 0x10
 
         val KNOWN_ATTRS = mapOf(
             0x01010001 to "label",
@@ -368,6 +381,8 @@ class ManifestPatcher(
             0x01010007 to "readPermission",
             0x01010008 to "writePermission",
             0x0101000b to "sharedUserId",
+            0x0101021b to "versionCode",
+            0x0101021c to "versionName",
             0x01010018 to "authorities",
             0x01010202 to "targetActivity",
         )

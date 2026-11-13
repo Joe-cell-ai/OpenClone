@@ -12,6 +12,8 @@ OpenClone is an open-source Android app cloner and APK inspection tool.
 - Preserve `.obb` expansion files included in imported `.xapk` / ZIP bundles, rename package-bound OBB filenames, and include them under `Android/obb/<clone-package>/` in clone ZIP exports.
 - Build a clone from an installed app's base APK and its installed split APKs.
 - Change the clone's app label and package ID.
+- Optionally override the cloned app's manifest version name and 32-bit version code.
+- Review the source app's declared permissions and remove selected permission requests from the clone manifest before signing.
 - Optionally rewrite matching package-name string constants and encoded string values across multidex DEX files; this experimental option is enabled by default and can be disabled in clone settings.
 - Optionally mark the launcher icon with a coloured badge in one of four corners so the clone is easy to distinguish.
 - Upload and preview a custom PNG launcher icon for installed-app clones that use direct raster PNG launcher resources.

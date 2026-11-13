@@ -11,8 +11,10 @@ This document tracks the feature set described by the App Cloner reference proje
 | Clone multi-APK / split packages | Supported | Complete base + split sets are imported and rebuilt together. |
 | Import .apks, .xapk, .apkm and ZIP bundles | Supported | Requires a complete, consistent APK set. |
 | Change app label | Supported | Applied to the base APK manifest. |
+| Override version name and version code | Supported with limits | Optional manifest overrides are applied when the source manifest declares those attributes; version code override is limited to positive 32-bit values. |
 | Change package ID | Supported with limitations | Binary manifest and resource table are rewritten; matching package-name strings in multidex DEX files are optionally rewritten experimentally, but class/type descriptors and dynamically assembled strings are not changed. |
 | Add a coloured launcher badge | Partial | Four-corner badge support exists for supported icon resource formats. |
+| Remove requested permissions from a clone | Supported | Clone setup lists declared permissions and can remove selected declarations from the rebuilt binary manifest before signing. Apps may stop working if a required permission is removed. |
 | Replace launcher icon | Partial | Custom PNG replacement supports a limited set of direct PNG/adaptive-icon resource layouts. |
 | Select and manage signing identities | Supported | Multiple identities are stored using Android Keystore protection. |
 | Import/export signing identity backup | Supported | Password-protected PKCS#12 backup flow exists. |
