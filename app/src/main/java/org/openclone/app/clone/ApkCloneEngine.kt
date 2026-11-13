@@ -44,7 +44,8 @@ class ApkCloneEngine(context: Context) {
         ensureActive: () -> Unit = {},
         badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT,
         customIconFile: File? = null,
-        rewriteDexPackageStrings: Boolean = true
+        rewriteDexPackageStrings: Boolean = true,
+        removedPermissions: Set<String> = emptySet()
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
@@ -139,7 +140,8 @@ class ApkCloneEngine(context: Context) {
                 val patcher = ManifestPatcher(
                     newPackage = newPackage,
                     newLabel = newLabel.takeIf { index == 0 },
-                    isSplitApk = index > 0
+                    isSplitApk = index > 0,
+                    removedPermissions = removedPermissions
                 )
                 ensureActive()
                 ApkRebuilder.rebuild(
