@@ -80,4 +80,58 @@ class AndroidCompatibilityTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         assertEquals("org.openclone.app", context.packageName)
     }
+
+    @Test
+    fun rebuildsAndSignsARealInstalledApkWithNewPackageIdentity() {
+        val context = InstrumentationRegistry.getInstrumentation().targetContext
+        val sourceInfo = context.applicationInfo
+        val sourceApk = File(sourceInfo.sourceDir)
+        val clonePackage = "org.openclone.app.ci" + UUID.randomUUID().toString().replace("-", "").take(10)
+        val outputDirectory = File(context.cacheDir, "clone-engine-ci/$clonePackage")
+        try {
+            val result = ApkCloneEngine(context).build(
+                sourceApks = listOf(sourceApk),
+                originalPackage = context.packageName,
+                newPackage = clonePackage,
+                newLabel = "OpenClone CI Clone",
+                outputDirectory = outputDirectory,
+                markIcon = false,
+                rewriteDexPackageStrings = false
+            )
+
+            assertEquals(context.packageName, result.originalPackage)
+            assertEquals(clonePackage, result.clonePackage)
+            assertEquals(1, result.apks.size)
+            val rebuiltApk = result.apks.single()
+            assertTrue(rebuiltApk.isFile && rebuiltApk.length() > 0L)
+
+            val packageManager = context.packageManager
+            val parsed = if (Build.VERSION.SDK_INT >= 33) {
+                packageManager.getPackageArchiveInfo(
+                    rebuiltApk.absolutePath,
+                    PackageManager.PackageInfoFlags.of(0L)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageArchiveInfo(rebuiltApk.absolutePath, 0)
+            }
+            assertNotNull(parsed)
+            assertEquals(clonePackage, parsed?.packageName)
+            assertEquals("OpenClone CI Clone", parsed?.applicationInfo?.loadLabel(packageManager)?.toString())
+
+            ZipFile(rebuiltApk).use { zip ->
+                val metadata = zip.getEntry("META-INF/openclone.properties")
+                assertNotNull(metadata)
+                val properties = java.util.Properties().apply {
+                    zip.getInputStream(metadata).use(::load)
+                }
+                assertEquals(context.packageName, properties.getProperty("originalPackage"))
+                assertEquals(clonePackage, properties.getProperty("clonePackage"))
+                assertTrue(properties.getProperty("signingFingerprint").isNotBlank())
+            }
+        } finally {
+            outputDirectory.deleteRecursively()
+        }
+    }
+
 }
