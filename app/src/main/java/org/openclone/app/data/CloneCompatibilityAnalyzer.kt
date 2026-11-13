@@ -24,7 +24,9 @@ object CloneCompatibilityAnalyzer {
     )
     private val playServicesPermissions = setOf(
         "com.google.android.providers.gsf.permission.READ_GSERVICES",
-        "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE"
+        "com.google.android.finsky.permission.BIND_GET_INSTALL_REFERRER_SERVICE",
+        "com.android.vending.CHECK_LICENSE",
+        "com.google.android.play.core.integrity.BIND_INTEGRITY_SERVICE"
     )
 
     fun analyze(
@@ -32,7 +34,8 @@ object CloneCompatibilityAnalyzer {
         requestedPermissions: Collection<String>,
         metadataKeys: Collection<String> = emptyList(),
         componentNames: Collection<String> = emptyList(),
-        providerAuthorities: Collection<String> = emptyList()
+        providerAuthorities: Collection<String> = emptyList(),
+        sharedUserId: String? = null
     ): CloneCompatibilityReport {
         val permissions = requestedPermissions.toSet()
         val metadata = metadataKeys.toSet()
@@ -55,6 +58,13 @@ object CloneCompatibilityAnalyzer {
             }
             if (components.any { "google" in it && ("auth" in it || "signin" in it || "credential" in it) }) {
                 add("Google sign-in or authentication components detected. OAuth client registration commonly depends on the original package ID and signing certificate.")
+            }
+            if (!sharedUserId.isNullOrBlank()) {
+                add("The APK declares sharedUserId ($sharedUserId). Android shared-user signing and install constraints can prevent a renamed clone from installing or behaving correctly.")
+            }
+            if (components.any { "integrity" in it || "licensing" in it } ||
+                metadata.any { "integrity" in it || "licensing" in it }) {
+                add("Play Integrity or licensing integration indicators detected. OpenClone does not bypass these protections; the app may reject a re-signed or renamed clone.")
             }
             if (packageName.startsWith("com.google.android.") ||
                 packageName.startsWith("com.android.")) {
