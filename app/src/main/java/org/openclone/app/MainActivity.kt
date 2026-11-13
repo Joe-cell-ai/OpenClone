@@ -973,6 +973,8 @@ private fun OpenCloneHome() {
                                 removedPermissions = emptySet()
                                 cloneName = clone.cloneLabel
                                 clonePackage = clone.clonePackage
+                                versionNameOverride = ""
+                                versionCodeOverride = ""
                                 cloneUpdateMode = true
                                 cloneError = null
                                 customIconPath = null
