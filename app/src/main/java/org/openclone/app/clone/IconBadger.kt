@@ -64,6 +64,26 @@ class IconBadger(private val context: Context) {
                     val path = value.string?.toString() ?: return@runCatching
                     if (path in result) return@runCatching
                     val replacement = if (path.endsWith(".xml")) {
+                        // Adaptive icons keep their XML, background, and mask. When the foreground
+                        // resolves directly to PNG resources, replace those raster layers instead.
+                        if (customBitmap != null) {
+                            adaptiveForegroundId(resources, icon)?.let { foreground ->
+                                for (layerDensity in DENSITIES) {
+                                    runCatching {
+                                        val layerValue = TypedValue()
+                                        if (layerDensity == 0) resources.getValue(foreground, layerValue, true)
+                                        else resources.getValueForDensity(foreground, layerDensity, layerValue, true)
+                                        val layerPath = layerValue.string?.toString() ?: return@runCatching
+                                        if (layerPath.endsWith(".png", ignoreCase = true) && layerPath !in result) {
+                                            result[layerPath] = bitmapIcon(
+                                                resources, foreground, layerDensity, color, position,
+                                                customBitmap, addBadge = false
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         if (addBadge) adaptiveIcon(resources, icon, color, position) else null
                     } else if (path.endsWith(".png", ignoreCase = true) && (addBadge || customBitmap != null)) {
                         bitmapIcon(
@@ -77,6 +97,28 @@ class IconBadger(private val context: Context) {
             }
         }
         return result
+    }
+
+    /** Returns the direct foreground resource ID of a plain adaptive-icon XML resource. */
+    private fun adaptiveForegroundId(resources: Resources, icon: Int): Int? {
+        var depth = 0
+        var foreground = 0
+        resources.getXml(icon).use { parser ->
+            while (true) {
+                when (parser.next()) {
+                    XmlPullParser.END_DOCUMENT -> break
+                    XmlPullParser.END_TAG -> depth--
+                    XmlPullParser.START_TAG -> {
+                        depth++
+                        if (depth == 1 && parser.name != "adaptive-icon") return null
+                        if (depth == 2 && parser.name == "foreground") {
+                            foreground = parser.getAttributeResourceValue(ANDROID_NS, "drawable", 0)
+                        }
+                    }
+                }
+            }
+        }
+        return foreground.takeIf { it != 0 }
     }
 
     /**
