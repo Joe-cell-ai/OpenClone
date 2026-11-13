@@ -7,7 +7,7 @@ OpenClone is an open-source Android app cloner and APK inspection tool.
 - Browse installed user apps and optionally system apps.
 - Search installed apps by name or package ID.
 - Inspect a single APK's package, version, SDK levels, and requested permissions.
-- Run a best-effort compatibility preflight during APK inspection, highlighting declared Firebase/Cloud Messaging and Google services integration indicators alongside general package/signature limitations.
+- Run a best-effort compatibility preflight during APK inspection, highlighting declared Firebase/Cloud Messaging and Google services integration indicators, shared-user constraints, and Play Integrity/licensing indicators alongside general package/signature limitations.
 - Import standalone APKs and split-APK archives in `.apks`, `.xapk`, `.apkm`, and ZIP formats, validate package/version consistency, and clone the complete APK set.
 - Preserve `.obb` expansion files included in imported `.xapk` / ZIP bundles, rename package-bound OBB filenames, and include them under `Android/obb/<clone-package>/` in clone ZIP exports.
 - Build a clone from an installed app's base APK and its installed split APKs.
