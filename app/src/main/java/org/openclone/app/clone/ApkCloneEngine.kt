@@ -44,7 +44,7 @@ class ApkCloneEngine(context: Context) {
         ensureActive: () -> Unit = {},
         badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT,
         customIconFile: File? = null,
-        rewriteDexPackageStrings: Boolean = true,
+        rewriteDexPackageStrings: Boolean = false,
         removedPermissions: Set<String> = emptySet(),
         versionNameOverride: String? = null,
         versionCodeOverride: Int? = null
@@ -76,7 +76,7 @@ class ApkCloneEngine(context: Context) {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
         // Fail before touching an existing output directory when the current heap is too small.
-        CloneBuildPreflight.requireSafe(CloneBuildPreflight.inspect(sourceApks))
+        CloneBuildPreflight.requireSafe(CloneBuildPreflight.inspect(sourceApks, rewriteDexPackageStrings = rewriteDexPackageStrings))
         require(PACKAGE_NAME.matches(newPackage)) {
             "Enter a valid package ID, for example com.example.myclone."
         }
