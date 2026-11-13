@@ -25,7 +25,7 @@ This document tracks the feature set described by the App Cloner reference proje
 | DEX processing in an isolated worker with explicit heap budgeting | Partial | Build work is already backgrounded and has a heap preflight; DEX-specific memory isolation/budgeting is not implemented. |
 | OBB / expansion-data handling | Partial | OBB files included in imported XAPK/ZIP bundles are preserved, renamed when package-bound, and included in exported ZIPs under Android/obb/<clone-package>. Installed-source OBB discovery and automatic placement are not implemented. |
 | Broad icon-format replacement (vector, nested layers, adaptive backgrounds) | Partial | Unsupported source icon structures retain original artwork. |
-| Detailed compatibility warnings for Google services, FCM, signature checks and server-bound identity | Partial | Current analyzer is heuristic and based on APK declarations/metadata; runtime behavior cannot be guaranteed. |
+| Detailed compatibility warnings for Google services, FCM, signature checks and server-bound identity | Partial | Current analyzer is heuristic and checks APK declarations/metadata for Firebase, Google services/sign-in, sharedUserId, and Play Integrity/licensing indicators; runtime behavior cannot be guaranteed. |
 
 ## Implementation sequence
 
