@@ -21,6 +21,7 @@ class CloneBuildPreflightTest {
             )
             assertEquals(apk.length(), report.sourceBytes)
             assertEquals(1024L, report.resourceTableBytes)
+            assertEquals(2048L, report.dexBytes)
             assertEquals(224L * 1024 * 1024, report.availableHeapBytes)
             assertTrue(report.canProceed)
         } finally {
@@ -60,6 +61,9 @@ class CloneBuildPreflightTest {
         ZipOutputStream(file.outputStream()).use { zip ->
             zip.putNextEntry(ZipEntry("resources.arsc"))
             zip.write(ByteArray(resourceBytes.toInt()))
+            zip.closeEntry()
+            zip.putNextEntry(ZipEntry("classes.dex"))
+            zip.write(ByteArray(2048))
             zip.closeEntry()
             zip.putNextEntry(ZipEntry("AndroidManifest.xml"))
             zip.write(byteArrayOf(1, 2, 3))

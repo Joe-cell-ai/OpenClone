@@ -19,3 +19,7 @@ OpenClone's own code in this repository is also distributed under GPL-3.0-only. 
 ## ARSCLib dependency
 
 [ARSCLib](https://github.com/REAndroid/ARSCLib) by REAndroid is used at runtime to generate adaptive-icon XML for the optional clone badge and by JVM unit tests to create binary Android XML fixtures. OpenClone packages a stripped jar without ARSCLib's duplicate Android framework and XML-pull stubs. ARSCLib is licensed under Apache License 2.0.
+
+## dexlib2
+
+[dexlib2](https://github.com/JesusFreke/smali) version 2.5.2 is used for parsing and rewriting DEX string references. It is distributed under the BSD 3-Clause license. See the upstream repository for the full license text.

@@ -17,7 +17,8 @@ data class ExternalApkSet(
     val packageName: String,
     val versionName: String?,
     val versionCode: Long,
-    val apkFiles: List<File>
+    val apkFiles: List<File>,
+    val obbFiles: List<File> = emptyList()
 )
 
 /** Imports an APK or split-APK archive without trusting archive entry paths. */
@@ -31,6 +32,7 @@ class ExternalApkImporter(private val context: Context) {
             val input = context.contentResolver.openInputStream(uri)
                 ?: error("The selected file could not be opened.")
             val candidates = mutableListOf<Pair<String, File>>()
+            val obbFiles = mutableListOf<File>()
             input.use { stream ->
                 if (archiveName.lowercase(Locale.ROOT).endsWith(".apk")) {
                     val apk = File(outputDir, "part-0.apk")
@@ -49,6 +51,14 @@ class ExternalApkImporter(private val context: Context) {
                                 val copied = FileOutputStream(file).use { zip.copyBoundedTo(it, MAX_TOTAL_BYTES - totalBytes) }
                                 totalBytes += copied
                                 if (copied > 0L) candidates += entry.name to file else file.delete()
+                            } else if (!entry.isDirectory && entry.name.lowercase(Locale.ROOT).endsWith(".obb")) {
+                                val originalName = entry.name.substringAfterLast('/').takeIf { it.isNotBlank() }
+                                    ?: "expansion-${obbFiles.size}.obb"
+                                val safeName = originalName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(180)
+                                val file = File(outputDir, safeName)
+                                val copied = FileOutputStream(file).use { zip.copyBoundedTo(it, MAX_TOTAL_BYTES - totalBytes) }
+                                totalBytes += copied
+                                if (copied > 0L) obbFiles += file else file.delete()
                             }
                             zip.closeEntry()
                             entry = zip.nextEntry
@@ -88,7 +98,7 @@ class ExternalApkImporter(private val context: Context) {
             val label = runCatching { appInfo.loadLabel(context.packageManager).toString() }.getOrDefault(packageName)
             return ExternalApkSet(
                 archiveName, label, packageName, baseInfo.versionName,
-                versionCode, listOf(base.file) + splitFiles
+                versionCode, listOf(base.file) + splitFiles, obbFiles
             )
         } catch (error: Exception) {
             outputDir.deleteRecursively()

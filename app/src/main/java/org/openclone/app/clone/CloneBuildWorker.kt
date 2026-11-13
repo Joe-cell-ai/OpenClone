@@ -44,6 +44,8 @@ class CloneBuildWorker(
             }
             val customIconFile = inputData.getString(KEY_CUSTOM_ICON_PATH)?.let(::File)
                 ?.takeIf { it.isFile && it.canRead() }
+            val obbSources = inputData.getStringArray(KEY_OBB_FILES).orEmpty().map(::File)
+            require(obbSources.all { it.isFile && it.canRead() }) { "One or more OBB expansion files are missing or unreadable." }
             val markIcon = inputData.getBoolean(KEY_MARK_ICON, false)
             val position = inputData.getString(KEY_BADGE_POSITION)
                 ?.let { runCatching { BadgePosition.valueOf(it) }.getOrNull() }
@@ -70,14 +72,28 @@ class CloneBuildWorker(
                 },
                 badgePosition = position,
                 markIcon = markIcon,
-                customIconFile = customIconFile
+                customIconFile = customIconFile,
+                rewriteDexPackageStrings = inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, true)
             )
+            val obbOutputDirectory = File(result.apks.first().parentFile, "obb")
+            val obbOutputs = if (obbSources.isEmpty()) emptyList() else {
+                check(obbOutputDirectory.mkdirs() || obbOutputDirectory.isDirectory) { "Could not create the OBB export directory." }
+                obbSources.map { source ->
+                    if (isStopped || Thread.currentThread().isInterrupted) throw CancellationException("Clone build cancelled.")
+                    val renamed = source.name.replace(originalPackage, clonePackage)
+                    val destination = File(obbOutputDirectory, renamed)
+                    check(!destination.exists()) { "The imported OBB set contains duplicate filenames." }
+                    source.copyTo(destination, overwrite = true)
+                    destination
+                }
+            }
             Result.success(
                 Data.Builder()
                     .putString(KEY_ORIGINAL_PACKAGE, result.originalPackage)
                     .putString(KEY_CLONE_PACKAGE, result.clonePackage)
                     .putString(KEY_CLONE_LABEL, result.cloneLabel)
                     .putStringArray(KEY_OUTPUT_APKS, result.apks.map { it.absolutePath }.toTypedArray())
+                    .putStringArray(KEY_OUTPUT_OBB_FILES, obbOutputs.map { it.absolutePath }.toTypedArray())
                     .putBoolean(KEY_ICON_BADGE_APPLIED, result.iconBadgeApplied)
                     .putBoolean(KEY_CUSTOM_ICON_APPLIED, result.customIconApplied)
                     .putBoolean(KEY_ALLOW_UPDATE, inputData.getBoolean(KEY_ALLOW_UPDATE, false))
@@ -96,11 +112,14 @@ class CloneBuildWorker(
         const val KEY_CLONE_PACKAGE = "clone_package"
         const val KEY_CLONE_LABEL = "clone_label"
         const val KEY_MARK_ICON = "mark_icon"
+        const val KEY_REWRITE_DEX_PACKAGE_STRINGS = "rewrite_dex_package_strings"
         const val KEY_ALLOW_UPDATE = "allow_update"
         const val KEY_ICON_PACKAGE = "icon_package"
         const val KEY_BADGE_POSITION = "badge_position"
         const val KEY_PROGRESS = "progress"
         const val KEY_OUTPUT_APKS = "output_apks"
+        const val KEY_OBB_FILES = "obb_files"
+        const val KEY_OUTPUT_OBB_FILES = "output_obb_files"
         const val KEY_ICON_BADGE_APPLIED = "icon_badge_applied"
         const val KEY_CUSTOM_ICON_PATH = "custom_icon_path"
         const val KEY_CUSTOM_ICON_APPLIED = "custom_icon_applied"
