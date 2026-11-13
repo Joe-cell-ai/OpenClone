@@ -4,8 +4,6 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicInteger
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes
-import org.jf.dexlib2.iface.reference.StringReference
-import org.jf.dexlib2.immutable.reference.ImmutableStringReference
 import org.jf.dexlib2.rewriter.DexRewriter
 import org.jf.dexlib2.rewriter.Rewriter
 import org.jf.dexlib2.rewriter.RewriterModule
@@ -25,13 +23,12 @@ object DexPackageStringRewriter {
         }
         val replacements = AtomicInteger()
         val rewriter = DexRewriter(object : RewriterModule() {
-            override fun getStringRewriter(rewriters: Rewriters): Rewriter<StringReference> =
-                object : Rewriter<StringReference> {
-                    override fun rewrite(value: StringReference): StringReference {
-                        val rewritten = replacePackageToken(value.string, oldPackage, newPackage)
-                        if (rewritten == value.string) return value
-                        replacements.incrementAndGet()
-                        return ImmutableStringReference(rewritten)
+            override fun getStringRewriter(rewriters: Rewriters): Rewriter<String> =
+                object : Rewriter<String> {
+                    override fun rewrite(value: String): String {
+                        val rewritten = replacePackageToken(value, oldPackage, newPackage)
+                        if (rewritten != value) replacements.incrementAndGet()
+                        return rewritten
                     }
                 }
         })
@@ -53,7 +50,7 @@ object DexPackageStringRewriter {
                 if (index < 0) break
                 val end = index + old.length
                 val leftBoundary = index == 0 || !isPackageCharacter(result[index - 1])
-                val rightBoundary = end == result.length || !isPackageCharacter(result[end])
+                val rightBoundary = end == result.length || !result[end].isLetterOrDigit() && result[end] != '_'
                 if (leftBoundary && rightBoundary) {
                     val replacement = if ('/' in old) newPackage.replace('.', '/') else newPackage
                     result = result.replaceRange(index, end, replacement)
