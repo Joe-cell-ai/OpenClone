@@ -1,6 +1,12 @@
 name: Android CI
 on:
   workflow_dispatch:
+    inputs:
+      build_release:
+        description: "Build a signed release APK"
+        required: true
+        type: boolean
+        default: false
   push:
     branches: [main, development]
   pull_request:
