@@ -90,6 +90,7 @@ import org.openclone.app.data.InstalledApp
 import org.openclone.app.data.InstalledAppRepository
 import org.openclone.app.data.InstalledClone
 import org.openclone.app.data.InstalledCloneRepository
+import org.openclone.app.data.CloneBuildHistoryRepository
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -143,6 +144,7 @@ private fun OpenCloneHome() {
     var statusMessage by remember { mutableStateOf<String?>(null) }
     var showClones by remember { mutableStateOf(false) }
     var clones by remember { mutableStateOf<List<InstalledClone>>(emptyList()) }
+    var buildHistory by remember { mutableStateOf(CloneBuildHistoryRepository(context).getAll()) }
     var selectedClone by remember { mutableStateOf<InstalledClone?>(null) }
 
     var cloneSource by remember { mutableStateOf<InstalledApp?>(null) }
@@ -536,6 +538,7 @@ private fun OpenCloneHome() {
                                         customIconApplied = info.outputData.getBoolean(CloneBuildWorker.KEY_CUSTOM_ICON_APPLIED, false),
                                         obbFiles = info.outputData.getStringArray(CloneBuildWorker.KEY_OUTPUT_OBB_FILES)?.map(::File).orEmpty()
                                     )
+                                    buildHistory = runCatching { CloneBuildHistoryRepository(context).add(cloneResult!!) }.getOrElse { error -> statusMessage = error.message ?: "Could not save build history."; buildHistory }
                                     cloneSource = null
                                     externalSource = null
                                     statusMessage = if (cloneResult?.obbFiles?.isNotEmpty() == true) "Clone APK set built and signature-verified. OBB expansion data is included in ZIP export." else "Clone APK set built and signature-verified."
@@ -699,10 +702,34 @@ private fun OpenCloneHome() {
                         Text("Selected: ${info.label}", modifier = Modifier.padding(top = 12.dp))
                     }
                 }
-                "Cloned APKs" -> Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text("⇩", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
-                    Text("Generated APK files will appear here", style = MaterialTheme.typography.titleMedium)
-                    Text("Build history and saved clone settings are not persisted yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                "Cloned APKs" -> Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Saved builds · ${buildHistory.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        TextButton(onClick = { buildHistory = CloneBuildHistoryRepository(context).getAll() }) { Text("Refresh") }
+                    }
+                    if (buildHistory.isEmpty()) {
+                        Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Text("⇩", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
+                            Text("No generated APK builds yet", style = MaterialTheme.typography.titleMedium)
+                            Text("Completed builds will be saved here for install or export.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        items(buildHistory, key = { "${it.clonePackage}-${it.createdAtMillis}" }) { entry ->
+                            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+                                Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Text(entry.cloneLabel, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                                    Text(entry.clonePackage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                                    Text(java.text.DateFormat.getDateTimeInstance().format(java.util.Date(entry.createdAtMillis)) + " · ${entry.apkPaths.size} APK(s)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    if (!entry.filesAvailable) Text("Build files are no longer available. Rebuild this clone to restore them.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        TextButton(enabled = entry.filesAvailable, onClick = { installClone(entry.toBuildResult()) }) { Text("Install") }
+                                        TextButton(enabled = entry.filesAvailable, onClick = { pendingExport = entry.toBuildResult(); exportClone.launch("${entry.clonePackage}-clone-apk-set.zip") }) { Text("Export") }
+                                        TextButton(onClick = { buildHistory = CloneBuildHistoryRepository(context).remove(entry.clonePackage, entry.createdAtMillis) }) { Text("Remove") }
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 else -> Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     Text("OpenClone Extensions", style = MaterialTheme.typography.titleLarge)
