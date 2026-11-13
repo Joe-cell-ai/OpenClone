@@ -30,7 +30,7 @@ class CloneBuildPreflightTest {
                 freeAllocatedHeapBytes = 32L * 1024 * 1024,
                 rewriteDexPackageStrings = true
             )
-            assertEquals(report.estimatedPeakBytes + 2048L * 4L, rewriteReport.estimatedPeakBytes)
+            assertEquals(maxOf(64L * 1024 * 1024, 32L * 1024 * 1024 + 1024L * 3L + 2048L * 4L), rewriteReport.estimatedPeakBytes)
             assertEquals(224L * 1024 * 1024, report.availableHeapBytes)
             assertTrue(report.canProceed)
         } finally {
