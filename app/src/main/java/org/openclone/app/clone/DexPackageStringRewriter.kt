@@ -79,6 +79,7 @@ object DexPackageStringRewriter {
         output.parentFile?.mkdirs()
         DexFileFactory.writeDexFile(output.absolutePath, rewritten)
         require(output.isFile && output.length() > 0L) { "DEX rewriting produced an empty output file." }
+        DexFileFactory.loadDexFile(output, Opcodes.getDefault())
         return Result(replacements.get())
     }
 
