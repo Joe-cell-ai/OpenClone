@@ -7,6 +7,15 @@ import org.jf.dexlib2.Opcodes
 import org.jf.dexlib2.rewriter.DexRewriter
 import org.jf.dexlib2.rewriter.Rewriter
 import org.jf.dexlib2.rewriter.RewriterModule
+import org.jf.dexlib2.iface.instruction.Instruction
+import org.jf.dexlib2.iface.instruction.formats.Instruction21c
+import org.jf.dexlib2.iface.instruction.formats.Instruction31c
+import org.jf.dexlib2.iface.reference.Reference
+import org.jf.dexlib2.iface.value.EncodedValue
+import org.jf.dexlib2.iface.value.StringEncodedValue
+import org.jf.dexlib2.immutable.instruction.ImmutableInstruction21c
+import org.jf.dexlib2.immutable.instruction.ImmutableInstruction31c
+import org.jf.dexlib2.immutable.value.ImmutableStringEncodedValue
 import org.jf.dexlib2.rewriter.Rewriters
 
 /**
@@ -23,14 +32,47 @@ object DexPackageStringRewriter {
         }
         val replacements = AtomicInteger()
         val rewriter = DexRewriter(object : RewriterModule() {
-            override fun getStringRewriter(rewriters: Rewriters): Rewriter<String> =
-                object : Rewriter<String> {
-                    override fun rewrite(value: String): String {
-                        val rewritten = replacePackageToken(value, oldPackage, newPackage)
-                        if (rewritten != value) replacements.incrementAndGet()
-                        return rewritten
+            override fun getInstructionRewriter(rewriters: Rewriters): Rewriter<Instruction> {
+                val delegate = super.getInstructionRewriter(rewriters)
+                return object : Rewriter<Instruction> {
+                    override fun rewrite(value: Instruction): Instruction {
+                        val instruction = delegate.rewrite(value)
+                        val reference = (instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)?.reference
+                            as? org.jf.dexlib2.iface.reference.StringReference
+                        if (reference == null) return instruction
+                        val changed = replacePackageToken(reference.string, oldPackage, newPackage)
+                        if (changed == reference.string) return instruction
+                        replacements.incrementAndGet()
+                        return when (instruction) {
+                            is Instruction21c -> ImmutableInstruction21c(
+                                instruction.opcode, instruction.registerA,
+                                org.jf.dexlib2.immutable.reference.ImmutableStringReference(changed)
+                            )
+                            is Instruction31c -> ImmutableInstruction31c(
+                                instruction.opcode, instruction.registerA,
+                                org.jf.dexlib2.immutable.reference.ImmutableStringReference(changed)
+                            )
+                            else -> instruction
+                        }
                     }
                 }
+            }
+
+            override fun getEncodedValueRewriter(rewriters: Rewriters): Rewriter<EncodedValue> {
+                val delegate = super.getEncodedValueRewriter(rewriters)
+                return object : Rewriter<EncodedValue> {
+                    override fun rewrite(value: EncodedValue): EncodedValue {
+                        if (value is StringEncodedValue) {
+                            val changed = replacePackageToken(value.value, oldPackage, newPackage)
+                            if (changed != value.value) {
+                                replacements.incrementAndGet()
+                                return ImmutableStringEncodedValue(changed)
+                            }
+                        }
+                        return delegate.rewrite(value)
+                    }
+                }
+            }
         })
         val dex = DexFileFactory.loadDexFile(input, Opcodes.getDefault())
         val rewritten = rewriter.rewriteDexFile(dex)
