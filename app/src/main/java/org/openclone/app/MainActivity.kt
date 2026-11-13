@@ -166,6 +166,7 @@ private fun OpenCloneHome() {
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingExport by remember { mutableStateOf<CloneBuildResult?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var currentTab by rememberSaveable { mutableStateOf("Home") }
     var showSigningKeys by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var signingAliases by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -606,116 +607,119 @@ private fun OpenCloneHome() {
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp)) {
-            Column(
-                modifier = Modifier.fillMaxWidth()
-                    .background(
-                        Brush.linearGradient(
-                            listOf(Color(0xFF25205C), Color(0xFF3B237A), Color(0xFF123D65))
-                        ),
-                        RoundedCornerShape(22.dp)
-                    )
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp)
-            ) {
-                Text("✦  OPENCLONE  /  APP STUDIO", style = MaterialTheme.typography.labelMedium, color = Color(0xFFB9B4FF), fontWeight = FontWeight.Bold)
-                Text("Clone apps. Your way.", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                Text("Create independent app spaces with custom identity and signing.", style = MaterialTheme.typography.bodySmall, color = Color(0xFFD9D7F7))
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("✦  ${clones.size} CLONES", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8DEBFA), fontWeight = FontWeight.Bold)
-                    Text("•", color = Color(0xFF8B83C8))
-                    Text("${apps.size} APPS READY", style = MaterialTheme.typography.labelSmall, color = Color(0xFFE1D8FF), fontWeight = FontWeight.Bold)
-                }
-            }
-
+        Column(modifier = Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.End
-            ) {
-                TextButton(onClick = { showSettings = true }) { Text("⚙ Settings") }
-            }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { importApk.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) {
-                    Text("Inspect APK", maxLines = 1)
-                }
-                Button(onClick = { refreshApps() }, modifier = Modifier.weight(1f)) {
-                    Text("Refresh", maxLines = 1)
-                }
-            }
-            Button(
-                onClick = { importBundle.launch(arrayOf("*/*")) },
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Import APK / bundle to clone", maxLines = 1) }
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { showClones = false }) { Text("Installed apps") }
-                TextButton(onClick = { showClones = true }) { Text("My clones (${clones.size})") }
-            }
-            OutlinedTextField(
-                value = query,
-                onValueChange = { query = it },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                label = { Text(if (showClones) "Search clones" else "Search installed apps") }
-            )
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Include system apps", style = MaterialTheme.typography.bodyMedium)
-                Switch(checked = includeSystem, onCheckedChange = { includeSystem = it })
+                Column {
+                    Text("OPENCLONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(currentTab, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { showSettings = true }) { Text("⚙") }
             }
-            HorizontalDivider()
-            Spacer(Modifier.height(4.dp))
-
-            when {
-                loading -> Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+            when (currentTab) {
+                "Home" -> LazyColumn(
+                    modifier = Modifier.weight(1f).padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    CircularProgressIndicator()
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth()
+                                .background(Brush.linearGradient(listOf(Color(0xFF174A83), Color(0xFF342B78), Color(0xFF17677A))), RoundedCornerShape(22.dp))
+                                .padding(20.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text("Clone apps. Your way.", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                            Text("Create independent app spaces with custom identity and signing.", color = Color(0xFFE1E8FF))
+                            Text("${apps.size} apps ready  •  ${clones.size} installed clones", color = Color(0xFF9DECF5), style = MaterialTheme.typography.labelMedium)
+                        }
+                    }
+                    item { Text("App Cloner", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                HomeActionTile("Apps", "Clone installed apps", Modifier.weight(1f)) { currentTab = "Apps" }
+                                HomeActionTile("APKs", "Clone APK files", Modifier.weight(1f)) { currentTab = "APKs" }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                HomeActionTile("Cloned apps", "Manage installed clones", Modifier.weight(1f)) { currentTab = "Cloned apps" }
+                                HomeActionTile("Cloned APKs", "Manage generated APKs", Modifier.weight(1f)) { currentTab = "Cloned APKs" }
+                            }
+                        }
+                    }
+                    item { Text("Account & Tools", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            HomeActionTile("Backup / Profile", "Local presets and restore", Modifier.fillMaxWidth()) { showSettings = true }
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                HomeActionTile("Settings", "Preferences", Modifier.weight(1f)) { showSettings = true }
+                                HomeActionTile("Extensions", "Add-ons and integrations", Modifier.weight(1f)) { currentTab = "Store" }
+                            }
+                        }
+                    }
+                    item {
+                        Text("Advanced tools such as isolated WebView, per-clone VPN/proxy, tunnel manager, remote control and MCP server are roadmap items; they are not enabled yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                }
+                "Apps" -> Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Installed applications", style = MaterialTheme.typography.titleMedium)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("System apps", style = MaterialTheme.typography.labelSmall)
+                            Switch(checked = includeSystem, onCheckedChange = { includeSystem = it })
+                        }
+                    }
+                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search apps or package ID") })
+                    when {
+                        loading -> Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { CircularProgressIndicator(); Text("Loading apps…") }
+                        visibleApps.isEmpty() -> Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("No matching apps found.") }
+                        else -> LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            items(visibleApps, key = { it.packageName }) { app -> InstalledAppRow(app = app, onClick = { selectedApp = app }) }
+                        }
+                    }
+                }
+                "Cloned apps" -> Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search installed clones") })
+                    if (clones.isEmpty()) {
+                        Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("🧬", style = MaterialTheme.typography.displayMedium); Text("Installed clones will appear here") }
+                    } else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(clones.filter { it.cloneLabel.contains(query, true) || it.clonePackage.contains(query, true) }, key = { it.clonePackage }) { clone ->
+                            InstalledAppRow(app = clone.app, onClick = { selectedClone = clone }, subtitle = clone.updateStatus)
+                        }
+                    }
+                }
+                "APKs" -> Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text("▤", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("Add APK files to clone here", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(12.dp))
-                    Text("Loading app information…")
-                }
-                showClones && clones.isEmpty() -> Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) { Text("No OpenClone clones found yet.") }
-                showClones -> LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(clones.filter { it.cloneLabel.contains(query, true) || it.clonePackage.contains(query, true) }, key = { it.clonePackage }) { clone ->
-                        InstalledAppRow(app = clone.app, onClick = { selectedClone = clone }, subtitle = clone.updateStatus)
+                    Button(onClick = { importBundle.launch(arrayOf("*/*")) }) { Text("＋ Import APK / XAPK / APKM") }
+                    inspection?.let { info ->
+                        Text("Selected: ${info.appLabel}", modifier = Modifier.padding(top = 12.dp))
+                        Button(onClick = { cloneName = "${info.appLabel} Clone"; clonePackage = suggestedClonePackage(info.packageName, context.packageManager); selectedApp = null }) { Text("Configure clone") }
                     }
                 }
-                visibleApps.isEmpty() -> Column(
-                    modifier = Modifier.fillMaxWidth().weight(1f),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) { Text("No matching apps found.") }
-                else -> LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(visibleApps, key = { it.packageName }) { app ->
-                        InstalledAppRow(app = app, onClick = { selectedApp = app })
-                    }
+                "Cloned APKs" -> Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text("⇩", style = MaterialTheme.typography.displayLarge, color = MaterialTheme.colorScheme.primary)
+                    Text("Generated APK files will appear here", style = MaterialTheme.typography.titleMedium)
+                    Text("Build history and saved clone settings are not persisted yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                else -> Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    Text("OpenClone Extensions", style = MaterialTheme.typography.titleLarge)
+                    Text("Extension store and add-on integrations are planned; no extensions are available yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-
-            Text(
-                "Clone builds rewrite the APK manifest/resources and re-sign the result. Some apps may not run after cloning.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.secondary,
-                modifier = Modifier.padding(top = 8.dp)
-            )
-            statusMessage?.let { message ->
-                TextButton(onClick = { statusMessage = null }) { Text(message) }
+            statusMessage?.let { message -> TextButton(onClick = { statusMessage = null }, modifier = Modifier.fillMaxWidth()) { Text(message) } }
+            Row(
+                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(horizontal = 4.dp, vertical = 6.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                listOf("Home", "Apps", "APKs", "Cloned apps", "Cloned APKs", "Store").forEach { tab ->
+                    TextButton(onClick = { currentTab = tab; query = "" }, modifier = Modifier.weight(1f)) {
+                        Text(when(tab) { "Home" -> "⌂"; "Apps" -> "▦"; "APKs" -> "▤"; "Cloned apps" -> "🧬"; "Cloned APKs" -> "⇩"; else -> "◇" } + "\n" + tab, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+                    }
+                }
             }
         }
     }
