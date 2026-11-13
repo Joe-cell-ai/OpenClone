@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
+import android.os.Build
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -22,6 +23,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,6 +33,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
@@ -132,6 +135,8 @@ private fun OpenCloneHome() {
     var rewriteDexPackageStrings by remember { mutableStateOf(true) }
     var customIconPath by rememberSaveable { mutableStateOf<String?>(null) }
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
+    var requestedPermissions by remember { mutableStateOf<List<String>>(emptyList()) }
+    var removedPermissions by remember { mutableStateOf<Set<String>>(emptySet()) }
     var cloneError by remember { mutableStateOf<String?>(null) }
     var cloneUpdateMode by remember { mutableStateOf(false) }
     var cloneResult by remember { mutableStateOf<CloneBuildResult?>(null) }
@@ -268,6 +273,8 @@ private fun OpenCloneHome() {
                     onSuccess = { source ->
                         externalSource = source
                         cloneSource = null
+                        requestedPermissions = source.apkFiles.firstOrNull()?.let { readArchivePermissions(context, it) }.orEmpty()
+                        removedPermissions = emptySet()
                         cloneName = "${source.label} Clone".take(100)
                         clonePackage = suggestedClonePackage(source.packageName, context.packageManager)
                         cloneError = null
@@ -430,6 +437,7 @@ private fun OpenCloneHome() {
             .putString(CloneBuildWorker.KEY_CLONE_LABEL, targetLabel)
             .putBoolean(CloneBuildWorker.KEY_MARK_ICON, markCloneIcon && installedSource != null)
             .putBoolean(CloneBuildWorker.KEY_REWRITE_DEX_PACKAGE_STRINGS, rewriteDexPackageStrings)
+            .putStringArray(CloneBuildWorker.KEY_REMOVED_PERMISSIONS, removedPermissions.toTypedArray())
             .putBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, cloneUpdateMode)
             .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)
             .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
@@ -679,6 +687,8 @@ private fun OpenCloneHome() {
             confirmButton = {
                 TextButton(onClick = {
                     cloneSource = app
+                    requestedPermissions = readInstalledPermissions(context, app.packageName)
+                    removedPermissions = emptySet()
                     cloneName = "${app.label} Clone".take(100)
                     clonePackage = suggestedClonePackage(app.packageName, context.packageManager)
                     cloneError = null
@@ -723,6 +733,24 @@ private fun OpenCloneHome() {
                     )
                     cloneError?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (requestedPermissions.isNotEmpty()) {
+                        Text("Remove permissions from this clone", style = MaterialTheme.typography.titleSmall)
+                        Text("Selected permissions are removed from the rebuilt manifest. The app may stop working if it depends on them.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
+                            items(requestedPermissions, key = { it }) { permission ->
+                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                                    Checkbox(
+                                        checked = permission in removedPermissions,
+                                        onCheckedChange = { checked ->
+                                            removedPermissions = if (checked) removedPermissions + permission else removedPermissions - permission
+                                        },
+                                        enabled = !cloneBuilding
+                                    )
+                                    Text(permission, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
                     }
                     if (cloneBuilding) {
                         LinearProgressIndicator(
@@ -1093,6 +1121,28 @@ private fun OpenCloneHome() {
             confirmButton = { TextButton(onClick = { inspection = null }) { Text("Done") } }
         )
     }
+}
+
+@Suppress("DEPRECATION")
+private fun readInstalledPermissions(context: Context, packageName: String): List<String> {
+    val flags = android.content.pm.PackageManager.GET_PERMISSIONS
+    val info = if (Build.VERSION.SDK_INT >= 33) {
+        context.packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.PackageInfoFlags.of(flags.toLong()))
+    } else {
+        context.packageManager.getPackageInfo(packageName, flags)
+    }
+    return info.requestedPermissions?.toList().orEmpty().distinct().sorted()
+}
+
+@Suppress("DEPRECATION")
+private fun readArchivePermissions(context: Context, apk: File): List<String> {
+    val flags = android.content.pm.PackageManager.GET_PERMISSIONS
+    val info = if (Build.VERSION.SDK_INT >= 33) {
+        context.packageManager.getPackageArchiveInfo(apk.absolutePath, android.content.pm.PackageManager.PackageInfoFlags.of(flags.toLong()))
+    } else {
+        context.packageManager.getPackageArchiveInfo(apk.absolutePath, flags)
+    } ?: return emptyList()
+    return info.requestedPermissions?.toList().orEmpty().distinct().sorted()
 }
 
 @Suppress("DEPRECATION")
