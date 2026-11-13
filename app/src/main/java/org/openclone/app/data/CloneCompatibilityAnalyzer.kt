@@ -3,8 +3,8 @@ package org.openclone.app.data
 /**
  * Heuristic pre-build checks for common package/signature-bound integrations.
  *
- * These checks only inspect declared package metadata. They cannot prove that an app will
- * work after cloning, and absence of a warning is not a compatibility guarantee.
+ * These checks inspect only declarations in the APK manifest. They cannot prove that an app
+ * will work after cloning; absence of a warning is not a compatibility guarantee.
  */
 data class CloneCompatibilityReport(
     val findings: List<String>,
@@ -30,18 +30,31 @@ object CloneCompatibilityAnalyzer {
     fun analyze(
         packageName: String,
         requestedPermissions: Collection<String>,
-        metadataKeys: Collection<String> = emptyList()
+        metadataKeys: Collection<String> = emptyList(),
+        componentNames: Collection<String> = emptyList(),
+        providerAuthorities: Collection<String> = emptyList()
     ): CloneCompatibilityReport {
         val permissions = requestedPermissions.toSet()
         val metadata = metadataKeys.toSet()
+        val components = componentNames.map { it.lowercase() }
+        val authorities = providerAuthorities.map { it.lowercase() }
         val findings = buildList {
             if (permissions.any { it in firebasePermissions } ||
-                metadata.any { it.startsWith("com.google.firebase.") }) {
-                add("Firebase/Cloud Messaging declarations detected. Push registration may be tied to the original package ID.")
+                metadata.any { it.startsWith("com.google.firebase.") } ||
+                components.any { "firebase" in it && ("messaging" in it || "instanceid" in it) } ||
+                authorities.any { "firebase" in it }) {
+                add("Firebase/Cloud Messaging declarations detected. Push registration or Firebase initialization may be tied to the original package ID.")
             }
             if (permissions.any { it in playServicesPermissions } ||
-                "com.google.android.geo.API_KEY" in metadata) {
+                metadata.any {
+                    it == "com.google.android.geo.API_KEY" ||
+                        it == "com.google.android.gms.version" ||
+                        it.startsWith("com.google.android.gms.")
+                }) {
                 add("Google services integration indicators detected. Maps, install-referrer, or other package/certificate-bound services may not work in the clone.")
+            }
+            if (components.any { "google" in it && ("auth" in it || "signin" in it || "credential" in it) }) {
+                add("Google sign-in or authentication components detected. OAuth client registration commonly depends on the original package ID and signing certificate.")
             }
             if (packageName.startsWith("com.google.android.") ||
                 packageName.startsWith("com.android.")) {
