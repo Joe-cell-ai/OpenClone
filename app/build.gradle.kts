@@ -13,6 +13,15 @@ val strippedArsclib = tasks.register<Jar>("strippedArsclib") {
     }
 }
 
+// Generate a drawable resource from the user-supplied master icon in assets.
+// Keeping the source PNG untouched avoids lossy re-encoding in the repository.
+val generatedLauncherResDir = layout.buildDirectory.dir("generated/opencloneLauncherRes")
+val generateOpenCloneLauncher = tasks.register<Copy>("generateOpenCloneLauncher") {
+    from(layout.projectDirectory.file("src/main/assets/openclone-icon-original.png"))
+    into(generatedLauncherResDir.map { it.dir("drawable-nodpi") })
+    rename { "openclone_launcher.png" }
+}
+
 android {
     namespace = "org.openclone.app"
     compileSdk = 35
@@ -24,6 +33,7 @@ android {
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
+    sourceSets.getByName("main").res.srcDir(generatedLauncherResDir)
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -37,6 +47,11 @@ android {
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
 }
+
+tasks.named("preBuild").configure {
+    dependsOn(generateOpenCloneLauncher)
+}
+
 dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2025.03.00")
     implementation(composeBom)
