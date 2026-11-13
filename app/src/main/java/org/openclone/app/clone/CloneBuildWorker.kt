@@ -77,7 +77,7 @@ class CloneBuildWorker(
             val obbOutputDirectory = File(result.apks.first().parentFile, "obb")
             val obbOutputs = if (obbSources.isEmpty()) emptyList() else {
                 check(obbOutputDirectory.mkdirs() || obbOutputDirectory.isDirectory) { "Could not create the OBB export directory." }
-                obbSources.mapIndexed { index, source ->
+                obbSources.map { source ->
                     if (isStopped || Thread.currentThread().isInterrupted) throw CancellationException("Clone build cancelled.")
                     val renamed = source.name.replace(originalPackage, clonePackage)
                     val destination = File(obbOutputDirectory, renamed)
