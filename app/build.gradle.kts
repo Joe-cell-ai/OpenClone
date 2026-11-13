@@ -3,6 +3,16 @@ plugins {
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
+
+// Release signing material is supplied only by the CI environment. The decoded
+// keystore is written under build/ (never into the source tree) and is not committed.
+val releaseKeystoreFile = layout.buildDirectory.file("generated/release-signing/openclone-release.jks").get().asFile
+val releaseKeystoreBase64 = providers.environmentVariable("OPENCLONE_KEYSTORE_BASE64").orNull
+if (!releaseKeystoreBase64.isNullOrBlank()) {
+    releaseKeystoreFile.parentFile.mkdirs()
+    releaseKeystoreFile.writeBytes(java.util.Base64.getDecoder().decode(releaseKeystoreBase64.trim()))
+}
+
 val arsclibOriginal: Configuration by configurations.creating { isTransitive = false }
 
 val strippedArsclib = tasks.register<Jar>("strippedArsclib") {
