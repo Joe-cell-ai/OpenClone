@@ -67,7 +67,8 @@ class ApkInspector(private val context: Context) {
                     requestedPermissions = packageInfo.requestedPermissions?.toList().orEmpty(),
                     metadataKeys = appInfo.metaData?.keySet()?.toList().orEmpty(),
                     componentNames = componentNames,
-                    providerAuthorities = providerAuthorities
+                    providerAuthorities = providerAuthorities,
+                    sharedUserId = packageInfo.sharedUserId
                 )
             )
         } finally {
