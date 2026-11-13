@@ -21,7 +21,7 @@ This document tracks the feature set described by the App Cloner reference proje
 | Export clone APK set | Supported | Exports the rebuilt set as ZIP. |
 | Persistent build progress and cancellation | Supported | WorkManager jobs survive Activity recreation and can be recovered. |
 | Rebuild after original app update | Supported | Requires original app still installed and matching saved signing identity. |
-| Deep package-string rewriting in DEX | Missing | No DEX rewrite pass exists. This is a major compatibility gap for apps that embed their package ID in DEX strings. |
+| Deep package-string rewriting in DEX | Partial | A DEX pass now rewrites package-name string references in every classes*.dex file with token-boundary checks. It preserves class/type descriptors and cannot cover dynamically assembled or obfuscated identities. |
 | DEX processing in an isolated worker with explicit heap budgeting | Partial | Build work is already backgrounded and has a heap preflight; DEX-specific memory isolation/budgeting is not implemented. |
 | OBB / expansion-data handling | Missing | OBB files are not imported or associated with a clone. |
 | Broad icon-format replacement (vector, nested layers, adaptive backgrounds) | Partial | Unsupported source icon structures retain original artwork. |
@@ -29,7 +29,7 @@ This document tracks the feature set described by the App Cloner reference proje
 
 ## Implementation sequence
 
-1. **DEX package rewrite** — add an opt-in, cancellable DEX transformation pass; preserve unrelated class and method names, validate every rewritten DEX, and fail safely rather than emit a partially rewritten APK.
+1. **DEX package rewrite hardening** — expose an advanced opt-in setting, add cancellation checkpoints and per-DEX diagnostics, and expand fixtures for multidex, encoded values, and package-like unrelated strings.
 2. **Icon pipeline** — expand replacement and badge support for adaptive icons, vector XML, layer lists, density variants and monochrome resources, with previews and explicit unsupported-format feedback.
 3. **OBB support** — discover and import expansion files where Android storage access permits, associate them with the clone package, and provide a transparent export/install workflow.
 4. **Compatibility analysis** — improve static checks and present clear warnings for package-bound Google services, Firebase/FCM, signature dependencies, shared-user constraints and known runtime limitations.
