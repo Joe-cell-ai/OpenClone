@@ -600,9 +600,22 @@ private fun OpenCloneHome() {
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 18.dp)) {
-            Text("OpenClone", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-            Text("Installed app browser", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF202052)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("OPENCLONE", style = MaterialTheme.typography.labelLarge, color = Color(0xFFB8B9FF), fontWeight = FontWeight.Bold)
+                    Text("Clone apps. Your way.", style = MaterialTheme.typography.headlineLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    Text("Installed app browser", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD4D5F5))
+                }
+            }
             TextButton(onClick = {
                 val keys = SigningKeys.get(context)
                 signingAliases = keys.identityAliases
