@@ -57,6 +57,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -105,7 +106,22 @@ private const val ACTIVE_CLONE_WORK_ID = "active_clone_work_id"
 
 @Composable
 private fun OpenCloneTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = lightColorScheme(), typography = Typography(), content = content)
+    val colors = lightColorScheme(
+        primary = Color(0xFF5656E8),
+        onPrimary = Color(0xFFFFFFFF),
+        primaryContainer = Color(0xFFE7E7FF),
+        onPrimaryContainer = Color(0xFF20205E),
+        secondary = Color(0xFF8757E8),
+        onSecondary = Color(0xFFFFFFFF),
+        secondaryContainer = Color(0xFFF0E7FF),
+        onSecondaryContainer = Color(0xFF35156B),
+        tertiary = Color(0xFF12AFC2),
+        background = Color(0xFFF6F7FC),
+        surface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFFEEF0FA),
+        outline = Color(0xFFD9DDF0)
+    )
+    MaterialTheme(colorScheme = colors, typography = Typography(), content = content)
 }
 
 @Composable
@@ -584,9 +600,22 @@ private fun OpenCloneHome() {
     }
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 18.dp)) {
-            Text("OpenClone", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-            Text("Installed app browser", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
+        Column(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp)) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFF202052)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text("OPENCLONE", style = MaterialTheme.typography.labelLarge, color = Color(0xFFB8B9FF), fontWeight = FontWeight.Bold)
+                    Text("Clone apps. Your way.", style = MaterialTheme.typography.headlineLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                    Text("Installed app browser", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD4D5F5))
+                }
+            }
             TextButton(onClick = {
                 val keys = SigningKeys.get(context)
                 signingAliases = keys.identityAliases
