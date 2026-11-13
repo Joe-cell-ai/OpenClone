@@ -80,6 +80,7 @@ class CloneBuildWorker(
                     .putStringArray(KEY_OUTPUT_APKS, result.apks.map { it.absolutePath }.toTypedArray())
                     .putBoolean(KEY_ICON_BADGE_APPLIED, result.iconBadgeApplied)
                     .putBoolean(KEY_CUSTOM_ICON_APPLIED, result.customIconApplied)
+                    .putBoolean(KEY_ALLOW_UPDATE, inputData.getBoolean(KEY_ALLOW_UPDATE, false))
                     .build()
             )
         }
