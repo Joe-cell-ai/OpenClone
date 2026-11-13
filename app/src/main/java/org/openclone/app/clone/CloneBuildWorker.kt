@@ -74,7 +74,9 @@ class CloneBuildWorker(
                 markIcon = markIcon,
                 customIconFile = customIconFile,
                 rewriteDexPackageStrings = inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, true),
-                removedPermissions = inputData.getStringArray(KEY_REMOVED_PERMISSIONS).orEmpty().toSet()
+                removedPermissions = inputData.getStringArray(KEY_REMOVED_PERMISSIONS).orEmpty().toSet(),
+                versionNameOverride = inputData.getString(KEY_VERSION_NAME_OVERRIDE)?.takeIf { it.isNotBlank() },
+                versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 }
             )
             val obbOutputDirectory = File(result.apks.first().parentFile, "obb")
             val obbOutputs = if (obbSources.isEmpty()) emptyList() else {
@@ -115,6 +117,8 @@ class CloneBuildWorker(
         const val KEY_MARK_ICON = "mark_icon"
         const val KEY_REWRITE_DEX_PACKAGE_STRINGS = "rewrite_dex_package_strings"
         const val KEY_REMOVED_PERMISSIONS = "removed_permissions"
+        const val KEY_VERSION_NAME_OVERRIDE = "version_name_override"
+        const val KEY_VERSION_CODE_OVERRIDE = "version_code_override"
         const val KEY_ALLOW_UPDATE = "allow_update"
         const val KEY_ICON_PACKAGE = "icon_package"
         const val KEY_BADGE_POSITION = "badge_position"
