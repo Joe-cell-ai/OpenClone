@@ -43,6 +43,7 @@ object ApkRebuilder {
         originalManifest: ByteArray? = null,
         onStep: (() -> Unit)? = null,
         onProgress: (Int) -> Unit = {},
+        dexPackageRewrite: Pair<String, String>? = null,
     ) {
         val counter = CountingOutputStream(BufferedOutputStream(target.outputStream(), 1 shl 16))
         ZipFile(source).use { zip ->
@@ -87,6 +88,28 @@ object ApkRebuilder {
                         }
                         out.putNextEntry(copy)
                         renamed(out)
+                    } else if (dexPackageRewrite != null && entry.name.matches(Regex("classes(\\d*)\\.dex"))) {
+                        val sourceDex = File.createTempFile("openclone-source-", ".dex", target.parentFile)
+                        val rewrittenDex = File.createTempFile("openclone-rewritten-", ".dex", target.parentFile)
+                        try {
+                            zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyChecked(input, output, onStep) } }
+                            onStep?.invoke()
+                            val rewrite = DexPackageStringRewriter.rewrite(
+                                sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second
+                            )
+                            onStep?.invoke()
+                            val selectedDex = if (rewrite.replacements > 0) rewrittenDex else sourceDex
+                            if (entry.method == ZipEntry.STORED) {
+                                val checksum = CRC32()
+                                selectedDex.inputStream().use { input -> copyChecked(input, CheckedOutputStream(Discard, checksum), onStep) }
+                                copy.storedAt(counter.count, selectedDex.length(), checksum.value)
+                            }
+                            out.putNextEntry(copy)
+                            selectedDex.inputStream().use { input -> copyChecked(input, out, onStep) }
+                        } finally {
+                            sourceDex.delete()
+                            rewrittenDex.delete()
+                        }
                     } else if (entry.name in replacements) {
                         out.putNextEntry(copy)
                         out.write(replacements.getValue(entry.name))
