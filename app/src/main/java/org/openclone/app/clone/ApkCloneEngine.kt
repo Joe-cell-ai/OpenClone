@@ -45,11 +45,13 @@ class ApkCloneEngine(context: Context) {
         badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT,
         customIconFile: File? = null,
         rewriteDexPackageStrings: Boolean = true,
-        removedPermissions: Set<String> = emptySet()
+        removedPermissions: Set<String> = emptySet(),
+        versionNameOverride: String? = null,
+        versionCodeOverride: Int? = null
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
-        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon || customIconFile != null }, allowUpdate, ensureActive, badgePosition, markIcon, customIconFile, rewriteDexPackageStrings, removedPermissions)
+        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon || customIconFile != null }, allowUpdate, ensureActive, badgePosition, markIcon, customIconFile, rewriteDexPackageStrings, removedPermissions, versionNameOverride, versionCodeOverride)
     }
 
     @Suppress("DEPRECATION")
@@ -67,7 +69,9 @@ class ApkCloneEngine(context: Context) {
         markIcon: Boolean = true,
         customIconFile: File? = null,
         rewriteDexPackageStrings: Boolean = true,
-        removedPermissions: Set<String> = emptySet()
+        removedPermissions: Set<String> = emptySet(),
+        versionNameOverride: String? = null,
+        versionCodeOverride: Int? = null
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
@@ -142,7 +146,9 @@ class ApkCloneEngine(context: Context) {
                     newPackage = newPackage,
                     newLabel = newLabel.takeIf { index == 0 },
                     isSplitApk = index > 0,
-                    removedPermissions = removedPermissions
+                    removedPermissions = removedPermissions,
+                    versionNameOverride = versionNameOverride,
+                    versionCodeOverride = versionCodeOverride
                 )
                 ensureActive()
                 ApkRebuilder.rebuild(
