@@ -274,7 +274,7 @@ private fun OpenCloneHome() {
                         markCloneIcon = true
                         customIconPath = null
                         badgePosition = BadgePosition.BOTTOM_RIGHT
-                        statusMessage = "Imported ${source.apkFiles.size} APK component(s) from ${source.archiveName}."
+                        statusMessage = "Imported ${source.apkFiles.size} APK component(s) and ${source.obbFiles.size} OBB file(s) from ${source.archiveName}."
                     },
                     onFailure = { statusMessage = it.message ?: "Could not import this APK bundle." }
                 )
@@ -360,6 +360,11 @@ private fun OpenCloneHome() {
                                     file.inputStream().use { it.copyTo(zip) }
                                     zip.closeEntry()
                                 }
+                                result.obbFiles.forEach { file ->
+                                    zip.putNextEntry(ZipEntry("Android/obb/${result.clonePackage}/${file.name}"))
+                                    file.inputStream().use { it.copyTo(zip) }
+                                    zip.closeEntry()
+                                }
                             }
                         } ?: error("Could not create the selected destination file.")
                     }
@@ -425,6 +430,7 @@ private fun OpenCloneHome() {
             .putBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, cloneUpdateMode)
             .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)
             .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
+            .putStringArray(CloneBuildWorker.KEY_OBB_FILES, importedSource?.obbFiles?.map { it.absolutePath }?.toTypedArray() ?: emptyArray())
             .putString(CloneBuildWorker.KEY_BADGE_POSITION, badgePosition.name)
             .build()
         val request = OneTimeWorkRequestBuilder<CloneBuildWorker>()
@@ -478,11 +484,12 @@ private fun OpenCloneHome() {
                                         cloneLabel = info.outputData.getString(CloneBuildWorker.KEY_CLONE_LABEL).orEmpty(),
                                         apks = outputFiles,
                                         iconBadgeApplied = info.outputData.getBoolean(CloneBuildWorker.KEY_ICON_BADGE_APPLIED, false),
-                                        customIconApplied = info.outputData.getBoolean(CloneBuildWorker.KEY_CUSTOM_ICON_APPLIED, false)
+                                        customIconApplied = info.outputData.getBoolean(CloneBuildWorker.KEY_CUSTOM_ICON_APPLIED, false),
+                                        obbFiles = info.outputData.getStringArray(CloneBuildWorker.KEY_OUTPUT_OBB_FILES)?.map(::File).orEmpty()
                                     )
                                     cloneSource = null
                                     externalSource = null
-                                    statusMessage = "Clone APK set built and signature-verified."
+                                    statusMessage = if (cloneResult?.obbFiles?.isNotEmpty() == true) "Clone APK set built and signature-verified. OBB expansion data is included in ZIP export." else "Clone APK set built and signature-verified."
                                 } else {
                                     cloneError = "The background build finished without all expected APK files."
                                     statusMessage = cloneError
