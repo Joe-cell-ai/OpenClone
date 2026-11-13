@@ -430,11 +430,18 @@ private fun OpenCloneHome() {
         val request = OneTimeWorkRequestBuilder<CloneBuildWorker>()
             .setInputData(input)
             .build()
-        context.getSharedPreferences(CLONE_WORK_PREFERENCES, Context.MODE_PRIVATE)
-            .edit()
-            .putString(ACTIVE_CLONE_WORK_ID, request.id.toString())
-            .commit()
-        WorkManager.getInstance(context).enqueue(request)
+        val workPreferences = context.getSharedPreferences(CLONE_WORK_PREFERENCES, Context.MODE_PRIVATE)
+        if (!workPreferences.edit().putString(ACTIVE_CLONE_WORK_ID, request.id.toString()).commit()) {
+            cloneError = "Could not save background build tracking. Please try again."
+            return
+        }
+        try {
+            WorkManager.getInstance(context).enqueue(request)
+        } catch (error: Exception) {
+            workPreferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
+            cloneError = error.message ?: "Could not queue the background clone build."
+            return
+        }
         cloneWorkId = request.id.toString()
         cloneWorkInfo = null
         cloneBuilding = true
@@ -508,13 +515,13 @@ private fun OpenCloneHome() {
             if (workId == null) {
                 preferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
             } else {
-                val existingWork = withContext(Dispatchers.IO) {
-                    runCatching { WorkManager.getInstance(context).getWorkInfoById(workId).get() }.getOrNull()
+                val workLookup = withContext(Dispatchers.IO) {
+                    runCatching { WorkManager.getInstance(context).getWorkInfoById(workId).get() }
                 }
-                if (existingWork == null) {
-                    preferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
-                } else {
-                    cloneWorkId = savedWorkId
+                when {
+                    workLookup.isFailure -> cloneWorkId = savedWorkId
+                    workLookup.getOrNull() == null -> preferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
+                    else -> cloneWorkId = savedWorkId
                 }
             }
         }
