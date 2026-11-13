@@ -80,7 +80,8 @@ class CloneBuildWorker(
                 obbSources.mapIndexed { index, source ->
                     if (isStopped || Thread.currentThread().isInterrupted) throw CancellationException("Clone build cancelled.")
                     val renamed = source.name.replace(originalPackage, clonePackage)
-                    val destination = File(obbOutputDirectory, "${index}_$renamed")
+                    val destination = File(obbOutputDirectory, renamed)
+                    check(!destination.exists()) { "The imported OBB set contains duplicate filenames." }
                     source.copyTo(destination, overwrite = true)
                     destination
                 }
