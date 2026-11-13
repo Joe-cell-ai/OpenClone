@@ -39,7 +39,7 @@ object CloneBuildPreflight {
         val dexBytes = sourceApks.sumOf { apk ->
             ZipFile(apk).use { zip ->
                 zip.entries().asSequence()
-                    .filter { !it.isDirectory && it.name.matches(Regex("classes(\\\\d*)\\\\.dex")) }
+                    .filter { !it.isDirectory && it.name.matches(Regex("""classes(\d*)\.dex""")) }
                     .sumOf { it.size.coerceAtLeast(0L) }
             }
         }
