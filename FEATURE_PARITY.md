@@ -22,6 +22,7 @@ This document tracks the feature set described by the App Cloner reference proje
 | Install clone | Supported | Uses Android's PackageInstaller confirmation flow. |
 | Export clone APK set | Supported | Exports the rebuilt set as ZIP. |
 | Persistent build progress and cancellation | Supported | WorkManager jobs survive Activity recreation and can be recovered. |
+| Persistent generated APK build history | Supported | The Cloned APKs tab stores recent APK/OBB output paths and build metadata in app-private preferences, supports install/export/remove, and flags missing output files. The history is capped at 30 entries; APK bytes remain in app-private storage. |
 | Rebuild after original app update | Supported | Requires original app still installed and matching saved signing identity. |
 | Deep package-string rewriting in DEX | Partial | A DEX pass rewrites matching package-name string constants and encoded string values in every classes*.dex file with token-boundary checks. It preserves class/type descriptors and cannot cover dynamically assembled or obfuscated identities. |
 | DEX processing in an isolated worker with explicit heap budgeting | Partial | Build work is already backgrounded and has a heap preflight; DEX-specific memory isolation/budgeting is not implemented. |
