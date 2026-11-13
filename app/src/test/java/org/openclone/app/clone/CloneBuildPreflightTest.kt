@@ -22,6 +22,15 @@ class CloneBuildPreflightTest {
             assertEquals(apk.length(), report.sourceBytes)
             assertEquals(1024L, report.resourceTableBytes)
             assertEquals(2048L, report.dexBytes)
+            assertEquals(64L * 1024 * 1024, report.estimatedPeakBytes)
+            val rewriteReport = CloneBuildPreflight.inspect(
+                listOf(apk),
+                maxHeapBytes = 256L * 1024 * 1024,
+                allocatedHeapBytes = 64L * 1024 * 1024,
+                freeAllocatedHeapBytes = 32L * 1024 * 1024,
+                rewriteDexPackageStrings = true
+            )
+            assertEquals(maxOf(64L * 1024 * 1024, 32L * 1024 * 1024 + 1024L * 3L + 2048L * 4L), rewriteReport.estimatedPeakBytes)
             assertEquals(224L * 1024 * 1024, report.availableHeapBytes)
             assertTrue(report.canProceed)
         } finally {

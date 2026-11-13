@@ -26,7 +26,8 @@ object CloneBuildPreflight {
         sourceApks: List<File>,
         maxHeapBytes: Long = Runtime.getRuntime().maxMemory(),
         allocatedHeapBytes: Long = Runtime.getRuntime().totalMemory(),
-        freeAllocatedHeapBytes: Long = Runtime.getRuntime().freeMemory()
+        freeAllocatedHeapBytes: Long = Runtime.getRuntime().freeMemory(),
+        rewriteDexPackageStrings: Boolean = false
     ): CloneBuildPreflightReport {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) {
@@ -45,7 +46,8 @@ object CloneBuildPreflight {
         }
         val estimated = maxOf(
             MINIMUM_HEADROOM_BYTES,
-            BASE_OVERHEAD_BYTES + resourceTableBytes * RESOURCE_TABLE_MULTIPLIER + dexBytes * DEX_MULTIPLIER
+            BASE_OVERHEAD_BYTES + resourceTableBytes * RESOURCE_TABLE_MULTIPLIER +
+                if (rewriteDexPackageStrings) dexBytes * DEX_MULTIPLIER else 0L
         )
         val usedHeap = (allocatedHeapBytes - freeAllocatedHeapBytes).coerceAtLeast(0L)
         val available = (maxHeapBytes - usedHeap).coerceAtLeast(0L)
