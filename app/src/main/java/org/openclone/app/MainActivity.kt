@@ -97,6 +97,9 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+private const val CLONE_WORK_PREFERENCES = "openclone_clone_work"
+private const val ACTIVE_CLONE_WORK_ID = "active_clone_work_id"
+
 @Composable
 private fun OpenCloneTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = lightColorScheme(), typography = Typography(), content = content)
@@ -427,6 +430,10 @@ private fun OpenCloneHome() {
         val request = OneTimeWorkRequestBuilder<CloneBuildWorker>()
             .setInputData(input)
             .build()
+        context.getSharedPreferences(CLONE_WORK_PREFERENCES, Context.MODE_PRIVATE)
+            .edit()
+            .putString(ACTIVE_CLONE_WORK_ID, request.id.toString())
+            .commit()
         WorkManager.getInstance(context).enqueue(request)
         cloneWorkId = request.id.toString()
         cloneWorkInfo = null
@@ -446,10 +453,15 @@ private fun OpenCloneHome() {
                     cloneBuilding = !info.state.isFinished
                     cloneProgress = info.progress.getInt(CloneBuildWorker.KEY_PROGRESS, cloneProgress)
                     if (info.state.isFinished) {
+                        context.getSharedPreferences(CLONE_WORK_PREFERENCES, Context.MODE_PRIVATE)
+                            .edit()
+                            .remove(ACTIVE_CLONE_WORK_ID)
+                            .apply()
                         cloneBuilding = false
                         cloneWorkId = null
                         when (info.state) {
                             WorkInfo.State.SUCCEEDED -> {
+                                cloneUpdateMode = info.outputData.getBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, false)
                                 val outputFiles = info.outputData.getStringArray(CloneBuildWorker.KEY_OUTPUT_APKS)
                                     ?.map(::File).orEmpty()
                                 if (outputFiles.isNotEmpty() && outputFiles.all { it.isFile }) {
@@ -485,6 +497,26 @@ private fun OpenCloneHome() {
             }
             liveData.observeForever(observer)
             onDispose { liveData.removeObserver(observer) }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (cloneWorkId == null) {
+            val preferences = context.getSharedPreferences(CLONE_WORK_PREFERENCES, Context.MODE_PRIVATE)
+            val savedWorkId = preferences.getString(ACTIVE_CLONE_WORK_ID, null)
+            val workId = savedWorkId?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+            if (workId == null) {
+                preferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
+            } else {
+                val existingWork = withContext(Dispatchers.IO) {
+                    runCatching { WorkManager.getInstance(context).getWorkInfoById(workId).get() }.getOrNull()
+                }
+                if (existingWork == null) {
+                    preferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
+                } else {
+                    cloneWorkId = savedWorkId
+                }
+            }
         }
     }
 
