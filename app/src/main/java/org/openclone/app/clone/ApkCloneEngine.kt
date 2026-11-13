@@ -43,7 +43,8 @@ class ApkCloneEngine(context: Context) {
         allowUpdate: Boolean = false,
         ensureActive: () -> Unit = {},
         badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT,
-        customIconFile: File? = null
+        customIconFile: File? = null,
+        rewriteDexPackageStrings: Boolean = true
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
@@ -150,7 +151,7 @@ class ApkCloneEngine(context: Context) {
                     onProgress = { localProgress ->
                         onProgress(((index * 100) + localProgress) / sourceApks.size)
                     },
-                    dexPackageRewrite = originalPackage.takeIf { it != newPackage }?.let { it to newPackage }
+                    dexPackageRewrite = if (rewriteDexPackageStrings) originalPackage.takeIf { it != newPackage }?.let { it to newPackage } else null
                 )
 
                 ensureActive()
