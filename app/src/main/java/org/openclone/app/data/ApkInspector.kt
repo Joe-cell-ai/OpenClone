@@ -31,20 +31,28 @@ class ApkInspector(private val context: Context) {
             context.contentResolver.openInputStream(uri)?.use { input ->
                 FileOutputStream(tempFile).use { output -> input.copyTo(output) }
             } ?: error("The selected file could not be opened.")
+            val inspectionFlags = PackageManager.GET_PERMISSIONS or PackageManager.GET_META_DATA or
+                PackageManager.GET_ACTIVITIES or PackageManager.GET_SERVICES or
+                PackageManager.GET_RECEIVERS or PackageManager.GET_PROVIDERS
             val packageInfo = if (Build.VERSION.SDK_INT >= 33) {
                 context.packageManager.getPackageArchiveInfo(
                     tempFile.absolutePath,
-                    PackageManager.PackageInfoFlags.of((PackageManager.GET_PERMISSIONS or PackageManager.GET_META_DATA).toLong())
+                    PackageManager.PackageInfoFlags.of(inspectionFlags.toLong())
                 )
             } else {
-                context.packageManager.getPackageArchiveInfo(
-                    tempFile.absolutePath,
-                    PackageManager.GET_PERMISSIONS or PackageManager.GET_META_DATA
-                )
+                context.packageManager.getPackageArchiveInfo(tempFile.absolutePath, inspectionFlags)
             } ?: error("This file is not a readable Android APK.")
             val appInfo = packageInfo.applicationInfo ?: error("APK application metadata is missing.")
             appInfo.sourceDir = tempFile.absolutePath
             appInfo.publicSourceDir = tempFile.absolutePath
+            val componentNames = buildList {
+                packageInfo.activities?.forEach { add(it.name) }
+                packageInfo.services?.forEach { add(it.name) }
+                packageInfo.receivers?.forEach { add(it.name) }
+                packageInfo.providers?.forEach { add(it.name) }
+            }
+            val providerAuthorities = packageInfo.providers
+                ?.mapNotNull { it.authority?.takeIf(String::isNotBlank) }.orEmpty()
             return ApkInspection(
                 fileName = displayName,
                 label = runCatching { appInfo.loadLabel(context.packageManager).toString() }.getOrDefault(packageInfo.packageName),
@@ -57,7 +65,9 @@ class ApkInspector(private val context: Context) {
                 compatibilityReport = CloneCompatibilityAnalyzer.analyze(
                     packageName = packageInfo.packageName,
                     requestedPermissions = packageInfo.requestedPermissions?.toList().orEmpty(),
-                    metadataKeys = appInfo.metaData?.keySet()?.toList().orEmpty()
+                    metadataKeys = appInfo.metaData?.keySet()?.toList().orEmpty(),
+                    componentNames = componentNames,
+                    providerAuthorities = providerAuthorities
                 )
             )
         } finally {
