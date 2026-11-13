@@ -129,6 +129,7 @@ private fun OpenCloneHome() {
     var cloneWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
+    var rewriteDexPackageStrings by remember { mutableStateOf(true) }
     var customIconPath by rememberSaveable { mutableStateOf<String?>(null) }
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var cloneError by remember { mutableStateOf<String?>(null) }
@@ -272,6 +273,7 @@ private fun OpenCloneHome() {
                         cloneError = null
                         cloneUpdateMode = false
                         markCloneIcon = true
+                        rewriteDexPackageStrings = true
                         customIconPath = null
                         badgePosition = BadgePosition.BOTTOM_RIGHT
                         statusMessage = "Imported ${source.apkFiles.size} APK component(s) and ${source.obbFiles.size} OBB file(s) from ${source.archiveName}."
@@ -427,6 +429,7 @@ private fun OpenCloneHome() {
             .putString(CloneBuildWorker.KEY_CLONE_PACKAGE, targetPackage)
             .putString(CloneBuildWorker.KEY_CLONE_LABEL, targetLabel)
             .putBoolean(CloneBuildWorker.KEY_MARK_ICON, markCloneIcon && installedSource != null)
+            .putBoolean(CloneBuildWorker.KEY_REWRITE_DEX_PACKAGE_STRINGS, rewriteDexPackageStrings)
             .putBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, cloneUpdateMode)
             .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)
             .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
@@ -680,6 +683,7 @@ private fun OpenCloneHome() {
                     clonePackage = suggestedClonePackage(app.packageName, context.packageManager)
                     cloneError = null
                     markCloneIcon = true
+                    rewriteDexPackageStrings = true
                     customIconPath = null
                     badgePosition = BadgePosition.BOTTOM_RIGHT
                     cloneUpdateMode = false
@@ -731,6 +735,15 @@ private fun OpenCloneHome() {
                         Text("Mark clone icon with a dot")
                         Switch(checked = markCloneIcon, onCheckedChange = { markCloneIcon = it })
                     }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                        Text("Rewrite package strings in DEX (experimental)")
+                        Switch(checked = rewriteDexPackageStrings, onCheckedChange = { rewriteDexPackageStrings = it })
+                    }
+                    Text(
+                        "Updates matching package-name string constants in DEX files. It does not rename classes or type descriptors; some apps may still require their original identity.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
                     if (cloneSource != null) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                             TextButton(onClick = { chooseCustomIcon.launch(arrayOf("image/*")) }) {
