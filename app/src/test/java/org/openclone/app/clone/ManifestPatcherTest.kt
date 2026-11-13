@@ -51,6 +51,17 @@ class ManifestPatcherTest {
     }
 
     @Test
+    fun overridesVersionNameInManifest() {
+        val document = ResXmlDocument()
+        val root = document.newElement("manifest")
+        root.getOrCreateAttribute(null, null, "package", 0).setValueAsString("com.example.app")
+        root.getOrCreateAttribute(null, null, "versionName", 0).setValueAsString("1.0")
+        document.refreshFull()
+        val patched = parse(ManifestPatcher("com.example.app.clone", null, versionNameOverride = "2.5-test").patch(document.bytes))
+        assertEquals("2.5-test", patched.searchAttributeByName("versionName").valueAsString)
+    }
+
+    @Test
     fun removingNothingKeepsEveryPermission() {
         val source = manifest("android.permission.INTERNET", "android.permission.CAMERA")
         val root = parse(ManifestPatcher("com.example.app.clone", null, setOf("android.permission.NFC")).patch(source))
