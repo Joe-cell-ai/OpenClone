@@ -51,6 +51,24 @@ class CloneCompatibilityAnalyzerTest {
         assertTrue(report.findings.any { it.contains("authentication") })
     }
 
+    @Test fun detectsSharedUserIdConstraint() {
+        val report = CloneCompatibilityAnalyzer.analyze(
+            "com.example.legacy",
+            emptyList(),
+            sharedUserId = "com.vendor.shared"
+        )
+        assertTrue(report.findings.any { it.contains("sharedUserId") })
+    }
+
+    @Test fun detectsPlayIntegrityIndicatorsWithoutAttemptingToBypassThem() {
+        val report = CloneCompatibilityAnalyzer.analyze(
+            "com.example.secure",
+            emptyList(),
+            componentNames = listOf("com.example.secure.IntegrityService")
+        )
+        assertTrue(report.findings.any { it.contains("does not bypass") })
+    }
+
     @Test fun ordinaryAppGetsGeneralLimitationsButNoFalsePositiveFinding() {
         val report = CloneCompatibilityAnalyzer.analyze("com.example.notes", listOf("android.permission.INTERNET"))
         assertFalse(report.hasFindings)
