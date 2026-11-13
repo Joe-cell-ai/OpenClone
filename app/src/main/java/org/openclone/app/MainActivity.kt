@@ -529,7 +529,7 @@ private fun OpenCloneHome() {
                                 val outputFiles = info.outputData.getStringArray(CloneBuildWorker.KEY_OUTPUT_APKS)
                                     ?.map(::File).orEmpty()
                                 if (outputFiles.isNotEmpty() && outputFiles.all { it.isFile }) {
-                                    cloneResult = CloneBuildResult(
+                                    val completedBuild = CloneBuildResult(
                                         originalPackage = info.outputData.getString(CloneBuildWorker.KEY_ORIGINAL_PACKAGE).orEmpty(),
                                         clonePackage = info.outputData.getString(CloneBuildWorker.KEY_CLONE_PACKAGE).orEmpty(),
                                         cloneLabel = info.outputData.getString(CloneBuildWorker.KEY_CLONE_LABEL).orEmpty(),
@@ -538,7 +538,14 @@ private fun OpenCloneHome() {
                                         customIconApplied = info.outputData.getBoolean(CloneBuildWorker.KEY_CUSTOM_ICON_APPLIED, false),
                                         obbFiles = info.outputData.getStringArray(CloneBuildWorker.KEY_OUTPUT_OBB_FILES)?.map(::File).orEmpty()
                                     )
-                                    buildHistory = runCatching { CloneBuildHistoryRepository(context).add(cloneResult!!) }.getOrElse { error -> statusMessage = error.message ?: "Could not save build history."; buildHistory }
+                                    cloneResult = completedBuild
+                                    scope.launch {
+                                        val savedHistory = withContext(Dispatchers.IO) {
+                                            runCatching { CloneBuildHistoryRepository(context).add(completedBuild) }
+                                        }
+                                        savedHistory.onSuccess { buildHistory = it }
+                                            .onFailure { statusMessage = it.message ?: "Could not save build history." }
+                                    }
                                     cloneSource = null
                                     externalSource = null
                                     statusMessage = if (cloneResult?.obbFiles?.isNotEmpty() == true) "Clone APK set built and signature-verified. OBB expansion data is included in ZIP export." else "Clone APK set built and signature-verified."
