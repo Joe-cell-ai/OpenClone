@@ -73,7 +73,7 @@ object DexPackageStringRewriter {
             }
         })
         val dex = DexFileFactory.loadDexFile(input, Opcodes.getDefault())
-        val rewritten = rewriter.rewriteDexFile(dex)
+        val rewritten = rewriter.dexFileRewriter.rewrite(dex)
         output.parentFile?.mkdirs()
         DexFileFactory.writeDexFile(output.absolutePath, rewritten)
         require(output.isFile && output.length() > 0L) { "DEX rewriting produced an empty output file." }
