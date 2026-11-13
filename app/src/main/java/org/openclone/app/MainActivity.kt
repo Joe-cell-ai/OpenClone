@@ -748,7 +748,7 @@ private fun OpenCloneHome() {
                     versionCodeOverride = ""
                     cloneError = null
                     markCloneIcon = true
-                    rewriteDexPackageStrings = true
+                    rewriteDexPackageStrings = false
                     customIconPath = null
                     badgePosition = BadgePosition.BOTTOM_RIGHT
                     cloneUpdateMode = false
