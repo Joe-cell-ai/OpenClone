@@ -33,6 +33,21 @@ jobs:
           name: openclone-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Build signed release APK
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || inputs.build_release
+        env:
+          OPENCLONE_KEYSTORE_BASE64: ${{ secrets.OPENCLONE_KEYSTORE_BASE64 }}
+          OPENCLONE_KEYSTORE_PASSWORD: ${{ secrets.OPENCLONE_KEYSTORE_PASSWORD }}
+          OPENCLONE_KEY_ALIAS: ${{ secrets.OPENCLONE_KEY_ALIAS }}
+          OPENCLONE_KEY_PASSWORD: ${{ secrets.OPENCLONE_KEY_PASSWORD }}
+        run: gradle assembleRelease
+      - name: Upload signed release APK
+        if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || inputs.build_release
+        uses: actions/upload-artifact@v4
+        with:
+          name: openclone-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
   android-compatibility:
     runs-on: ubuntu-latest
     strategy:
