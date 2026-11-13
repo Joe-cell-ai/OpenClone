@@ -16,7 +16,8 @@ data class ApkInspection(
     val versionCode: Long,
     val minSdk: Int,
     val targetSdk: Int,
-    val requestedPermissions: List<String>
+    val requestedPermissions: List<String>,
+    val compatibilityReport: CloneCompatibilityReport
 )
 
 class ApkInspector(private val context: Context) {
@@ -33,12 +34,12 @@ class ApkInspector(private val context: Context) {
             val packageInfo = if (Build.VERSION.SDK_INT >= 33) {
                 context.packageManager.getPackageArchiveInfo(
                     tempFile.absolutePath,
-                    PackageManager.PackageInfoFlags.of(PackageManager.GET_PERMISSIONS.toLong())
+                    PackageManager.PackageInfoFlags.of((PackageManager.GET_PERMISSIONS or PackageManager.GET_META_DATA).toLong())
                 )
             } else {
                 context.packageManager.getPackageArchiveInfo(
                     tempFile.absolutePath,
-                    PackageManager.GET_PERMISSIONS
+                    PackageManager.GET_PERMISSIONS or PackageManager.GET_META_DATA
                 )
             } ?: error("This file is not a readable Android APK.")
             val appInfo = packageInfo.applicationInfo ?: error("APK application metadata is missing.")
@@ -52,7 +53,12 @@ class ApkInspector(private val context: Context) {
                 versionCode = if (Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode else packageInfo.versionCode.toLong(),
                 minSdk = appInfo.minSdkVersion,
                 targetSdk = appInfo.targetSdkVersion,
-                requestedPermissions = packageInfo.requestedPermissions?.toList().orEmpty()
+                requestedPermissions = packageInfo.requestedPermissions?.toList().orEmpty(),
+                compatibilityReport = CloneCompatibilityAnalyzer.analyze(
+                    packageName = packageInfo.packageName,
+                    requestedPermissions = packageInfo.requestedPermissions?.toList().orEmpty(),
+                    metadataKeys = appInfo.metaData?.keySet()?.toList().orEmpty()
+                )
             )
         } finally {
             tempFile.delete()
