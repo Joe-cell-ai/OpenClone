@@ -68,7 +68,7 @@ class ApkCloneEngine(context: Context) {
         badgePosition: BadgePosition = BadgePosition.BOTTOM_RIGHT,
         markIcon: Boolean = true,
         customIconFile: File? = null,
-        rewriteDexPackageStrings: Boolean = true,
+        rewriteDexPackageStrings: Boolean = false,
         removedPermissions: Set<String> = emptySet(),
         versionNameOverride: String? = null,
         versionCodeOverride: Int? = null
