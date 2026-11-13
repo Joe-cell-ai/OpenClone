@@ -41,13 +41,15 @@ object ApkRebuilder {
         replacements: Map<String, ByteArray>,
         extraEntry: (() -> Pair<String, ByteArray>)?,
         originalManifest: ByteArray? = null,
-        dexPatcher: ((name: String, data: ByteArray, onPass: () -> Unit) -> ByteArray)? = null,
         onStep: (() -> Unit)? = null,
+        onProgress: (Int) -> Unit = {},
     ) {
         val counter = CountingOutputStream(BufferedOutputStream(target.outputStream(), 1 shl 16))
         ZipFile(source).use { zip ->
             ZipOutputStream(counter).use { out ->
                 val seen = HashSet<String>()
+                val totalEntries = zip.entries().asSequence().count().coerceAtLeast(1)
+                var processedEntries = 0
                 // Patched up front: the resource table needs the old package name, and nothing
                 // says the manifest comes before it in the archive.
                 val manifest = zip.getEntry(MANIFEST)?.let { entry ->
@@ -57,7 +59,12 @@ object ApkRebuilder {
                 // The manifest rewrite is a step like any patch pass; counted up front with the rest.
                 onStep?.invoke()
                 for (entry in zip.entries()) {
-                    if (entry.isDirectory || !seen.add(entry.name)) continue
+                    onStep?.invoke()
+                    if (entry.isDirectory || !seen.add(entry.name)) {
+                        processedEntries++
+                        onProgress(processedEntries * 100 / totalEntries)
+                        continue
+                    }
                     if (SIGNATURE_FILE.matches(entry.name) || entry.name.startsWith("META-INF/apkclon") || entry.name == "META-INF/openclone.properties") continue
 
                     val copy = ZipEntry(entry.name).apply { if (entry.time != -1L) time = entry.time }
@@ -71,7 +78,7 @@ object ApkRebuilder {
                         // package.
                         fun renamed(to: OutputStream) = zip.getInputStream(entry).use {
                             val toPackage = if (patcher.keepResourceTable) patcher.oldPackage else patcher.newPackage
-                            ResourceTableRenamer.copy(it, to, patcher.oldPackage, toPackage)
+                            ResourceTableRenamer.copy(it, to, patcher.oldPackage, toPackage, onStep)
                         }
                         if (entry.method == ZipEntry.STORED) {
                             val checksum = CRC32()
@@ -83,29 +90,19 @@ object ApkRebuilder {
                     } else if (entry.name in replacements) {
                         out.putNextEntry(copy)
                         out.write(replacements.getValue(entry.name))
-                    } else if (dexPatcher != null && isDexEntry(entry.name)) {
-                        // Opt-in: neutralize the app's own integrity/signature check in the dex.
-                        // Checked before STORED: uncompressed dex entries (common - APKs are built
-                        // with them extract-native-libs-free) must be patched too, and then
-                        // re-stored with the patched bytes' own size and CRC.
-                        val patched = dexPatcher(entry.name, zip.getInputStream(entry).use { it.readBytes() }) { onStep?.invoke() }
-                        if (entry.method == ZipEntry.STORED) {
-                            val checksum = CRC32().apply { patched.forEach { update(it.toInt()) } }
-                            copy.storedAt(counter.count, patched.size.toLong(), checksum.value)
-                        }
-                        out.putNextEntry(copy)
-                        out.write(patched)
                     } else if (entry.method == ZipEntry.STORED) {
                         // resources.arsc and uncompressed native libraries are mmap-ed straight
                         // out of the APK, so they must stay stored and aligned.
                         copy.storedAt(counter.count, entry.size, entry.crc)
                         out.putNextEntry(copy)
-                        zip.getInputStream(entry).use { it.copyTo(out, 1 shl 16) }
+                        zip.getInputStream(entry).use { copyChecked(it, out, onStep) }
                     } else {
                         out.putNextEntry(copy)
-                        zip.getInputStream(entry).use { it.copyTo(out, 1 shl 16) }
+                        zip.getInputStream(entry).use { copyChecked(it, out, onStep) }
                     }
                     out.closeEntry()
+                    processedEntries++
+                    onProgress(processedEntries * 100 / totalEntries)
                 }
                 extraEntry?.invoke()?.let { (name, data) ->
                     out.putNextEntry(ZipEntry(name))
@@ -116,13 +113,15 @@ object ApkRebuilder {
         }
     }
 
-    /** A classes*.dex entry, without a Regex: R8-minified Kotlin Regex broke this check once. */
-    internal fun isDexEntry(name: String): Boolean {
-        val verdict = name.endsWith(".dex") && run {
-            val base = name.removeSuffix(".dex")
-            base == "classes" || (base.startsWith("classes") && base.substring("classes".length).all { it in '0'..'9' })
+    /** Copies in bounded chunks and checks cancellation between chunks. */
+    private fun copyChecked(input: java.io.InputStream, output: OutputStream, onStep: (() -> Unit)?) {
+        val buffer = ByteArray(1 shl 16)
+        while (true) {
+            onStep?.invoke()
+            val count = input.read(buffer)
+            if (count < 0) break
+            output.write(buffer, 0, count)
         }
-        return verdict
     }
 
     /** Makes this entry a stored, aligned copy with the given size and checksum. */

@@ -39,7 +39,7 @@ object ResourceTableRenamer {
      * from the app to begin with is left alone, since the app cannot be relying on that name.
      * Anything that does not look like a resource table is copied as it is.
      */
-    fun copy(input: InputStream, output: OutputStream, oldPackage: String, newPackage: String) {
+    fun copy(input: InputStream, output: OutputStream, oldPackage: String, newPackage: String, onStep: (() -> Unit)? = null) {
         val data = DataInputStream(input)
         val start = ByteArray(TABLE_HEADER_SIZE + CHUNK_HEADER_SIZE)
         val read = readAsMuchAs(data, start)
@@ -51,14 +51,20 @@ object ResourceTableRenamer {
         if (isTable && newPackage.length < NAME_UNITS) {
             // The package chunk follows the table's string pool, whose size its header gives.
             val poolSize = header.getInt(TABLE_HEADER_SIZE + 4).toLong() and 0xFFFFFFFFL
-            if (copyExactly(data, output, poolSize - CHUNK_HEADER_SIZE)) {
+            if (copyExactly(data, output, poolSize - CHUNK_HEADER_SIZE, onStep)) {
                 val chunk = ByteArray(CHUNK_HEADER_SIZE + PACKAGE_ID_SIZE + NAME_BYTES)
                 val got = readAsMuchAs(data, chunk)
                 if (got == chunk.size && isPackageNamed(chunk, oldPackage)) writeName(chunk, newPackage)
                 output.write(chunk, 0, got)
             }
         }
-        data.copyTo(output, BUFFER)
+        val buffer = ByteArray(BUFFER)
+        while (true) {
+            onStep?.invoke()
+            val count = data.read(buffer)
+            if (count < 0) break
+            output.write(buffer, 0, count)
+        }
     }
 
     private fun isPackageNamed(chunk: ByteArray, name: String): Boolean {
@@ -93,11 +99,12 @@ object ResourceTableRenamer {
     }
 
     /** False when the stream ended early; what was there has been copied. */
-    private fun copyExactly(input: DataInputStream, output: OutputStream, count: Long): Boolean {
+    private fun copyExactly(input: DataInputStream, output: OutputStream, count: Long, onStep: (() -> Unit)?): Boolean {
         if (count < 0) return false
         val buffer = ByteArray(BUFFER)
         var left = count
         while (left > 0) {
+            onStep?.invoke()
             val read = try {
                 input.read(buffer, 0, minOf(left, buffer.size.toLong()).toInt())
             } catch (_: EOFException) {

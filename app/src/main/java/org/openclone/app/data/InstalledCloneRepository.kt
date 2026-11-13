@@ -38,13 +38,24 @@ class InstalledCloneRepository(private val packageManager: PackageManager) {
                                 }.getOrNull()
                             } ?: app.label,
                             createdAtMillis = properties.getProperty("createdAt")?.toLongOrNull() ?: 0L,
-                            signingFingerprint = recordedFingerprint
+                            signingFingerprint = recordedFingerprint,
+                            sourceVersionCode = properties.getProperty("originalVersionCode")?.toLongOrNull() ?: 0L,
+                            currentOriginalVersionCode = packageVersionCode(original)
                         )
                     }
                 }
             }.getOrNull()
         }.filterNotNull().sortedBy { it.cloneLabel.lowercase() }
     }
+
+    private fun packageVersionCode(packageName: String): Long? = runCatching {
+        val info = if (Build.VERSION.SDK_INT >= 33) {
+            packageManager.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(0L))
+        } else {
+            packageManager.getPackageInfo(packageName, 0)
+        }
+        if (Build.VERSION.SDK_INT >= 28) info.longVersionCode else info.versionCode.toLong()
+    }.getOrNull()
 
     private fun signingFingerprint(packageName: String): String? = runCatching {
         val flags = if (Build.VERSION.SDK_INT >= 28) {
