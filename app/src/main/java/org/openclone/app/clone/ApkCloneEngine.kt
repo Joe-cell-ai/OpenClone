@@ -25,7 +25,7 @@ data class CloneBuildResult(
  * OpenClone's private, per-install signing identity.
  *
  * The manifest/resource rewrite is adapted from APK Toolbox (GPL-3.0-only).
- * This intentionally does not patch arbitrary DEX strings or defeat app integrity checks.
+ * Optional DEX package-string rewriting is experimental; it does not rename classes or defeat app integrity checks.
  */
 class ApkCloneEngine(context: Context) {
     private val appContext = context.applicationContext
