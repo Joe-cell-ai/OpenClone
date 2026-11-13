@@ -10,7 +10,6 @@ import org.jf.dexlib2.rewriter.RewriterModule
 import org.jf.dexlib2.iface.instruction.Instruction
 import org.jf.dexlib2.iface.instruction.formats.Instruction21c
 import org.jf.dexlib2.iface.instruction.formats.Instruction31c
-import org.jf.dexlib2.iface.reference.Reference
 import org.jf.dexlib2.iface.value.EncodedValue
 import org.jf.dexlib2.iface.value.StringEncodedValue
 import org.jf.dexlib2.immutable.instruction.ImmutableInstruction21c
@@ -37,7 +36,7 @@ object DexPackageStringRewriter {
                 return object : Rewriter<Instruction> {
                     override fun rewrite(value: Instruction): Instruction {
                         val instruction = delegate.rewrite(value)
-                        val reference = (instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)?.reference
+                        val reference = ((instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)?.reference)
                             as? org.jf.dexlib2.iface.reference.StringReference
                         if (reference == null) return instruction
                         val changed = replacePackageToken(reference.string, oldPackage, newPackage)
