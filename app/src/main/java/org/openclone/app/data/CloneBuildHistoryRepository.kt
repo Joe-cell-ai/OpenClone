@@ -51,7 +51,7 @@ class CloneBuildHistoryRepository(context: Context) {
                         customIconApplied = item.optBoolean("customIconApplied"),
                         createdAtMillis = item.optLong("createdAtMillis")
                     )
-                    if (entry.filesAvailable) add(entry)
+                    add(entry)
                 }
             }.sortedByDescending { it.createdAtMillis }
         }.getOrDefault(emptyList())
