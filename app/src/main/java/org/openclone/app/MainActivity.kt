@@ -513,15 +513,22 @@ private fun OpenCloneHome() {
             val savedWorkId = preferences.getString(ACTIVE_CLONE_WORK_ID, null)
             val workId = savedWorkId?.let { runCatching { UUID.fromString(it) }.getOrNull() }
             if (workId == null) {
-                preferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
+                if (preferences.getString(ACTIVE_CLONE_WORK_ID, null) == savedWorkId) {
+                    preferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
+                }
             } else {
                 val workLookup = withContext(Dispatchers.IO) {
                     runCatching { WorkManager.getInstance(context).getWorkInfoById(workId).get() }
                 }
-                when {
-                    workLookup.isFailure -> cloneWorkId = savedWorkId
-                    workLookup.getOrNull() == null -> preferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
-                    else -> cloneWorkId = savedWorkId
+                if (
+                    cloneWorkId == null &&
+                    preferences.getString(ACTIVE_CLONE_WORK_ID, null) == savedWorkId
+                ) {
+                    when {
+                        workLookup.isFailure -> cloneWorkId = savedWorkId
+                        workLookup.getOrNull() == null -> preferences.edit().remove(ACTIVE_CLONE_WORK_ID).apply()
+                        else -> cloneWorkId = savedWorkId
+                    }
                 }
             }
         }
