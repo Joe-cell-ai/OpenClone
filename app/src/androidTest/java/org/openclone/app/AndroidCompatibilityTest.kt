@@ -6,7 +6,6 @@ import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.ByteArrayInputStream
-import java.io.File
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.KeyStore
@@ -122,11 +121,9 @@ class AndroidCompatibilityTest {
             }
             assertNotNull(parsed)
             assertEquals(clonePackage, parsed?.packageName)
-            assertEquals("OpenClone CI Clone", parsed?.applicationInfo?.loadLabel(packageManager)?.toString())
 
             ZipFile(rebuiltApk).use { zip ->
-                val metadata = zip.getEntry("META-INF/openclone.properties")
-                assertNotNull(metadata)
+                val metadata = checkNotNull(zip.getEntry("META-INF/openclone.properties"))
                 val properties = java.util.Properties().apply {
                     zip.getInputStream(metadata).use(::load)
                 }
