@@ -165,6 +165,7 @@ private fun OpenCloneHome() {
     var cloneResult by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingExport by remember { mutableStateOf<CloneBuildResult?>(null) }
+    var showSettings by remember { mutableStateOf(false) }
     var showSigningKeys by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var signingAliases by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -629,16 +630,9 @@ private fun OpenCloneHome() {
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.End
             ) {
-                TextButton(onClick = {
-                    val keys = SigningKeys.get(context)
-                    signingAliases = keys.identityAliases
-                    activeSigningAlias = keys.activeAlias
-                    showSigningKeys = true
-                }) { Text("Signing identities") }
-                TextButton(onClick = { showAbout = true }) { Text("About & licenses") }
+                TextButton(onClick = { showSettings = true }) { Text("⚙ Settings") }
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -1041,6 +1035,48 @@ private fun OpenCloneHome() {
                     }) { Text("Uninstall") }
                     TextButton(onClick = { selectedClone = null }) { Text("Close") }
                 }
+            }
+        )
+    }
+
+    if (showSettings) {
+        AlertDialog(
+            onDismissRequest = { showSettings = false },
+            title = { Text("Settings") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Manage OpenClone preferences and information.")
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            val keys = SigningKeys.get(context)
+                            signingAliases = keys.identityAliases
+                            activeSigningAlias = keys.activeAlias
+                            showSettings = false
+                            showSigningKeys = true
+                        },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("Signing identities", fontWeight = FontWeight.SemiBold)
+                            Text("Manage keys used to sign cloned apps.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            showSettings = false
+                            showAbout = true
+                        },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("About & licenses", fontWeight = FontWeight.SemiBold)
+                            Text("OpenClone version, GPL license and third-party notices.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showSettings = false }) { Text("Close") }
             }
         )
     }
