@@ -16,6 +16,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -45,7 +46,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -58,6 +59,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -106,20 +108,23 @@ private const val ACTIVE_CLONE_WORK_ID = "active_clone_work_id"
 
 @Composable
 private fun OpenCloneTheme(content: @Composable () -> Unit) {
-    val colors = lightColorScheme(
-        primary = Color(0xFF5656E8),
-        onPrimary = Color(0xFFFFFFFF),
-        primaryContainer = Color(0xFFE7E7FF),
-        onPrimaryContainer = Color(0xFF20205E),
-        secondary = Color(0xFF8757E8),
-        onSecondary = Color(0xFFFFFFFF),
-        secondaryContainer = Color(0xFFF0E7FF),
-        onSecondaryContainer = Color(0xFF35156B),
-        tertiary = Color(0xFF12AFC2),
-        background = Color(0xFFF6F7FC),
-        surface = Color(0xFFFFFFFF),
-        surfaceVariant = Color(0xFFEEF0FA),
-        outline = Color(0xFFD9DDF0)
+    val colors = darkColorScheme(
+        primary = Color(0xFF8B7CFF),
+        onPrimary = Color(0xFF100D2B),
+        primaryContainer = Color(0xFF342B78),
+        onPrimaryContainer = Color(0xFFE7E3FF),
+        secondary = Color(0xFFB18CFF),
+        onSecondary = Color(0xFF21113D),
+        secondaryContainer = Color(0xFF38265A),
+        onSecondaryContainer = Color(0xFFEADFFF),
+        tertiary = Color(0xFF55D8E8),
+        onTertiary = Color(0xFF002F35),
+        background = Color(0xFF090B18),
+        surface = Color(0xFF14182A),
+        surfaceVariant = Color(0xFF20263B),
+        onSurface = Color(0xFFE9EBFF),
+        onSurfaceVariant = Color(0xFFB8BED8),
+        outline = Color(0xFF3A4260)
     )
     MaterialTheme(colorScheme = colors, typography = Typography(), content = content)
 }
@@ -601,19 +606,24 @@ private fun OpenCloneHome() {
 
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 16.dp)) {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFF202052)),
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            Column(
+                modifier = Modifier.fillMaxWidth()
+                    .background(
+                        Brush.linearGradient(
+                            listOf(Color(0xFF25205C), Color(0xFF3B237A), Color(0xFF123D65))
+                        ),
+                        RoundedCornerShape(28.dp)
+                    )
+                    .padding(horizontal = 22.dp, vertical = 22.dp),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                Column(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 22.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("OPENCLONE", style = MaterialTheme.typography.labelLarge, color = Color(0xFFB8B9FF), fontWeight = FontWeight.Bold)
-                    Text("Clone apps. Your way.", style = MaterialTheme.typography.headlineLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                    Text("Installed app browser", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD4D5F5))
+                Text("✦  OPENCLONE  /  APP STUDIO", style = MaterialTheme.typography.labelLarge, color = Color(0xFFB9B4FF), fontWeight = FontWeight.Bold)
+                Text("Clone apps.\nYour way.", style = MaterialTheme.typography.headlineLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                Text("Create independent app spaces with custom identity and signing.", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD9D7F7))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("✦  ${clones.size} CLONES", style = MaterialTheme.typography.labelMedium, color = Color(0xFF8DEBFA), fontWeight = FontWeight.Bold)
+                    Text("•", color = Color(0xFF8B83C8))
+                    Text("${apps.size} APPS READY", style = MaterialTheme.typography.labelMedium, color = Color(0xFFE1D8FF), fontWeight = FontWeight.Bold)
                 }
             }
             TextButton(onClick = {
