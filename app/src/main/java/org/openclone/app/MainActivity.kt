@@ -57,6 +57,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -105,7 +106,22 @@ private const val ACTIVE_CLONE_WORK_ID = "active_clone_work_id"
 
 @Composable
 private fun OpenCloneTheme(content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = lightColorScheme(), typography = Typography(), content = content)
+    val colors = lightColorScheme(
+        primary = Color(0xFF5656E8),
+        onPrimary = Color(0xFFFFFFFF),
+        primaryContainer = Color(0xFFE7E7FF),
+        onPrimaryContainer = Color(0xFF20205E),
+        secondary = Color(0xFF8757E8),
+        onSecondary = Color(0xFFFFFFFF),
+        secondaryContainer = Color(0xFFF0E7FF),
+        onSecondaryContainer = Color(0xFF35156B),
+        tertiary = Color(0xFF12AFC2),
+        background = Color(0xFFF6F7FC),
+        surface = Color(0xFFFFFFFF),
+        surfaceVariant = Color(0xFFEEF0FA),
+        outline = Color(0xFFD9DDF0)
+    )
+    MaterialTheme(colorScheme = colors, typography = Typography(), content = content)
 }
 
 @Composable
