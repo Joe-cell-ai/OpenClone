@@ -696,8 +696,7 @@ private fun OpenCloneHome() {
                     Spacer(Modifier.height(12.dp))
                     Button(onClick = { importBundle.launch(arrayOf("*/*")) }) { Text("＋ Import APK / XAPK / APKM") }
                     inspection?.let { info ->
-                        Text("Selected: ${info.appLabel}", modifier = Modifier.padding(top = 12.dp))
-                        Button(onClick = { cloneName = "${info.appLabel} Clone"; clonePackage = suggestedClonePackage(info.packageName, context.packageManager); selectedApp = null }) { Text("Configure clone") }
+                        Text("Selected: ${info.label}", modifier = Modifier.padding(top = 12.dp))
                     }
                 }
                 "Cloned APKs" -> Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -1276,6 +1275,23 @@ private fun suggestedClonePackage(original: String, packageManager: android.cont
         candidate = "$original.clone$suffix"
     }
     return candidate
+}
+
+@Composable
+private fun HomeActionTile(title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(5.dp)
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
 }
 
 @Composable
