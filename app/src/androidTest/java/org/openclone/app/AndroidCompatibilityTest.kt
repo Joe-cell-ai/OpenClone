@@ -1,17 +1,22 @@
 package org.openclone.app
 
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.test.core.app.ActivityScenario
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.platform.app.InstrumentationRegistry
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.security.KeyStore
 import java.util.UUID
+import java.util.zip.ZipFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
+import org.openclone.app.clone.ApkCloneEngine
 import org.openclone.app.clone.SigningKeys
 import org.junit.Test
 import org.junit.runner.RunWith
