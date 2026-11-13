@@ -148,7 +148,8 @@ class ApkCloneEngine(context: Context) {
                     onStep = ensureActive,
                     onProgress = { localProgress ->
                         onProgress(((index * 100) + localProgress) / sourceApks.size)
-                    }
+                    },
+                    dexPackageRewrite = originalPackage.takeIf { it != newPackage }?.let { it to newPackage }
                 )
 
                 ensureActive()
