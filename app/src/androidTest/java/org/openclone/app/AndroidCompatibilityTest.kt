@@ -40,7 +40,7 @@ class AndroidCompatibilityTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         val keys = SigningKeys.get(context)
         val previousAlias = keys.activeAlias
-        val alias = "CI-\u0024{UUID.randomUUID()}"
+        val alias = "CI-" + UUID.randomUUID().toString()
         val restoredAlias = "$alias-Restored"
         val password = "openclone-ci-password".toCharArray()
         val wrongPassword = "incorrect-password".toCharArray()
@@ -68,8 +68,8 @@ class AndroidCompatibilityTest {
                 }.isSuccess
             )
         } finally {
-            password.fill('\\u0000')
-            wrongPassword.fill('\\u0000')
+            password.fill('\u0000')
+            wrongPassword.fill('\u0000')
             keys.identityAliases.filter { it == alias || it == restoredAlias }.forEach(keys::delete)
             previousAlias?.takeIf { it in keys.identityAliases }?.let(keys::select)
         }
