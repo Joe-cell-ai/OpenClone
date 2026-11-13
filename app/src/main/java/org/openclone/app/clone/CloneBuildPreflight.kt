@@ -46,7 +46,8 @@ object CloneBuildPreflight {
         }
         val estimated = maxOf(
             MINIMUM_HEADROOM_BYTES,
-            BASE_OVERHEAD_BYTES + resourceTableBytes * RESOURCE_TABLE_MULTIPLIER +\n                if (rewriteDexPackageStrings) dexBytes * DEX_MULTIPLIER else 0L
+            BASE_OVERHEAD_BYTES + resourceTableBytes * RESOURCE_TABLE_MULTIPLIER +
+                if (rewriteDexPackageStrings) dexBytes * DEX_MULTIPLIER else 0L
         )
         val usedHeap = (allocatedHeapBytes - freeAllocatedHeapBytes).coerceAtLeast(0L)
         val available = (maxHeapBytes - usedHeap).coerceAtLeast(0L)
