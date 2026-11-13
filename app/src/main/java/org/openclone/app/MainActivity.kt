@@ -1050,8 +1050,22 @@ private fun OpenCloneHome() {
                     DetailLine("Minimum SDK", apk.minSdk.toString())
                     DetailLine("Target SDK", apk.targetSdk.toString())
                     DetailLine("Requested permissions", apk.requestedPermissions.size.toString())
+                    Text("Compatibility preflight", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    if (apk.compatibilityReport.findings.isEmpty()) {
+                        Text(
+                            "No common Firebase or Google services indicators were found in the declared metadata. This is not a guarantee that the app will work after cloning.",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    } else {
+                        apk.compatibilityReport.findings.forEach { finding ->
+                            Text("• $finding", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                    apk.compatibilityReport.limitations.forEach { limitation ->
+                        Text("• $limitation", style = MaterialTheme.typography.bodySmall)
+                    }
                     Text(
-                        "This inspects one APK file. Split APK installation bundles are not yet supported by the inspector.",
+                        "This report is a best-effort check of declared permissions and metadata. It cannot detect every runtime, signature, or server-side dependency.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
