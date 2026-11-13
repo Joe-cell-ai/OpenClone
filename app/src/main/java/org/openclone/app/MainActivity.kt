@@ -153,7 +153,7 @@ private fun OpenCloneHome() {
     var cloneWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
-    var rewriteDexPackageStrings by remember { mutableStateOf(true) }
+    var rewriteDexPackageStrings by remember { mutableStateOf(false) }
     var customIconPath by rememberSaveable { mutableStateOf<String?>(null) }
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var requestedPermissions by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -306,7 +306,7 @@ private fun OpenCloneHome() {
                         cloneError = null
                         cloneUpdateMode = false
                         markCloneIcon = true
-                        rewriteDexPackageStrings = true
+                        rewriteDexPackageStrings = false
                         customIconPath = null
                         badgePosition = BadgePosition.BOTTOM_RIGHT
                         statusMessage = "Imported ${source.apkFiles.size} APK component(s) and ${source.obbFiles.size} OBB file(s) from ${source.archiveName}."
