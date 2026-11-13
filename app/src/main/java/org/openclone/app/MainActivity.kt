@@ -137,6 +137,8 @@ private fun OpenCloneHome() {
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var requestedPermissions by remember { mutableStateOf<List<String>>(emptyList()) }
     var removedPermissions by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var versionNameOverride by remember { mutableStateOf("") }
+    var versionCodeOverride by remember { mutableStateOf("") }
     var cloneError by remember { mutableStateOf<String?>(null) }
     var cloneUpdateMode by remember { mutableStateOf(false) }
     var cloneResult by remember { mutableStateOf<CloneBuildResult?>(null) }
@@ -277,6 +279,8 @@ private fun OpenCloneHome() {
                         removedPermissions = emptySet()
                         cloneName = "${source.label} Clone".take(100)
                         clonePackage = suggestedClonePackage(source.packageName, context.packageManager)
+                        versionNameOverride = ""
+                        versionCodeOverride = ""
                         cloneError = null
                         cloneUpdateMode = false
                         markCloneIcon = true
@@ -426,6 +430,15 @@ private fun OpenCloneHome() {
             cloneError = "The app name must contain 1–100 characters."
             return
         }
+        val versionCode = versionCodeOverride.trim().takeIf { it.isNotEmpty() }?.toLongOrNull()
+        if (versionCodeOverride.isNotBlank() && (versionCode == null || versionCode !in 1..Int.MAX_VALUE.toLong())) {
+            cloneError = "Version code must be a positive whole number no greater than ${Int.MAX_VALUE}."
+            return
+        }
+        if (versionNameOverride.length > 100) {
+            cloneError = "Version name must be 100 characters or fewer."
+            return
+        }
 
         val sourceApks = installedSource?.let { source ->
             (listOfNotNull(source.applicationInfo.sourceDir) + source.applicationInfo.splitSourceDirs.orEmpty()).map(::File)
@@ -438,6 +451,8 @@ private fun OpenCloneHome() {
             .putBoolean(CloneBuildWorker.KEY_MARK_ICON, markCloneIcon && installedSource != null)
             .putBoolean(CloneBuildWorker.KEY_REWRITE_DEX_PACKAGE_STRINGS, rewriteDexPackageStrings)
             .putStringArray(CloneBuildWorker.KEY_REMOVED_PERMISSIONS, removedPermissions.toTypedArray())
+            .putString(CloneBuildWorker.KEY_VERSION_NAME_OVERRIDE, versionNameOverride.trim().takeIf { it.isNotEmpty() })
+            .putInt(CloneBuildWorker.KEY_VERSION_CODE_OVERRIDE, versionCode?.toInt() ?: 0)
             .putBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, cloneUpdateMode)
             .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)
             .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
@@ -691,6 +706,8 @@ private fun OpenCloneHome() {
                     removedPermissions = emptySet()
                     cloneName = "${app.label} Clone".take(100)
                     clonePackage = suggestedClonePackage(app.packageName, context.packageManager)
+                    versionNameOverride = ""
+                    versionCodeOverride = ""
                     cloneError = null
                     markCloneIcon = true
                     rewriteDexPackageStrings = true
@@ -734,6 +751,23 @@ private fun OpenCloneHome() {
                     cloneError?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
+                    Text("Optional version overrides", style = MaterialTheme.typography.titleSmall)
+                    OutlinedTextField(
+                        value = versionNameOverride,
+                        onValueChange = { versionNameOverride = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Version name (leave blank to keep original)") },
+                        enabled = !cloneBuilding
+                    )
+                    OutlinedTextField(
+                        value = versionCodeOverride,
+                        onValueChange = { versionCodeOverride = it.filter(Char::isDigit) },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Version code (leave blank to keep original)") },
+                        enabled = !cloneBuilding
+                    )
                     if (requestedPermissions.isNotEmpty()) {
                         Text("Remove permissions from this clone", style = MaterialTheme.typography.titleSmall)
                         Text("Selected permissions are removed from the rebuilt manifest. The app may stop working if it depends on them.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
