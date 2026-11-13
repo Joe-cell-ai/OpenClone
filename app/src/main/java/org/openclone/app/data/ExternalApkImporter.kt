@@ -55,7 +55,7 @@ class ExternalApkImporter(private val context: Context) {
                                 val originalName = entry.name.substringAfterLast('/').takeIf { it.isNotBlank() }
                                     ?: "expansion-${obbFiles.size}.obb"
                                 val safeName = originalName.replace(Regex("[^A-Za-z0-9._-]"), "_").take(180)
-                                val file = File(outputDir, "obb-${obbFiles.size}-$safeName")
+                                val file = File(outputDir, safeName)
                                 val copied = FileOutputStream(file).use { zip.copyBoundedTo(it, MAX_TOTAL_BYTES - totalBytes) }
                                 totalBytes += copied
                                 if (copied > 0L) obbFiles += file else file.delete()
