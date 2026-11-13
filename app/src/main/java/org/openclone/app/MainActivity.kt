@@ -935,6 +935,8 @@ private fun OpenCloneHome() {
                                 statusMessage = "The original app must be installed before this clone can be updated."
                             } else {
                                 cloneSource = original
+                                requestedPermissions = readInstalledPermissions(context, original.packageName)
+                                removedPermissions = emptySet()
                                 cloneName = clone.cloneLabel
                                 clonePackage = clone.clonePackage
                                 cloneUpdateMode = true
