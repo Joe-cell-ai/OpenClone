@@ -767,65 +767,17 @@ private fun OpenCloneHome() {
         val sourceLabel = cloneSource?.label ?: externalSource!!.label
         AlertDialog(
             onDismissRequest = { if (!cloneBuilding) { cloneSource = null; externalSource = null; cloneUpdateMode = false } },
-            title = { Text(if (cloneUpdateMode) "Update clone" else "Customize clone") },
+            title = { Text(if (cloneUpdateMode) "Update clone" else "Create clone") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = cloneName,
-                        onValueChange = { cloneName = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Clone app name") }
-                    )
-                    OutlinedTextField(
-                        value = clonePackage,
-                        onValueChange = { clonePackage = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("New package ID") }
-                    )
+                    Text("Original: $sourcePackage · $sourceLabel", style = MaterialTheme.typography.bodyMedium)
                     Text(
-                        "Original: $sourcePackage · $sourceLabel",
+                        if (cloneUpdateMode) "OpenClone will rebuild this clone using its existing package ID and signing identity." else "OpenClone will create a separate copy using the recommended app name and package ID. Default clone settings will be applied automatically.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     cloneError?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Text("Optional version overrides", style = MaterialTheme.typography.titleSmall)
-                    OutlinedTextField(
-                        value = versionNameOverride,
-                        onValueChange = { versionNameOverride = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Version name (leave blank to keep original)") },
-                        enabled = !cloneBuilding
-                    )
-                    OutlinedTextField(
-                        value = versionCodeOverride,
-                        onValueChange = { versionCodeOverride = it.filter(Char::isDigit) },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                        label = { Text("Version code (leave blank to keep original)") },
-                        enabled = !cloneBuilding
-                    )
-                    if (requestedPermissions.isNotEmpty()) {
-                        Text("Remove permissions from this clone", style = MaterialTheme.typography.titleSmall)
-                        Text("Selected permissions are removed from the rebuilt manifest. The app may stop working if it depends on them.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
-                        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp)) {
-                            items(requestedPermissions, key = { it }) { permission ->
-                                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                                    Checkbox(
-                                        checked = permission in removedPermissions,
-                                        onCheckedChange = { checked ->
-                                            removedPermissions = if (checked) removedPermissions + permission else removedPermissions - permission
-                                        },
-                                        enabled = !cloneBuilding
-                                    )
-                                    Text(permission, style = MaterialTheme.typography.bodySmall)
-                                }
-                            }
-                        }
                     }
                     if (cloneBuilding) {
                         LinearProgressIndicator(
@@ -834,54 +786,8 @@ private fun OpenCloneHome() {
                         )
                         Text("Building and signing APKs… $cloneProgress%")
                     }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text("Mark clone icon with a dot")
-                        Switch(checked = markCloneIcon, onCheckedChange = { markCloneIcon = it })
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                        Text("Rewrite package strings in DEX (experimental)")
-                        Switch(checked = rewriteDexPackageStrings, onCheckedChange = { rewriteDexPackageStrings = it })
-                    }
                     Text(
-                        "Updates matching package-name string constants in DEX files. It does not rename classes or type descriptors; some apps may still require their original identity.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.secondary
-                    )
-                    if (cloneSource != null) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { chooseCustomIcon.launch(arrayOf("image/*")) }) {
-                                Text(if (customIconPath == null) "Upload custom icon" else "Change custom icon")
-                            }
-                            if (customIconPath != null) {
-                                TextButton(onClick = { customIconPath = null }) { Text("Remove") }
-                            }
-                        }
-                        customIconPreview?.let { preview ->
-                            Image(preview, contentDescription = "Custom launcher icon preview", modifier = Modifier.size(56.dp))
-                        }
-                        Text(
-                            "Custom images replace direct raster PNG launcher icons. Adaptive-icon XML and vector-based launcher icons keep their original artwork.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                    }
-                    if (markCloneIcon && cloneSource != null) {
-                        Text("Badge position", style = MaterialTheme.typography.labelMedium)
-                        Row(horizontalArrangement = Arrangement.spacedBy(2.dp), modifier = Modifier.fillMaxWidth()) {
-                            BadgePosition.values().forEach { position ->
-                                TextButton(onClick = { badgePosition = position }) {
-                                    Text((if (badgePosition == position) "• " else "") + when (position) {
-                                        BadgePosition.TOP_LEFT -> "Top left"
-                                        BadgePosition.TOP_RIGHT -> "Top right"
-                                        BadgePosition.BOTTOM_LEFT -> "Bottom left"
-                                        BadgePosition.BOTTOM_RIGHT -> "Bottom right"
-                                    })
-                                }
-                            }
-                        }
-                    }
-                    Text(
-                        if (cloneUpdateMode) "The update is signed with the same OpenClone key. Android should preserve this clone's existing data if the update is accepted." else "A new signing key is generated for this OpenClone installation and kept encrypted in app-private storage. Cloned apps will not share data with the original.",
+                        if (cloneUpdateMode) "The update uses the existing OpenClone signing key. Android should preserve this clone's data if the update is accepted." else "The original app remains unchanged. The clone uses separate app data and is signed with your OpenClone signing identity.",
                         style = MaterialTheme.typography.bodySmall
                     )
                 }
