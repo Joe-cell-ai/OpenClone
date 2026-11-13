@@ -612,47 +612,52 @@ private fun OpenCloneHome() {
                         Brush.linearGradient(
                             listOf(Color(0xFF25205C), Color(0xFF3B237A), Color(0xFF123D65))
                         ),
-                        RoundedCornerShape(28.dp)
+                        RoundedCornerShape(22.dp)
                     )
-                    .padding(horizontal = 22.dp, vertical = 22.dp),
-                verticalArrangement = Arrangement.spacedBy(9.dp)
+                    .padding(horizontal = 18.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp)
             ) {
-                Text("✦  OPENCLONE  /  APP STUDIO", style = MaterialTheme.typography.labelLarge, color = Color(0xFFB9B4FF), fontWeight = FontWeight.Bold)
-                Text("Clone apps.\nYour way.", style = MaterialTheme.typography.headlineLarge, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                Text("Create independent app spaces with custom identity and signing.", style = MaterialTheme.typography.bodyMedium, color = Color(0xFFD9D7F7))
+                Text("✦  OPENCLONE  /  APP STUDIO", style = MaterialTheme.typography.labelMedium, color = Color(0xFFB9B4FF), fontWeight = FontWeight.Bold)
+                Text("Clone apps. Your way.", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.ExtraBold)
+                Text("Create independent app spaces with custom identity and signing.", style = MaterialTheme.typography.bodySmall, color = Color(0xFFD9D7F7))
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("✦  ${clones.size} CLONES", style = MaterialTheme.typography.labelMedium, color = Color(0xFF8DEBFA), fontWeight = FontWeight.Bold)
+                    Text("✦  ${clones.size} CLONES", style = MaterialTheme.typography.labelSmall, color = Color(0xFF8DEBFA), fontWeight = FontWeight.Bold)
                     Text("•", color = Color(0xFF8B83C8))
-                    Text("${apps.size} APPS READY", style = MaterialTheme.typography.labelMedium, color = Color(0xFFE1D8FF), fontWeight = FontWeight.Bold)
+                    Text("${apps.size} APPS READY", style = MaterialTheme.typography.labelSmall, color = Color(0xFFE1D8FF), fontWeight = FontWeight.Bold)
                 }
             }
-            TextButton(onClick = {
-                val keys = SigningKeys.get(context)
-                signingAliases = keys.identityAliases
-                activeSigningAlias = keys.activeAlias
-                showSigningKeys = true
-            }) { Text("Signing identities") }
-            TextButton(onClick = { showAbout = true }) { Text("About & licenses") }
-            Spacer(Modifier.height(14.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = {
+                    val keys = SigningKeys.get(context)
+                    signingAliases = keys.identityAliases
+                    activeSigningAlias = keys.activeAlias
+                    showSigningKeys = true
+                }) { Text("Signing identities") }
+                TextButton(onClick = { showAbout = true }) { Text("About & licenses") }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { importApk.launch(arrayOf("*/*")) }, modifier = Modifier.weight(1f)) {
-                    Text("Inspect APK")
+                    Text("Inspect APK", maxLines = 1)
                 }
                 Button(onClick = { refreshApps() }, modifier = Modifier.weight(1f)) {
-                    Text("Refresh apps")
+                    Text("Refresh", maxLines = 1)
                 }
             }
             Button(
                 onClick = { importBundle.launch(arrayOf("*/*")) },
                 modifier = Modifier.fillMaxWidth()
-            ) { Text("Import APK / bundle to clone") }
+            ) { Text("Import APK / bundle to clone", maxLines = 1) }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(onClick = { showClones = false }) { Text("Installed apps") }
                 TextButton(onClick = { showClones = true }) { Text("My clones (${clones.size})") }
             }
-            Spacer(Modifier.height(12.dp))
             OutlinedTextField(
                 value = query,
                 onValueChange = { query = it },
@@ -661,15 +666,15 @@ private fun OpenCloneHome() {
                 label = { Text(if (showClones) "Search clones" else "Search installed apps") }
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("Include system apps")
+                Text("Include system apps", style = MaterialTheme.typography.bodyMedium)
                 Switch(checked = includeSystem, onCheckedChange = { includeSystem = it })
             }
             HorizontalDivider()
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
 
             when {
                 loading -> Column(
