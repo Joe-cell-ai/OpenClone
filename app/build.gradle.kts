@@ -1,3 +1,5 @@
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -10,7 +12,7 @@ val releaseKeystoreFile = layout.buildDirectory.file("generated/release-signing/
 val releaseKeystoreBase64 = providers.environmentVariable("OPENCLONE_KEYSTORE_BASE64").orNull
 if (!releaseKeystoreBase64.isNullOrBlank()) {
     releaseKeystoreFile.parentFile.mkdirs()
-    releaseKeystoreFile.writeBytes(java.util.Base64.getDecoder().decode(releaseKeystoreBase64.trim()))
+    releaseKeystoreFile.writeBytes(Base64.getDecoder().decode(releaseKeystoreBase64.trim()))
 }
 
 val arsclibOriginal: Configuration by configurations.creating { isTransitive = false }
