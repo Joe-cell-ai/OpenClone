@@ -23,7 +23,7 @@ This document tracks the feature set described by the App Cloner reference proje
 | Rebuild after original app update | Supported | Requires original app still installed and matching saved signing identity. |
 | Deep package-string rewriting in DEX | Partial | A DEX pass now rewrites package-name string references in every classes*.dex file with token-boundary checks. It preserves class/type descriptors and cannot cover dynamically assembled or obfuscated identities. |
 | DEX processing in an isolated worker with explicit heap budgeting | Partial | Build work is already backgrounded and has a heap preflight; DEX-specific memory isolation/budgeting is not implemented. |
-| OBB / expansion-data handling | Missing | OBB files are not imported or associated with a clone. |
+| OBB / expansion-data handling | Partial | OBB files included in imported XAPK/ZIP bundles are preserved, renamed when package-bound, and included in exported ZIPs under Android/obb/<clone-package>. Installed-source OBB discovery and automatic placement are not implemented. |
 | Broad icon-format replacement (vector, nested layers, adaptive backgrounds) | Partial | Unsupported source icon structures retain original artwork. |
 | Detailed compatibility warnings for Google services, FCM, signature checks and server-bound identity | Partial | Current analyzer is heuristic and based on APK declarations/metadata; runtime behavior cannot be guaranteed. |
 
