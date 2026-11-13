@@ -16,7 +16,8 @@ data class CloneBuildResult(
     val cloneLabel: String,
     val apks: List<File>,
     val iconBadgeApplied: Boolean = false,
-    val customIconApplied: Boolean = false
+    val customIconApplied: Boolean = false,
+    val obbFiles: List<File> = emptyList()
 )
 
 /**
