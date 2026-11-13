@@ -12,7 +12,7 @@ OpenClone is an open-source Android app cloner and APK inspection tool.
 - Change the clone's app label and package ID.
 - Optionally mark the launcher icon with a coloured badge in one of four corners so the clone is easy to distinguish.
 - Upload and preview a custom PNG launcher icon for installed-app clones that use direct raster PNG launcher resources.
-- Run clone rebuilds as persistent WorkManager jobs, with progress reporting and user cancellation.
+- Run clone rebuilds as persistent WorkManager jobs, with progress reporting, user cancellation, and recovery of the active build after reopening OpenClone.
 - Rewrite the compiled binary manifest and resource table, then re-sign every APK with a selected RSA signing identity encrypted at rest using Android Keystore.
 - Create and select multiple signing identities, and import/export password-protected PKCS#12 backups.
 - Verify each rebuilt APK signature before offering installation.
