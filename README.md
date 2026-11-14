@@ -96,3 +96,7 @@ CI APKs signed with the configured key can update in place.
 ## Extension roadmap
 
 OpenClone's approved extension plan and implementation status are tracked in [EXTENSION_ROADMAP.md](EXTENSION_ROADMAP.md). The Extensions Store is currently a catalogue preview; planned extensions are not active features until their user-facing flows and tests are delivered.
+
+## Software-only scope
+
+Appliance remote-control features that require IR emitters, Bluetooth LE scanning hardware, external IR/RF bridges or physical appliance validation are intentionally excluded. The Remote appliance tab, transmitter/discovery UI, hardware permissions, related source files and hardware-specific tests have been removed. The separate authenticated OpenClone companion workflow remains software-based and subject to Android user consent.
