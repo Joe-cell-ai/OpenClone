@@ -98,4 +98,24 @@ jobs:
           target: default
           arch: x86_64
           profile: pixel_2
-          script: gradle connectedDebugAndroidTest
+          force-avd-creation: true
+          emulator-boot-timeout: 900
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -wipe-data
+          script: |
+            set -o pipefail
+            if gradle connectedDebugAndroidTest; then
+              exit 0
+            fi
+
+            echo "Instrumentation run failed; rebooting the emulator once to recover transient package-manager/ADB failures."
+            adb wait-for-device
+            adb reboot
+            adb wait-for-device
+            for attempt in $(seq 1 90); do
+              if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = "1" ]; then
+                break
+              fi
+              sleep 5
+            done
+            test "$(adb shell getprop sys.boot_completed | tr -d '\r')" = "1"
+            gradle connectedDebugAndroidTest
