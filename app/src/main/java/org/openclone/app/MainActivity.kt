@@ -12,6 +12,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -316,6 +317,15 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var pendingExport by remember { mutableStateOf<CloneBuildResult?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var currentTab by rememberSaveable { mutableStateOf("Home") }
+    BackHandler(enabled = currentTab != "Home" || cloneSelectionMode) {
+        if (cloneSelectionMode) {
+            cloneSelectionMode = false
+            selectedClonePackages = emptySet()
+        } else {
+            currentTab = "Home"
+            query = ""
+        }
+    }
     var showSigningKeys by remember { mutableStateOf(false) }
     var showAbout by remember { mutableStateOf(false) }
     var signingAliases by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -858,9 +868,24 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column {
-                    Text("OPENCLONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                    Text(currentTab, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (currentTab != "Home") {
+                        TextButton(
+                            onClick = {
+                                if (cloneSelectionMode) {
+                                    cloneSelectionMode = false
+                                    selectedClonePackages = emptySet()
+                                } else {
+                                    currentTab = "Home"
+                                    query = ""
+                                }
+                            }
+                        ) { Text("← Back", fontWeight = FontWeight.SemiBold) }
+                    }
+                    Column {
+                        Text("OPENCLONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        Text(currentTab, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    }
                 }
                 if (currentTab == "Home") {
                     TextButton(
