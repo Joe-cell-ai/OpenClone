@@ -74,11 +74,11 @@ class BluetoothLeRemoteDiscovery(context: Context) {
         val bleScanner = scanner ?: error("Bluetooth LE scanning is unavailable.")
         val active = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                mainHandler.post { runCatching { publish(result) }.onFailure { onError("Could not read BLE advertisement metadata.") } }
+                mainHandler.post { runCatching { publish(result) }.onFailure { stop(); onError("Could not read BLE advertisement metadata.") } }
             }
             override fun onBatchScanResults(results: MutableList<ScanResult>) {
                 val batch = results.toList()
-                mainHandler.post { batch.forEach { result -> runCatching { publish(result) }.onFailure { onError("Could not read BLE advertisement metadata.") } } }
+                mainHandler.post { batch.forEach { result -> runCatching { publish(result) }.onFailure { stop(); onError("Could not read BLE advertisement metadata.") } } }
             }
             override fun onScanFailed(errorCode: Int) {
                 mainHandler.post {
