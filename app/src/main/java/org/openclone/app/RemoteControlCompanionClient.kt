@@ -72,7 +72,7 @@ object RemoteControlCompanionClient {
 
     private fun request(pairing: RemoteControlPairingEndpoint, method: String, path: String): String {
         val response = requestRaw(pairing, method, path)
-        return response.toString(StandardCharsets.UTF_8)
+        return String(response, StandardCharsets.UTF_8)
     }
 
     /** Fetches a JPEG snapshot over the same pinned TLS + HMAC authenticated channel. */
