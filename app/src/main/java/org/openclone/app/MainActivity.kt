@@ -1326,7 +1326,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-
+                    listOf("Home", "Apps", "APKs", "Cloned apps", "Cloned APKs", "Store").forEach { tab ->
                         NavigationBarItem(
                             selected = currentTab == tab,
                             onClick = { currentTab = tab; query = "" },
