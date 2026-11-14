@@ -280,7 +280,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     }
     var webViewHostInput by remember { mutableStateOf("") }
     var webViewMessage by remember { mutableStateOf("Add exact HTTPS hosts before opening the isolated browser.") }
-    var message by remember { mutableStateOf("Saved profiles are not applied to cloned apps or device traffic.") }
+    var message by remember { mutableStateOf("Saved profiles can be assigned to a selected clone in Per-clone Routing.") }
     val publisherRepository = remember { TrustedPublisherRepository(context) }
     var trustedPublishers by remember { mutableStateOf(publisherRepository.all()) }
     var publisherLabel by remember { mutableStateOf("") }
