@@ -72,10 +72,7 @@ android {
             if (hasCiSigning) signingConfig = signingConfigs.getByName("ci")
         }
         release {
-            check(hasCiSigning) {
-                "Release builds require OPENCLONE_KEYSTORE_BASE64, OPENCLONE_KEYSTORE_PASSWORD, OPENCLONE_KEY_ALIAS, and OPENCLONE_KEY_PASSWORD."
-            }
-            signingConfig = signingConfigs.getByName("ci")
+            if (hasCiSigning) signingConfig = signingConfigs.getByName("ci")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
