@@ -115,3 +115,59 @@ object RemoteControlCompanionClient {
         }
     }
 }
+
+
+@androidx.compose.runtime.Composable
+fun RemoteControlCompanionCard() {
+    var pairingUri by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var packageName by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var message by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("Paste a pairing link received from a trusted OpenClone device.") }
+    var busy by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    androidx.compose.material3.Card {
+        androidx.compose.foundation.layout.Column(
+            androidx.compose.ui.Modifier.fillMaxWidth().padding(14.dp),
+            verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)
+        ) {
+            androidx.compose.material3.Text("📲 Remote Control Companion", style = androidx.compose.material3.MaterialTheme.typography.titleMedium)
+            androidx.compose.material3.Text(
+                "Connect to another OpenClone device on the same trusted LAN. The companion verifies the exact TLS certificate fingerprint from the pairing link before sending authenticated requests.",
+                style = androidx.compose.material3.MaterialTheme.typography.bodySmall
+            )
+            androidx.compose.material3.OutlinedTextField(
+                value = pairingUri, onValueChange = { pairingUri = it.take(2048) },
+                modifier = androidx.compose.ui.Modifier.fillMaxWidth(), minLines = 2,
+                label = { androidx.compose.material3.Text("OpenClone pairing link") }
+            )
+            androidx.compose.material3.OutlinedTextField(
+                value = packageName, onValueChange = { packageName = it.take(255) },
+                modifier = androidx.compose.ui.Modifier.fillMaxWidth(), singleLine = true,
+                label = { androidx.compose.material3.Text("Clone package to launch") }
+            )
+            androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.Button(enabled = !busy && pairingUri.isNotBlank(), onClick = {
+                    busy = true
+                    scope.launch {
+                        val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching { RemoteControlCompanionClient.status(RemoteControlPairingEndpoint.parse(pairingUri)) }
+                        }
+                        message = result.fold({ "Connected: $it" }, { it.message ?: "Could not connect to remote device." })
+                        busy = false
+                    }
+                }) { androidx.compose.material3.Text(if (busy) "Connecting…" else "Check connection") }
+                androidx.compose.material3.Button(enabled = !busy && pairingUri.isNotBlank() && packageName.isNotBlank(), onClick = {
+                    busy = true
+                    scope.launch {
+                        val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            runCatching { RemoteControlCompanionClient.launch(RemoteControlPairingEndpoint.parse(pairingUri), packageName.trim()) }
+                        }
+                        message = result.fold({ "Launch request accepted: $it" }, { it.message ?: "Could not launch clone." })
+                        busy = false
+                    }
+                }) { androidx.compose.material3.Text("Launch clone") }
+            }
+            androidx.compose.material3.Text(message, style = androidx.compose.material3.MaterialTheme.typography.bodySmall)
+        }
+    }
+}
