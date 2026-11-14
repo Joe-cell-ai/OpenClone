@@ -3,6 +3,8 @@ package org.openclone.app
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
