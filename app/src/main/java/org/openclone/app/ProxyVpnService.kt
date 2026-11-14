@@ -12,7 +12,6 @@ import android.os.Build
 import android.os.IBinder
 import org.openclone.app.data.ExtensionDiagnosticsLog
 import java.net.InetAddress
-import java.util.Locale
 
 /** Android VpnService routes only the selected clone; OpenClone and other apps bypass this tunnel. */
 class ProxyVpnService : VpnService() {
@@ -42,8 +41,8 @@ class ProxyVpnService : VpnService() {
             return START_NOT_STICKY
         }
 
-        startSessionNotification(clonePackage)
         try {
+            startSessionNotification(clonePackage)
             val descriptor = Builder()
                 .setSession("OpenClone proxy · " + clonePackage)
                 .setMtu(TUN_MTU)
@@ -112,7 +111,7 @@ class ProxyVpnService : VpnService() {
         tunDescriptor = null
         engineThread?.interrupt()
         engineThread = null
-        if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else @Suppress("DEPRECATION") stopForeground(true)
+        stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     override fun onRevoke() {
