@@ -2,6 +2,7 @@ package org.openclone.app
 
 import android.content.Intent
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import org.openclone.app.data.ExtensionDiagnosticsLog
 import androidx.test.platform.app.InstrumentationRegistry
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -34,7 +35,7 @@ class RemoteControlCompanionInstrumentedTest {
             )
             val endpoint = RemoteControlPairingEndpoint.parse(pairing.toUri()).copy(host = "127.0.0.1")
             val response = RemoteControlCompanionClient.status(endpoint)
-            assertTrue("Companion status response was invalid: $response", response.contains("\\"ok\\":true"))
+            assertTrue("Companion status response was invalid: $response", response.contains("\\\"ok\\":true"))
         } finally {
             context.stopService(service)
             RemoteControlPairingStore.revoke(context)
