@@ -6,14 +6,23 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-// Release signing material is supplied only by the CI environment. The decoded
-// keystore is written under build/ (never into the source tree) and is not committed.
-val releaseKeystoreFile = layout.buildDirectory.file("generated/release-signing/openclone-release.jks").get().asFile
-val releaseKeystoreBase64 = providers.environmentVariable("OPENCLONE_KEYSTORE_BASE64").orNull
-if (!releaseKeystoreBase64.isNullOrBlank()) {
-    releaseKeystoreFile.parentFile.mkdirs()
-    releaseKeystoreFile.writeBytes(Base64.getDecoder().decode(releaseKeystoreBase64.trim()))
+// A single CI keystore signs downloadable debug and release APKs so Android can
+// install later CI builds as updates. The keystore is supplied through GitHub Secrets
+// and decoded only under build/; never commit signing material to the repository.
+val ciKeystoreFile = layout.buildDirectory.file("generated/ci-signing/openclone-ci.jks").get().asFile
+val ciKeystoreBase64 = providers.environmentVariable("OPENCLONE_KEYSTORE_BASE64").orNull
+val ciStorePassword = providers.environmentVariable("OPENCLONE_KEYSTORE_PASSWORD").orNull
+val ciKeyAlias = providers.environmentVariable("OPENCLONE_KEY_ALIAS").orNull
+val ciKeyPassword = providers.environmentVariable("OPENCLONE_KEY_PASSWORD").orNull
+val hasCiSigning = !ciKeystoreBase64.isNullOrBlank() &&
+    !ciStorePassword.isNullOrBlank() && !ciKeyAlias.isNullOrBlank() &&
+    !ciKeyPassword.isNullOrBlank()
+if (hasCiSigning) {
+    ciKeystoreFile.parentFile.mkdirs()
+    ciKeystoreFile.writeBytes(Base64.getDecoder().decode(ciKeystoreBase64!!.trim()))
 }
+val ciVersionCode = providers.environmentVariable("OPENCLONE_VERSION_CODE")
+    .orNull?.toIntOrNull()?.takeIf { it > 0 } ?: 1
 
 val arsclibOriginal: Configuration by configurations.creating { isTransitive = false }
 
@@ -41,13 +50,32 @@ android {
         applicationId = "org.openclone.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        versionCode = ciVersionCode
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     sourceSets.getByName("main").res.srcDir(generatedLauncherResDir)
+    signingConfigs {
+        if (hasCiSigning) {
+            create("ci") {
+                storeFile = ciKeystoreFile
+                storePassword = ciStorePassword
+                keyAlias = ciKeyAlias
+                keyPassword = ciKeyPassword
+            }
+        }
+    }
     buildTypes {
+        debug {
+            // Local developer builds retain Android Studio's normal debug key unless
+            // the persistent CI key is explicitly provided.
+            if (hasCiSigning) signingConfig = signingConfigs.getByName("ci")
+        }
         release {
+            check(hasCiSigning) {
+                "Release builds require OPENCLONE_KEYSTORE_BASE64, OPENCLONE_KEYSTORE_PASSWORD, OPENCLONE_KEY_ALIAS, and OPENCLONE_KEY_PASSWORD."
+            }
+            signingConfig = signingConfigs.getByName("ci")
             isMinifyEnabled = false
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
