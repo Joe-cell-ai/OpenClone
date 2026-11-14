@@ -3,6 +3,8 @@ package org.openclone.app
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.Activity
+import android.app.KeyguardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -38,6 +40,7 @@ import java.util.concurrent.TimeUnit
 private const val PREFS = "openclone_extension_tools"
 private const val PROFILES = "proxy_profiles"
 private const val AUTOMATION = "daily_clone_update_check"
+private const val APP_LOCK = "app_lock_enabled"
 private const val WORK_NAME = "openclone_daily_clone_update_check"
 internal const val UPDATE_CHANNEL = "openclone_clone_updates"
 
@@ -170,6 +173,8 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var message by remember { mutableStateOf("Saved profiles are not applied to cloned apps or device traffic.") }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
+    var appLockEnabled by remember { mutableStateOf(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(APP_LOCK, false)) }
+    var appLockMessage by remember { mutableStateOf("Uses the Android device screen lock; OpenClone does not store a separate password.") }
 
     LaunchedEffect(Unit) { OpenCloneNotificationChannels.ensure(context); network = NetworkSnapshot.read(context) }
 
@@ -269,7 +274,27 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
             }
         }
 
-        ExtensionStatusCard("🔒 App Lock", "Not active: a tested lifecycle authentication gate is required before this can claim to protect the app.")
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("🔒 App Lock", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Protect OpenClone with the Android device PIN, pattern or password. No custom password is stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(if (appLockEnabled) "App lock enabled" else "App lock disabled", modifier = Modifier.weight(1f))
+                    Switch(checked = appLockEnabled, onCheckedChange = { enabled ->
+                        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+                        if (enabled && !keyguard.isDeviceSecure) {
+                            appLockMessage = "Set a screen lock first. Android security settings have been opened."
+                            context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        } else {
+                            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(APP_LOCK, enabled).apply()
+                            appLockEnabled = enabled
+                            (context as? Activity)?.recreate()
+                        }
+                    })
+                }
+                Text(appLockMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         ExtensionStatusCard("🌍 WebView Manager", "Not applicable yet: OpenClone currently hosts no WebView. It cannot control WebViews inside cloned apps.")
         ExtensionStatusCard("🖥️ Remote Control", "Disabled until secure authenticated pairing, encrypted IPC, explicit consent and revocation are implemented.")
         ExtensionStatusCard("🔄 Extension Updater", "Disabled until a trusted publisher key and signed catalogue/package verification are provisioned. No downloaded code is executed.")
@@ -297,5 +322,21 @@ private fun ExtensionStatusCard(icon: String, description: String) {
             Text(icon, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
+    }
+}
+
+@Composable
+fun AppLockGate(onUnlock: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().padding(28.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("🔒", style = MaterialTheme.typography.displayLarge)
+        Spacer(Modifier.height(12.dp))
+        Text("OpenClone is locked", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Confirm your Android device screen lock to continue.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.height(18.dp))
+        Button(onClick = onUnlock) { Text("Unlock OpenClone") }
     }
 }
