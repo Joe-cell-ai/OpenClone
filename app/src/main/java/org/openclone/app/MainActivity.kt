@@ -975,7 +975,12 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         }
                     }
                 }
-                else -> LazyColumn(
+                else -> if (currentTab == "Store") ExtensionToolsScreen(
+                    onOpenSettings = { showSettings = true },
+                    onOpenProfiles = { showProfiles = true },
+                    onOpenApps = { currentTab = "Apps" },
+                    onOpenClones = { currentTab = "Cloned apps" }
+                ) else LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
