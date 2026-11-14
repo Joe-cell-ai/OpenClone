@@ -81,6 +81,7 @@ fun InfraredApplianceRemoteCard() {
     var brand by remember { mutableStateOf("") }
     var model by remember { mutableStateOf("") }
     var profileSearch by remember { mutableStateOf("") }
+    var expandedProfileId by remember { mutableStateOf<String?>(null) }
     var savedProfiles by remember(context) { mutableStateOf(InfraredProfileStore.load(context)) }
     var carrier by remember { mutableStateOf("38000") }
     var timings by remember { mutableStateOf("") }
@@ -215,27 +216,31 @@ fun InfraredApplianceRemoteCard() {
                         .any { it.contains(query, ignoreCase = true) }
                 }
                 visibleProfiles.forEach { profile ->
-                    Text(
-                        "${profile.brand} · ${profile.model} · ${profile.category.displayName}",
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                    Text("${profile.name} · ${profile.commands.size} buttons · User imported",
+                    Button(onClick = {
+                        expandedProfileId = if (expandedProfileId == profile.id) null else profile.id
+                    }) {
+                        Text("${profile.brand} · ${profile.model} · ${profile.category.displayName} (${profile.commands.size} buttons)")
+                    }
+                    Text("${profile.name} · User imported · Not manufacturer verified",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    profile.commands.forEach { item ->
-                        Button(
-                            enabled = available,
-                            onClick = {
-                                runCatching {
-                                    InfraredRemote.transmit(context, item.command)
-                                    message = "${item.name} transmitted for ${profile.brand} ${profile.model}. Check the appliance."
-                                }.onFailure { message = it.message ?: "Could not transmit saved IR command." }
-                            }
-                        ) { Text(item.name.replace('_', ' ')) }
+                    if (expandedProfileId == profile.id) {
+                        profile.commands.forEach { item ->
+                            Button(
+                                enabled = available,
+                                onClick = {
+                                    runCatching {
+                                        InfraredRemote.transmit(context, item.command)
+                                        message = "${item.name} transmitted for ${profile.brand} ${profile.model}. Check the appliance."
+                                    }.onFailure { message = it.message ?: "Could not transmit saved IR command." }
+                                }
+                            ) { Text(item.name.replace('_', ' ')) }
+                        }
                     }
                     Button(onClick = {
                         runCatching {
                             savedProfiles = InfraredProfileStore.delete(context, profile.id)
+                            if (expandedProfileId == profile.id) expandedProfileId = null
                             message = "Deleted ${profile.name}."
                         }.onFailure { message = it.message ?: "Could not delete profile." }
                     }) { Text("Delete ${profile.name}") }
