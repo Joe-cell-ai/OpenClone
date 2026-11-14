@@ -1301,6 +1301,15 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         ExtensionPreviewCard("🔔", "Notification Manager", "Supported OpenClone notification controls only; cross-app rewriting is restricted", "Research")
                     }
                     item {
+                        UniversalRemoteDiscoveryCard()
+                    }
+                    item {
+                        InfraredApplianceRemoteCard()
+                    }
+                    item {
+                        ExtensionPreviewCard("📺", "Universal Remote Centre", "Local network discovery and IR transmission; Wi-Fi/BLE/Matter/RF device control adapters remain in progress", "Partial")
+                    }
+                    item {
                         ExtensionPreviewCard("⚙️", "Automation Studio", "Consent-based workflows using supported Android actions", "Planned")
                     }
                     item {
