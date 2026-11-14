@@ -607,7 +607,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                                 message = result.fold(
                                     {
                                         ExtensionDiagnosticsLog(context).append("proxy", "handshake_success", "Proxy tunnel handshake succeeded.")
-                                        "Proxy handshake succeeded. Authentication and cloned-app routing are not configured."
+                                        "Proxy handshake succeeded. Proxy authentication is not configured; use Per-clone Routing to apply this endpoint."
                                     },
                                     {
                                         ExtensionDiagnosticsLog(context).append("proxy", "handshake_failed", "Proxy tunnel handshake failed.")
