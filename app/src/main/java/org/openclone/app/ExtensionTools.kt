@@ -49,6 +49,7 @@ import org.openclone.app.data.CatalogueExtension
 import org.openclone.app.data.ExtensionCatalogueClient
 import org.openclone.app.data.ExtensionPackageDownloader
 import org.openclone.app.data.ExtensionPackageInstaller
+import org.openclone.app.data.ExtensionInstallStatusStore
 import org.openclone.app.data.CloneProxyAssignmentRepository
 import org.openclone.app.RemoteControlPairingStore
 import org.openclone.app.RemotePairingInfo
@@ -288,6 +289,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var publisherFingerprintConfirmation by remember { mutableStateOf("") }
     var publisherCandidate by remember { mutableStateOf<TrustedPublisher?>(null) }
     var updaterMessage by remember { mutableStateOf("Import a publisher EC public key, inspect its fingerprint, then confirm the fingerprint to trust it.") }
+    var installStatus by remember { mutableStateOf(ExtensionInstallStatusStore.read(context)) }
     var catalogueUrl by remember { mutableStateOf("") }
     var catalogueEntries by remember { mutableStateOf<List<CatalogueExtension>>(emptyList()) }
     var updaterBusy by remember { mutableStateOf(false) }
@@ -530,6 +532,10 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                         }) { Text("Install") }
                     }
                 }
+                installStatus?.let { record ->
+                    Text("Last Android install result · session ${record.sessionId} · status ${record.status}: ${record.message}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = { installStatus = ExtensionInstallStatusStore.read(context) }) { Text("Refresh install result") }
                 Text(updaterMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
