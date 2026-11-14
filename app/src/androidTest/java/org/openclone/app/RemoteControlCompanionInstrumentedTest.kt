@@ -22,7 +22,7 @@ class RemoteControlCompanionInstrumentedTest {
             repeat(12) {
                 if (response == null) {
                     try {
-                        val endpoint = pairing.copy(host = "127.0.0.1")
+                        val endpoint = RemoteControlPairingEndpoint.parse(pairing.toUri()).copy(host = "127.0.0.1")
                         response = RemoteControlCompanionClient.status(endpoint)
                     } catch (error: Throwable) {
                         lastFailure = error
