@@ -49,10 +49,15 @@ class TrustedPublisherRepository(context: Context) {
 
     @Synchronized fun trust(candidate: TrustedPublisher, confirmationFingerprint: String) {
         validatePublisher(candidate)
-        require(confirmationFingerprint.replace(":", "").equals(candidate.fingerprintSha256, true)) {
+        require(confirmationFingerprint.replace(Regex("[:\\s]"), "").equals(candidate.fingerprintSha256, true)) {
             "Publisher fingerprint confirmation does not match."
         }
-        val updated = (all().filterNot { it.id == candidate.id } + candidate).take(MAX_PUBLISHERS)
+        val current = all()
+        val existing = current.filterNot { it.id == candidate.id }
+        require(candidate.id in current.map { it.id } || existing.size < MAX_PUBLISHERS) {
+            "A maximum of 32 trusted publishers can be stored."
+        }
+        val updated = (existing + candidate).sortedBy { it.label.lowercase() }
         val array = JSONArray()
         updated.forEach { item ->
             array.put(JSONObject().put("id", item.id).put("label", item.label)
