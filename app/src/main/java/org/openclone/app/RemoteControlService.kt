@@ -7,8 +7,6 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageInstaller
-import android.os.Build
 import android.os.IBinder
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -182,7 +180,7 @@ class RemoteControlService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        if (running) return START_STICKY
+        if (running) return START_NOT_STICKY
         val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         notificationManager.createNotificationChannel(
             NotificationChannel(REMOTE_CHANNEL, "Remote control session", NotificationManager.IMPORTANCE_LOW)
@@ -201,7 +199,7 @@ class RemoteControlService : Service() {
         startForeground(38473, notification)
         running = true
         serverThread = Thread({ serve() }, "OpenCloneRemoteControl").apply { isDaemon = true; start() }
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     private fun serve() {
