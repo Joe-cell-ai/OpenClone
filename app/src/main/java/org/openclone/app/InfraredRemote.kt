@@ -113,12 +113,7 @@ fun InfraredApplianceRemoteCard() {
             }
         }
     }
-    var message by remember {
-        mutableStateOf(
-            if (available) "IR blaster detected. Enter a command's raw timing sequence to transmit it."
-            else "No built-in IR blaster detected. Use a compatible external IR accessory or another IR-equipped phone."
-        )
-    }
+
     Card {
         Column(
             Modifier.fillMaxWidth().padding(14.dp),
