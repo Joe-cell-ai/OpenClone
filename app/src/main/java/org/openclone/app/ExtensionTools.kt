@@ -10,6 +10,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Network
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.clickable
@@ -31,6 +32,16 @@ import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.openclone.app.data.ExtensionDiagnosticsLog
+import org.openclone.app.data.PrivacyAuditRepository
+import org.openclone.app.data.StorageSnapshot
+import org.openclone.app.data.InstalledAppRepository
+import org.openclone.app.data.InstalledCloneRepository
+import org.openclone.app.data.InstalledClone
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.DataInputStream
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.InetSocketAddress
@@ -44,12 +55,13 @@ private const val APP_LOCK = "app_lock_enabled"
 private const val WORK_NAME = "openclone_daily_clone_update_check"
 internal const val UPDATE_CHANNEL = "openclone_clone_updates"
 
-data class ProxyProfile(val name: String, val host: String, val port: Int) {
+data class ProxyProfile(val name: String, val host: String, val port: Int, val protocol: String = "HTTP_CONNECT") {
     companion object {
-        fun validate(name: String, host: String, port: Int) {
+        fun validate(name: String, host: String, port: Int, protocol: String = "HTTP_CONNECT") {
             require(name.trim().isNotEmpty() && name.length <= 40) { "Profile name must contain 1–40 characters." }
             require(host.isNotBlank() && host.length <= 253 && host.none { it.isWhitespace() || it == '/' || it == '@' }) { "Enter a valid proxy host." }
             require(port in 1..65535) { "Port must be between 1 and 65535." }
+            require(protocol in setOf("HTTP_CONNECT", "SOCKS5")) { "Unsupported proxy protocol." }
         }
     }
 }
@@ -61,8 +73,8 @@ class ProxyProfileRepository(context: Context) {
         buildList {
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
-                val profile = ProxyProfile(item.optString("name"), item.optString("host"), item.optInt("port"))
-                runCatching { ProxyProfile.validate(profile.name, profile.host, profile.port) }.onSuccess { add(profile) }
+                val profile = ProxyProfile(item.optString("name"), item.optString("host"), item.optInt("port"), item.optString("protocol", "HTTP_CONNECT"))
+                runCatching { ProxyProfile.validate(profile.name, profile.host, profile.port, profile.protocol) }.onSuccess { add(profile) }
             }
         }
     }.getOrDefault(emptyList())
@@ -80,6 +92,53 @@ class ProxyProfileRepository(context: Context) {
         val array = JSONArray()
         getAll().filterNot { it.name == name }.forEach { p -> array.put(JSONObject().put("name", p.name).put("host", p.host).put("port", p.port)) }
         check(prefs.edit().putString(PROFILES, array.toString()).commit()) { "Could not remove proxy profile." }
+    }
+}
+
+object ProxyConnectivityTester {
+    /** Performs a real unauthenticated HTTP CONNECT or SOCKS5 handshake to example.com:443. */
+    fun test(profile: ProxyProfile, timeoutMillis: Int = 4000) {
+        ProxyProfile.validate(profile.name, profile.host, profile.port, profile.protocol)
+        java.net.Socket().use { socket ->
+            socket.soTimeout = timeoutMillis
+            socket.connect(InetSocketAddress(profile.host.trim(), profile.port), timeoutMillis)
+            val input = DataInputStream(socket.getInputStream())
+            val output = socket.getOutputStream()
+            when (profile.protocol) {
+                "HTTP_CONNECT" -> {
+                    output.write("CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\nProxy-Connection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
+                    output.flush()
+                    val response = BufferedReader(InputStreamReader(input, Charsets.US_ASCII)).readLine().orEmpty()
+                    require(response.matches(Regex("HTTP/1\\.[01] 200(?: .*)?"))) {
+                        "HTTP proxy rejected CONNECT: " + response.take(120)
+                    }
+                }
+                "SOCKS5" -> {
+                    output.write(byteArrayOf(5, 1, 0))
+                    output.flush()
+                    val greeting = ByteArray(2)
+                    input.readFully(greeting)
+                    require(greeting[0].toInt() == 5 && greeting[1].toInt() == 0) {
+                        "SOCKS5 proxy requires authentication or rejected no-auth mode."
+                    }
+                    val host = "example.com".toByteArray(Charsets.US_ASCII)
+                    output.write(byteArrayOf(5, 1, 0, 3, host.size.toByte()) + host + byteArrayOf(1, 0xBB.toByte()))
+                    output.flush()
+                    val header = ByteArray(4)
+                    input.readFully(header)
+                    require(header[0].toInt() == 5 && header[1].toInt() == 0) {
+                        "SOCKS5 CONNECT request was rejected (code " + (header[1].toInt() and 0xff) + ")."
+                    }
+                    when (header[3].toInt() and 0xff) {
+                        1 -> input.skipBytes(4)
+                        3 -> input.skipBytes(input.readUnsignedByte())
+                        4 -> input.skipBytes(16)
+                        else -> error("SOCKS5 returned an unsupported address type.")
+                    }
+                    input.skipBytes(2)
+                }
+            }
+        }
     }
 }
 
