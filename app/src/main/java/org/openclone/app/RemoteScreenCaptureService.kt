@@ -1,5 +1,6 @@
 package org.openclone.app
 
+import android.app.Activity
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -36,7 +37,7 @@ class RemoteScreenCaptureService : Service() {
         if (projection != null) return START_NOT_STICKY
         val resultCode = intent?.getIntExtra(EXTRA_RESULT_CODE, 0) ?: 0
         val consentData = intent?.getParcelableExtraCompat<Intent>(EXTRA_RESULT_DATA)
-        if (resultCode != RESULT_OK || consentData == null) {
+        if (resultCode != Activity.RESULT_OK || consentData == null) {
             stopSelf()
             return START_NOT_STICKY
         }
@@ -67,7 +68,9 @@ class RemoteScreenCaptureService : Service() {
             projection = activeProjection
             activeProjection.registerCallback(object : MediaProjection.Callback() {
                 override fun onStop() {
-                    stopCapture()
+                    // Android has already stopped this projection; do not call stop() again.
+                    projection = null
+                    stopCapture(stopProjection = false)
                     stopSelf()
                 }
             }, android.os.Handler(mainLooper))
@@ -88,10 +91,11 @@ class RemoteScreenCaptureService : Service() {
             ) ?: error("Android could not create the screen capture display.")
             getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putBoolean(KEY_ACTIVE, true).apply()
             START_NOT_STICKY
-        } catch (error: Throwable) {
+        } catch (error: Exception) {
+            android.util.Log.e("OpenCloneScreen", "Could not start consented screen capture", error)
             stopCapture()
             stopSelf()
-            throw error
+            START_NOT_STICKY
         }
     }
 
@@ -104,7 +108,7 @@ class RemoteScreenCaptureService : Service() {
         }
     }
 
-    private fun stopCapture() {
+    private fun stopCapture(stopProjection: Boolean = true) {
         virtualDisplay?.release()
         virtualDisplay = null
         imageReader?.setOnImageAvailableListener(null, null)
@@ -112,7 +116,7 @@ class RemoteScreenCaptureService : Service() {
         imageReader = null
         val active = projection
         projection = null
-        active?.stop()
+        if (stopProjection) active?.stop()
         getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putBoolean(KEY_ACTIVE, false).apply()
         if (Build.VERSION.SDK_INT >= 24) stopForeground(STOP_FOREGROUND_REMOVE) else {
             @Suppress("DEPRECATION")
