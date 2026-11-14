@@ -225,7 +225,7 @@ data class SignedExtensionDescriptor(
 ) {
     fun canonicalPayload(): ByteArray {
         require(extensionId.matches(Regex("[a-z][a-z0-9_.-]{2,63}")))
-        require(version.matches(Regex("[0-9]+\\\\.[0-9]+\\\\.[0-9]+")))
+        require(version.matches(Regex("[0-9]+\\.[0-9]+\\.[0-9]+")))
         require(publisher.isNotBlank() && publisher.length <= 120)
         require(minimumOpenCloneApi > 0 && maximumOpenCloneApi >= minimumOpenCloneApi)
         require(sha256.matches(Regex("[A-Fa-f0-9]{64}")))
