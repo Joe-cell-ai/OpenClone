@@ -150,18 +150,19 @@ object RemoteControlTlsIdentity {
 object RemoteControlNetworkAddress {
     fun find(): String = runCatching {
         val interfaces = NetworkInterface.getNetworkInterfaces()
-        while (interfaces.hasMoreElements()) {
+        var found: String? = null
+        while (interfaces.hasMoreElements() && found == null) {
             val network = interfaces.nextElement()
             if (!network.isUp || network.isLoopback) continue
             val addresses = network.inetAddresses
-            while (addresses.hasMoreElements()) {
+            while (addresses.hasMoreElements() && found == null) {
                 val address = addresses.nextElement()
                 if (address is Inet4Address && !address.isLoopbackAddress && !address.isLinkLocalAddress) {
-                    return address.hostAddress ?: "127.0.0.1"
+                    found = address.hostAddress
                 }
             }
         }
-        "127.0.0.1"
+        found ?: "127.0.0.1"
     }.getOrDefault("127.0.0.1")
 }
 
