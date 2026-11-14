@@ -282,14 +282,18 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🌐 Proxy Manager", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Save up to 10 named proxy endpoints and test TCP reachability. This does not route clone traffic or change Android's device-wide proxy.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Save up to 10 HTTP CONNECT or SOCKS5 endpoints and test an unauthenticated tunnel handshake to example.com:443. Profiles do not route clone traffic or change Android's device-wide proxy.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Profile name") })
                 OutlinedTextField(host, { host = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Proxy host") })
                 OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Port") })
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { protocol = "HTTP_CONNECT" }) { Text((if (protocol == "HTTP_CONNECT") "✓ " else "") + "HTTP CONNECT") }
+                    TextButton(onClick = { protocol = "SOCKS5" }) { Text((if (protocol == "SOCKS5") "✓ " else "") + "SOCKS5") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
                         runCatching {
-                            repository.save(ProxyProfile(name, host, port.toInt()))
+                            repository.save(ProxyProfile(name, host, port.toInt(), protocol))
                             profiles = repository.getAll()
                             message = "Proxy profile saved."
                         }.onFailure { message = it.message ?: "Could not save profile." }
@@ -301,10 +305,10 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                             message = "Testing TCP connection…"
                             scope.launch {
                                 val result = withContext(Dispatchers.IO) {
-                                    runCatching { Socket().use { it.connect(InetSocketAddress(host.trim(), targetPort!!), 4000) } }
+                                    runCatching { ProxyConnectivityTester.test(ProxyProfile(name.ifBlank { "Test" }, host, targetPort!!, protocol)) }
                                 }
                                 message = result.fold(
-                                    { "TCP connection succeeded; proxy authentication and clone routing are not tested." },
+                                    { "Proxy handshake succeeded. Authentication and cloned-app routing are not configured." },
                                     { "Connection failed: " + (it.message ?: "host unreachable") }
                                 )
                             }
@@ -316,9 +320,9 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(p.name, fontWeight = FontWeight.Medium)
-                            Text(p.host + ":" + p.port, style = MaterialTheme.typography.labelSmall)
+                            Text(p.protocol + " · " + p.host + ":" + p.port, style = MaterialTheme.typography.labelSmall)
                         }
-                        TextButton(onClick = { name = p.name; host = p.host; port = p.port.toString() }) { Text("Edit") }
+                        TextButton(onClick = { name = p.name; host = p.host; port = p.port.toString(); protocol = p.protocol }) { Text("Edit") }
                         TextButton(onClick = { repository.delete(p.name); profiles = repository.getAll() }) { Text("Delete") }
                     }
                 }
