@@ -1,30 +1,26 @@
 # OpenClone Extensions Platform
 
-## Status
+## Current status
 
-The Extensions Store screen currently presents a preview catalogue only. Extension download, installation, execution, updates and removal are **not implemented**. A catalogue entry must never be presented as installed or active.
+The Extensions Store screen is a preview catalogue only. Extension download, installation, execution, update and removal are **not implemented**. Catalogue entries must never be presented as installed or active.
 
-## Proposed architecture
+The approved 16-extension delivery plan is tracked in [EXTENSION_ROADMAP.md](EXTENSION_ROADMAP.md). A status of Foundation or Partial does not mean the complete extension is available.
 
-OpenClone should keep its APK cloning engine independent from optional extensions. Extensions are optional integrations with a narrow, versioned capability contract.
+## Architecture and trust requirements
 
-### Package and trust
+OpenClone should keep its APK cloning engine independent from optional extensions. Future extensions must use a narrow, versioned capability contract.
 
 - Publish extensions as separately signed Android packages or another explicitly reviewed package format; do not load arbitrary downloaded DEX/JAR code into the OpenClone process.
-- Maintain a publisher trust policy and verify package signatures and declared identity before enabling an extension.
+- Verify package signatures and declared publisher identity before enabling an extension.
 - Reject unsigned, tampered, downgraded or incompatible packages.
 - Show publisher, version, source, requested capabilities and data handling before installation.
 - Support revocation, disable, update and uninstall.
-
-### Communication boundary
-
-- Use explicit Android IPC with a versioned interface for approved extension capabilities.
+- Use explicit Android IPC with a versioned interface for approved capabilities.
 - Verify calling package identity and signing certificate on every privileged request.
-- Expose only narrow operations such as reading non-sensitive build metadata or requesting a user-approved export.
-- Do not expose arbitrary filesystem access, signing-key material, clone private data, package installation authority, or unrestricted shell execution.
+- Never expose arbitrary filesystem access, signing-key material, clone private data, package-install authority or unrestricted shell execution.
 - Keep long-running work in bounded background tasks with cancellation and resource limits.
 
-### Manifest proposal
+## Descriptor requirements
 
 An extension descriptor should include:
 - Stable extension ID and display name
@@ -35,7 +31,7 @@ An extension descriptor should include:
 - Requested capability IDs with human-readable reasons
 - Entry-point IPC component and supported actions
 
-### Lifecycle
+## Lifecycle
 
 1. Discover a catalogue entry from a trusted catalogue source.
 2. Verify catalogue metadata and publisher identity.
@@ -46,24 +42,10 @@ An extension descriptor should include:
 7. Update atomically after verification; retain rollback information.
 8. Disable or uninstall and revoke access cleanly.
 
-## Initial extension candidates
+## Initial safe sample
 
-| Extension | Intended scope | Initial status |
-|---|---|---|
-| Icon Studio | Prepare icon assets and adaptive-icon previews | Planned |
-| Clone Profiles | Save and reuse non-secret clone configuration | Planned |
-| Backup Tools | Export/import supported OpenClone settings | Planned |
-| Network Profiles | Configure supported network settings without bypassing app security | Research |
-| Developer Diagnostics | View build metadata and compatibility diagnostics | Planned |
+The first third-party extension should be a read-only diagnostics sample. It may read explicitly exposed, non-sensitive build and compatibility metadata. It must not receive signing keys, credentials, APK contents, private clone data, unrestricted filesystem access or shell execution.
 
 ## Security boundaries
 
 Extensions must not bypass DRM, app licensing, account security, anti-cheat, Play Integrity, server-side authorization or other app security controls. Extensions must not silently collect user data or alter cloned APKs outside explicitly approved OpenClone operations.
-
-## Delivery phases
-
-1. Finalize capability IDs, IPC contract, descriptor schema and trust policy.
-2. Implement signature verification, publisher management and capability consent UI.
-3. Build a sample read-only diagnostics extension and automated security tests.
-4. Add catalogue download, install, update, disable and uninstall flows.
-5. Expand capabilities only after a threat-model review and compatibility tests.
