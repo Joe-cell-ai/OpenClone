@@ -514,7 +514,11 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                             remotePairingInfo = pairing
                             remoteMessage = "Remote session started. Share the pairing link only with a client you trust; it contains the pairing secret."
                             ExtensionDiagnosticsLog(context).append("remote", "session_started", "User started a TLS-protected remote-control session.")
-                        }.onFailure { remoteMessage = it.message ?: "Could not start remote control." }
+                        }.onFailure {
+                            RemoteControlPairingStore.revoke(context)
+                            remotePairingInfo = null
+                            remoteMessage = it.message ?: "Could not start remote control."
+                        }
                     }) { Text("Start remote control") }
                 } else {
                     Text("Listening address: ${remotePairingInfo!!.host}:${remotePairingInfo!!.port}")
