@@ -18,7 +18,7 @@ class ProxyConnectivityTesterTest {
                     server.accept().use { socket ->
                         val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.US_ASCII))
                         while (reader.readLine()?.isNotEmpty() == true) { }
-                        socket.getOutputStream().write("HTTP/1.1 200 Connection established\\r\\n\\r\\n".toByteArray(Charsets.US_ASCII))
+                        socket.getOutputStream().write("HTTP/1.1 200 Connection established\r\n\r\n".toByteArray(Charsets.US_ASCII))
                         socket.getOutputStream().flush()
                     }
                 } finally {
