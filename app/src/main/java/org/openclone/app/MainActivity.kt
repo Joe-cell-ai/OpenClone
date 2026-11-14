@@ -1304,10 +1304,10 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         UniversalRemoteDiscoveryCard()
                     }
                     item {
-                        InfraredApplianceRemoteCard()
+                        UniversalRemoteBleDiscoveryCard()
                     }
                     item {
-                        ExtensionPreviewCard("📺", "Universal Remote Centre", "Local network discovery and IR transmission; Wi-Fi/BLE/Matter/RF device control adapters remain in progress", "Partial")
+                        InfraredApplianceRemoteCard()
                     }
                     item {
                         ExtensionPreviewCard("⚙️", "Automation Studio", "Consent-based workflows using supported Android actions", "Planned")
