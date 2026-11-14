@@ -78,13 +78,15 @@ class ExtensionSuiteCoreTest {
     }
 
     @Test
-    fun remoteControlReplayGuardRejectsDuplicateAndExpiredNonces() {
+    fun remoteControlAuthenticationConsumesNonceOnlyOnce() {
+        val secret = RemoteControlAuthenticator.createPairingSecret()
         val guard = RemoteControlReplayGuard()
         val now = 1_800_000_000_000L
         val nonce = "nonce_0123456789abcdef"
-        assertTrue(guard.consume(nonce, now, now))
-        assertFalse(guard.consume(nonce, now, now))
-        assertFalse(guard.consume("nonce_fedcba9876543210", now - 120_000, now))
+        val signature = RemoteControlAuthenticator.sign(secret, "POST", "/v1/status", now, nonce)
+        assertTrue(RemoteControlAuthenticator.verifyAndConsume(secret, "POST", "/v1/status", now, nonce, signature, guard, now))
+        assertFalse(RemoteControlAuthenticator.verifyAndConsume(secret, "POST", "/v1/status", now, nonce, signature, guard, now))
+        assertFalse(RemoteControlAuthenticator.verifyAndConsume(secret, "POST", "/v1/status", now, "nonce_fedcba9876543210", signature, guard, now))
     }
 
     @Test
