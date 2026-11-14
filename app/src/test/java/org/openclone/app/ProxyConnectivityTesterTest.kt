@@ -38,17 +38,17 @@ class ProxyConnectivityTesterTest {
             val thread = Thread {
                 try {
                     server.accept().use { socket ->
-                        val input = socket.getInputStream()
+                        val input = java.io.DataInputStream(socket.getInputStream())
                         val output = socket.getOutputStream()
                         val greeting = ByteArray(3)
-                        input.read(greeting)
+                        input.readFully(greeting)
                         output.write(byteArrayOf(5, 0))
                         output.flush()
                         val header = ByteArray(5)
-                        input.read(header)
+                        input.readFully(header)
                         val hostLength = header[4].toInt() and 0xff
                         val remainder = ByteArray(hostLength + 2)
-                        input.read(remainder)
+                        input.readFully(remainder)
                         output.write(byteArrayOf(5, 0, 0, 1, 127, 0, 0, 1, 0, 0))
                         output.flush()
                     }
