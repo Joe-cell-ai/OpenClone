@@ -32,7 +32,7 @@ object InfraredProfileCodec {
             val commands = JSONArray()
             profile.commands.forEach { item ->
                 val timings = JSONArray()
-                item.command.timingsMicros.forEach(timings::put)
+                item.command.timingsMicros.forEach { timings.put(it) }
                 commands.put(JSONObject().apply {
                     put("name", item.name)
                     put("carrierHz", item.command.carrierHz)
