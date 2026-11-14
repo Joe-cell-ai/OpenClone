@@ -49,6 +49,7 @@ import org.openclone.app.data.CatalogueExtension
 import org.openclone.app.data.ExtensionCatalogueClient
 import org.openclone.app.data.ExtensionPackageDownloader
 import org.openclone.app.data.ExtensionPackageInstaller
+import org.openclone.app.data.ExtensionInstallStatusStore
 import org.openclone.app.data.CloneProxyAssignmentRepository
 import org.openclone.app.RemoteControlPairingStore
 import org.openclone.app.RemotePairingInfo
@@ -283,12 +284,13 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var message by remember { mutableStateOf("Saved profiles can be assigned to a selected clone in Per-clone Routing.") }
     val publisherRepository = remember { TrustedPublisherRepository(context) }
     var trustedPublishers by remember { mutableStateOf(publisherRepository.all()) }
-    var publisherLabel by remember { mutableStateOf("") }
-    var publisherKey by remember { mutableStateOf("") }
+    var publisherLabel by remember { mutableStateOf("OpenClone Catalogue Publisher") }
+    var publisherKey by remember { mutableStateOf("-----BEGIN PUBLIC KEY-----\\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEFy/nyuFgixka7Vj+cH7GhqYIla3r\\naZUAeujcQU72BYVXhgjilnwKGAaT/rSau4SrHvvhO9/ql9tMQrnRRKyKHQ==\\n-----END PUBLIC KEY-----") }
     var publisherFingerprintConfirmation by remember { mutableStateOf("") }
     var publisherCandidate by remember { mutableStateOf<TrustedPublisher?>(null) }
     var updaterMessage by remember { mutableStateOf("Import a publisher EC public key, inspect its fingerprint, then confirm the fingerprint to trust it.") }
-    var catalogueUrl by remember { mutableStateOf("") }
+    var installStatus by remember { mutableStateOf(ExtensionInstallStatusStore.read(context)) }
+    var catalogueUrl by remember { mutableStateOf("https://raw.githubusercontent.com/Joe-cell-ai/OpenClone/main/extension-catalogue/catalogue.json") }
     var catalogueEntries by remember { mutableStateOf<List<CatalogueExtension>>(emptyList()) }
     var updaterBusy by remember { mutableStateOf(false) }
     var remotePairingInfo by remember { mutableStateOf<RemotePairingInfo?>(null) }
@@ -530,9 +532,15 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                         }) { Text("Install") }
                     }
                 }
+                installStatus?.let { record ->
+                    Text("Last Android install result · session ${record.sessionId} · status ${record.status}: ${record.message}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = { installStatus = ExtensionInstallStatusStore.read(context) }) { Text("Refresh install result") }
                 Text(updaterMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+
+        RemoteControlCompanionCard()
 
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

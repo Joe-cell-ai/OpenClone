@@ -249,6 +249,39 @@ object ExtensionPackageInstaller {
     const val ACTION_INSTALL_STATUS = "org.openclone.app.EXTENSION_INSTALL_STATUS"
 }
 
+data class ExtensionInstallStatusRecord(
+    val sessionId: Int,
+    val status: Int,
+    val message: String,
+    val updatedAtMillis: Long
+)
+
+/** Persists the latest Android installer callback so the user can inspect the final outcome after leaving the screen. */
+object ExtensionInstallStatusStore {
+    private const val PREFS = "openclone_extension_install_status"
+
+    fun record(context: Context, sessionId: Int, status: Int, message: String) {
+        val safeMessage = message.take(240)
+        check(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt("session_id", sessionId)
+            .putInt("status", status)
+            .putString("message", safeMessage)
+            .putLong("updated_at", System.currentTimeMillis())
+            .commit()) { "Could not persist extension install status." }
+    }
+
+    fun read(context: Context): ExtensionInstallStatusRecord? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.contains("updated_at")) return null
+        return ExtensionInstallStatusRecord(
+            prefs.getInt("session_id", -1),
+            prefs.getInt("status", PackageInstaller.STATUS_FAILURE),
+            prefs.getString("message", "").orEmpty().take(240),
+            prefs.getLong("updated_at", 0L)
+        )
+    }
+}
+
 /** Receives only Android PackageInstaller's result; it does not grant install permissions. */
 class ExtensionInstallStatusReceiver : android.content.BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
@@ -263,6 +296,6 @@ class ExtensionInstallStatusReceiver : android.content.BroadcastReceiver() {
             }
             confirmation?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)?.let(context::startActivity)
         }
-        ExtensionDiagnosticsLog(context).append("updater", "install_status_$status", message.ifBlank { "Android package installer returned status $status." })
+        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)\n        ExtensionInstallStatusStore.record(context, sessionId, status, message.ifBlank { "Android package installer returned status $status." })\n        ExtensionDiagnosticsLog(context).append("updater", "install_status_$status", message.ifBlank { "Android package installer returned status $status." })
     }
 }

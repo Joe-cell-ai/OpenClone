@@ -55,3 +55,9 @@ All other paths/methods are rejected. There is no shell, file browser, package i
 - Stop the session from the app or its notification to close the socket and revoke the pairing credential.
 - The address may be unreachable on carrier networks, guest Wi-Fi or networks that isolate clients. Use a trusted LAN.
 - This is a local-network protocol, not an internet relay. Do not expose port 38473 through router port-forwarding.
+
+## Companion client
+
+OpenClone now includes a companion mode in Extensions. Paste the pairing URI on the device that will control the host, then use Check connection or Launch clone. The client validates the URI version and fields, pins the TLS peer to the supplied certificate SHA-256 fingerprint, and signs each request with a fresh HMAC-SHA256 nonce and timestamp. The client exposes only the v1 status and clone-launch operations.
+
+Pair over a trusted local Wi-Fi/Ethernet network. The pairing URI contains a bearer secret; never send it through public chat, screenshots or untrusted QR scanners. The service is not an internet relay and must not be exposed through router port forwarding.

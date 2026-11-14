@@ -19,8 +19,9 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.OutputStreamWriter
 import java.math.BigInteger
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import java.net.Inet4Address
-import java.net.NetworkInterface
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
@@ -60,7 +61,7 @@ object RemoteControlPairingStore {
         val info = RemotePairingInfo(
             android.util.Base64.encodeToString(secret, android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP or android.util.Base64.NO_PADDING),
             RemoteControlTlsIdentity.fingerprint(),
-            RemoteControlNetworkAddress.find(),
+            RemoteControlNetworkAddress.find(context),
             REMOTE_PORT
         )
         secret.fill(0)
@@ -149,22 +150,29 @@ object RemoteControlTlsIdentity {
 }
 
 object RemoteControlNetworkAddress {
-    fun find(): String = runCatching {
-        val interfaces = NetworkInterface.getNetworkInterfaces()
-        var found: String? = null
-        while (interfaces.hasMoreElements() && found == null) {
-            val network = interfaces.nextElement()
-            if (!network.isUp || network.isLoopback) continue
-            val addresses = network.inetAddresses
-            while (addresses.hasMoreElements() && found == null) {
-                val address = addresses.nextElement()
-                if (address is Inet4Address && !address.isLoopbackAddress && !address.isLinkLocalAddress) {
-                    found = address.hostAddress
-                }
+    /** Prefer a non-VPN LAN interface; never publish a TUN/VPN address as the pairing host. */
+    fun find(context: Context): String {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val candidates = manager.allNetworks.mapNotNull { network ->
+            val capabilities = manager.getNetworkCapabilities(network) ?: return@mapNotNull null
+            if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) return@mapNotNull null
+            val priority = when {
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> 0
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> 1
+                capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> 2
+                else -> 3
             }
+            val address = manager.getLinkProperties(network)?.linkAddresses
+                ?.asSequence()
+                ?.map { it.address }
+                ?.filterIsInstance<Inet4Address>()
+                ?.firstOrNull { !it.isLoopbackAddress && !it.isLinkLocalAddress }
+                ?: return@mapNotNull null
+            priority to address.hostAddress
         }
-        found ?: "127.0.0.1"
-    }.getOrDefault("127.0.0.1")
+        return candidates.minByOrNull { it.first }?.second
+            ?: throw IllegalStateException("No reachable non-VPN IPv4 network address was found. Connect to local Wi-Fi or Ethernet and try again.")
+    }
 }
 
 /** User-started TLS 1.2 server. It exposes only status and launch of OpenClone-created clones. */
