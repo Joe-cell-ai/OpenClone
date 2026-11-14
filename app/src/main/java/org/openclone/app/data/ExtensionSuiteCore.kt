@@ -92,8 +92,7 @@ class PrivacyAuditRepository(context: Context) {
 
     private fun JSONArray?.toStringList(): List<String> =
         this?.let { array -> (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) } }.orEmpty()
-
-
+}
 
 data class StorageSnapshot(
     val cacheBytes: Long,
@@ -104,7 +103,7 @@ data class StorageSnapshot(
     companion object {
         fun read(context: Context): StorageSnapshot {
             val builds = File(context.filesDir, "openclone/builds")
-            val buildFiles = builds.walkTopDown().filter(File::isFile).toList()
+            val buildFiles = builds.walkTopDown().filter { it.isFile }.toList()
             return StorageSnapshot(
                 cacheBytes = directoryBytes(context.cacheDir),
                 filesBytes = directoryBytes(context.filesDir),
@@ -114,7 +113,7 @@ data class StorageSnapshot(
         }
 
         private fun directoryBytes(directory: File): Long =
-            runCatching { directory.walkTopDown().filter(File::isFile).sumOf { it.length() } }.getOrDefault(0L)
+            runCatching { directory.walkTopDown().filter { it.isFile }.sumOf { it.length() } }.getOrDefault(0L)
     }
 }
 
@@ -262,7 +261,7 @@ object RemoteControlAuthenticator {
         require(secret.size >= 32 && method.matches(Regex("[A-Z]{3,10}")))
         require(path.startsWith("/") && path.length <= 512 && !path.contains("\n"))
         require(nonce.matches(Regex("[A-Za-z0-9_-]{16,80}")))
-        val payload = "$method\\n$path\\n$timestampMillis\\n$nonce".toByteArray(Charsets.UTF_8)
+        val payload = listOf(method, path, timestampMillis.toString(), nonce).joinToString("\\n").toByteArray(Charsets.UTF_8)
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(secret, "HmacSHA256"))
         return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(payload))
@@ -291,7 +290,7 @@ object RemoteControlAuthenticator {
         signature: String,
         nowMillis: Long = System.currentTimeMillis()
     ): Boolean {
-        if (kotlin.math.abs(nowMillis - timestampMillis) > TimeUnit.MINUTES.toMillis(1)) return false
+        if (timestampMillis < nowMillis - TimeUnit.MINUTES.toMillis(1) || timestampMillis > nowMillis + TimeUnit.MINUTES.toMillis(1)) return false
         return runCatching {
             val expected = sign(secret, method, path, timestampMillis, nonce)
             MessageDigest.isEqual(expected.toByteArray(Charsets.US_ASCII), signature.toByteArray(Charsets.US_ASCII))
@@ -304,7 +303,7 @@ class RemoteControlReplayGuard(private val maxEntries: Int = 256) {
 
     @Synchronized
     fun consume(nonce: String, timestampMillis: Long, nowMillis: Long = System.currentTimeMillis()): Boolean {
-        if (maxEntries !in 1..4096 || kotlin.math.abs(nowMillis - timestampMillis) > TimeUnit.MINUTES.toMillis(1)) return false
+        if (maxEntries !in 1..4096 || timestampMillis < nowMillis - TimeUnit.MINUTES.toMillis(1) || timestampMillis > nowMillis + TimeUnit.MINUTES.toMillis(1)) return false
         if (!nonce.matches(Regex("[A-Za-z0-9_-]{16,80}")) || nonce in seen) return false
         seen.add(nonce)
         while (seen.size > maxEntries) seen.remove(seen.first())
