@@ -93,3 +93,39 @@ An extension is complete only when it has:
 ## Current implementation boundary
 
 Existing OpenClone functionality includes app browsing, APK inspection and rebuild, custom label/package ID, limited custom PNG icon replacement, optional manifest permission removal, clone discovery/launch/uninstall, APK ZIP export, signing identity backup, build history and System/Light/Dark/AMOLED themes. These existing features are not evidence that the broader extensions listed above are complete.
+
+## Core UI workstream — Top Bar & Dashboard
+
+This is a core application experience, not a seventeenth extension. It is tracked alongside the extension roadmap so the shared navigation and dashboard are delivered consistently.
+
+### Approved design direction
+
+- Visual direction: **Concept C — Premium Futuristic UI**.
+- Use a rounded blue-to-purple-to-cyan gradient dashboard header.
+- Show live counts for installed apps and created clones; counts must come from actual app data and update when that data changes.
+- Keep the current screen title clearly visible on the left of the top app bar.
+- Home: show a clearly visible Settings gear/action on the right.
+- List screens: show Search on the right and make it open the relevant list search.
+- Settings: show a back arrow and the Settings title.
+- Keep Settings easy to discover; do not reduce it to a tiny or hard-to-find icon.
+- Keep Account & Tools inside Settings, consistent with the existing navigation decision.
+- Preserve the colourful taskbar icon language used by the Cloned Apps destination, with consistent icon sizing and readable labels.
+
+### Delivery sequence and status
+
+| Item | Status |
+|---|---|
+| Existing destination/taskbar navigation | Partial — current navigation exists; visual consistency and final polish remain |
+| Screen-aware top app bar actions | Planned — verify and implement title, Settings, Search and back behavior across every screen |
+| Premium gradient dashboard header | Planned — design direction approved; not yet confirmed in the app |
+| Live installed-app and clone counts | Planned — must be data-backed, not hard-coded |
+| Account & Tools placement in Settings | Existing direction — verify final navigation and remove duplicate entry points if any |
+
+### Definition of done
+
+- Every primary screen has the correct title and contextual action.
+- Search opens and filters the relevant list; Settings and back navigation work from their expected screens.
+- Dashboard counts reflect the current repository/app state and handle empty/loading states.
+- Gradient styling remains legible in System, Light, Dark and AMOLED themes.
+- UI tests or focused navigation tests cover the top-bar actions and dashboard count states.
+- Do not mark the workstream complete based on a mockup or documentation alone.
