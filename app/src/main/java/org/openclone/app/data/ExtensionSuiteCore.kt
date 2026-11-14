@@ -268,6 +268,20 @@ object RemoteControlAuthenticator {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(payload))
     }
 
+    fun verifyAndConsume(
+        secret: ByteArray,
+        method: String,
+        path: String,
+        timestampMillis: Long,
+        nonce: String,
+        signature: String,
+        replayGuard: RemoteControlReplayGuard,
+        nowMillis: Long = System.currentTimeMillis()
+    ): Boolean {
+        return verify(secret, method, path, timestampMillis, nonce, signature, nowMillis) &&
+            replayGuard.consume(nonce, timestampMillis, nowMillis)
+    }
+
     fun verify(
         secret: ByteArray,
         method: String,
