@@ -179,7 +179,8 @@ class ExtensionDiagnosticsLog(context: Context) {
                 put("summary", event.summary)
             })
         }
-        check(prefs.edit().putString(KEY_EVENTS, array.toString()).commit()) { "Could not persist diagnostics event." }
+        // Diagnostics are best-effort and must never crash a foreground service or request handler.
+        runCatching { prefs.edit().putString(KEY_EVENTS, array.toString()).commit() }
     }
 
     @Synchronized
