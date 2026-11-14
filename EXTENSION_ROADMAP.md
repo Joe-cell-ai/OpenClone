@@ -22,7 +22,7 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 | P0 | Clone Profiles | Save, list, apply and delete reusable non-secret clone configurations | Implemented: save/update, apply, rename, duplicate and delete; profile intentionally excludes APK bytes, signing keys, credentials and app data |
 | P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: discovery, search, name/update sorting, multi-select and sequential system-confirmed bulk uninstall; grouping remains planned |
 | P0 | Theme Studio | More theme presets and user-selectable accent/surface options | Partial: System, Light, Dark and AMOLED modes persist; custom accent/surface controls and live theme preview remain |
-| P1 | Privacy Guard | Per-clone permission review, explain manifest changes and privacy checklist | Partial: clone manifest permission removal exists; dedicated guard UI and audit trail planned |
+| P1 | Privacy Guard | Per-clone permission review, explain manifest changes and privacy checklist | Partial: clone setup lists requested manifest permissions, lets users select removals and explains manifest-only impact; persistent audit history and deeper permission rationale remain |
 | P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Partial: installed clone APK/split footprint is shown; other apps' private data/cache sizes are not exposed to ordinary apps |
 | P1 | Backup & Restore | Export/import profiles and supported OpenClone metadata with integrity checks | Partial: signing identity PKCS#12 export/import and APK-set ZIP export exist; unified versioned profile/settings backup remains |
 | P1 | App Lock | Local OpenClone access gate using supported device authentication | Research: threat model and biometric/device-credential flow required |
@@ -52,7 +52,7 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 - Extend the existing theme selector without breaking current saved preferences.
 
 ### M2 — Privacy and data lifecycle
-- Add a permission-impact review before building a clone.
+- Add a permission-impact review before building a clone; the current setup now lists requested permissions, offers per-permission removal selection and explains the manifest-only effect. Persistent audit history and richer rationale remain.
 - Extend Storage Manager with output APK sizes and app-owned cache visibility where Android exposes it; installed clone APK/split footprint is implemented.
 - Define a versioned backup manifest; include profiles and supported app-owned artifacts, not arbitrary private app data.
 - Add App Lock with explicit device-authentication fallback and no custom password storage.
