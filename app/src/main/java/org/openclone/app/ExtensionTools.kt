@@ -88,6 +88,18 @@ class ProxyProfileRepository(context: Context) {
         check(prefs.edit().putString(PROFILES, array.toString()).commit()) { "Could not save proxy profile." }
     }
 
+    @Synchronized fun replaceAll(profiles: List<ProxyProfile>) {
+        require(profiles.size <= 10) { "A maximum of 10 proxy profiles can be restored." }
+        profiles.forEach { ProxyProfile.validate(it.name, it.host, it.port, it.protocol) }
+        require(profiles.map { it.name.lowercase() }.distinct().size == profiles.size) { "Proxy profile names must be unique." }
+        val array = JSONArray()
+        profiles.sortedBy { it.name.lowercase() }.forEach { profile ->
+            array.put(JSONObject().put("name", profile.name.trim()).put("host", profile.host.trim())
+                .put("port", profile.port).put("protocol", profile.protocol))
+        }
+        check(prefs.edit().putString(PROFILES, array.toString()).commit()) { "Could not restore proxy profiles." }
+    }
+
     @Synchronized fun delete(name: String) {
         val array = JSONArray()
         getAll().filterNot { it.name == name }.forEach { p -> array.put(JSONObject().put("name", p.name).put("host", p.host).put("port", p.port).put("protocol", p.protocol)) }
