@@ -22,6 +22,8 @@ import java.math.BigInteger
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import java.net.Inet4Address
+import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
@@ -175,6 +177,19 @@ object RemoteControlNetworkAddress {
     }
 }
 
+/** Observable startup state for the companion and its instrumentation checks. */
+object RemoteControlServerState {
+    @Volatile var isListening: Boolean = false
+        private set
+    @Volatile var failure: String? = null
+        private set
+
+    @Synchronized fun starting() { isListening = false; failure = null }
+    @Synchronized fun listening() { isListening = true; failure = null }
+    @Synchronized fun failed(reason: String) { isListening = false; failure = reason.take(180) }
+    @Synchronized fun stopped() { isListening = false }
+}
+
 /** User-started TLS 1.2 server. It exposes only status and launch of OpenClone-created clones. */
 class RemoteControlService : Service() {
     @Volatile private var running = false
@@ -205,6 +220,7 @@ class RemoteControlService : Service() {
             .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopIntent).build())
             .build()
         startForeground(38473, notification)
+        RemoteControlServerState.starting()
         running = true
         serverThread = Thread({ serve() }, "OpenCloneRemoteControl").apply { isDaemon = true; start() }
         return START_NOT_STICKY
@@ -213,10 +229,13 @@ class RemoteControlService : Service() {
     private fun serve() {
         try {
             val socket = RemoteControlTlsIdentity.sslContext().serverSocketFactory
-                .createServerSocket(REMOTE_PORT) as SSLServerSocket
+                .createServerSocket() as SSLServerSocket
+            socket.reuseAddress = true
+            socket.bind(InetSocketAddress(InetAddress.getByName("0.0.0.0"), REMOTE_PORT), 16)
             socket.enabledProtocols = arrayOf("TLSv1.2")
             socket.soTimeout = 1000
             serverSocket = socket
+            RemoteControlServerState.listening()
             while (running) {
                 try {
                     val accepted = socket.accept() as javax.net.ssl.SSLSocket
@@ -230,8 +249,11 @@ class RemoteControlService : Service() {
                 }
             }
         } catch (error: Throwable) {
-            ExtensionDiagnosticsLog(this).append("remote", "server_failed", error.javaClass.simpleName)
+            val reason = "${error.javaClass.simpleName}: ${error.message.orEmpty()}"
+            RemoteControlServerState.failed(reason)
+            ExtensionDiagnosticsLog(this).append("remote", "server_failed", reason)
         } finally {
+            RemoteControlServerState.stopped()
             running = false
             runCatching { serverSocket?.close() }
             serverSocket = null
@@ -341,6 +363,7 @@ class RemoteControlService : Service() {
     }
 
     override fun onDestroy() {
+        RemoteControlServerState.stopped()
         running = false
         runCatching { serverSocket?.close() }
         serverSocket = null
