@@ -1660,6 +1660,35 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             Text(option.label, modifier = Modifier.padding(start = 10.dp), fontWeight = FontWeight.Medium)
                         }
                     }
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Developer Toolkit", fontWeight = FontWeight.SemiBold)
+                            Text("Export a redacted build-history report. Local file paths and signing material are excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            TextButton(onClick = {
+                                val entries = JSONArray()
+                                buildHistory.forEach { entry ->
+                                    entries.put(JSONObject().apply {
+                                        put("originalPackage", entry.originalPackage)
+                                        put("clonePackage", entry.clonePackage)
+                                        put("cloneLabel", entry.cloneLabel)
+                                        put("apkComponentCount", entry.apkPaths.size)
+                                        put("obbComponentCount", entry.obbPaths.size)
+                                        put("filesAvailable", entry.filesAvailable)
+                                        put("iconBadgeApplied", entry.iconBadgeApplied)
+                                        put("customIconApplied", entry.customIconApplied)
+                                        put("createdAtMillis", entry.createdAtMillis)
+                                    })
+                                }
+                                pendingProfileBackup = JSONObject().apply {
+                                    put("format", "openclone-redacted-build-diagnostics")
+                                    put("formatVersion", 1)
+                                    put("generatedAtMillis", System.currentTimeMillis())
+                                    put("buildHistory", entries)
+                                }.toString(2)
+                                exportProfileBackup.launch("openclone-build-diagnostics.json")
+                            }) { Text("Export build diagnostics") }
+                        }
+                    }
                     HorizontalDivider()
                     Text("Account & Tools", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Card(
