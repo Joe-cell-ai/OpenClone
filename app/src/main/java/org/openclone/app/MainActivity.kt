@@ -491,6 +491,11 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         val hasCustomAccent = settings?.has("customAccentArgb") == true
                         val restoredCustomAccent = if (hasCustomAccent) settings?.optInt("customAccentArgb", 0)?.takeIf { it != 0 } else null
                         if (restoredCustomAccent != null) require((restoredCustomAccent ushr 24) == 0xFF) { "Backup custom accent color is invalid." }
+                        val restoredDailyCheck = settings?.takeIf { it.has("dailyUpdateCheck") }?.optBoolean("dailyUpdateCheck")
+                        val restoredInterval = settings?.takeIf { it.has("updateCheckIntervalHours") }?.optLong("updateCheckIntervalHours")
+                        if (restoredInterval != null) require(restoredInterval in setOf(24L, 72L, 168L)) {
+                            "Backup update-check interval is unsupported."
+                        }
                         val restoredProxyProfiles = settings?.optJSONArray("proxyProfiles")?.let { array ->
                             require(array.length() <= 10) { "Backup contains too many proxy profiles." }
                             buildList {
@@ -529,6 +534,8 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             if (hasCustomAccent) appearance.putInt("custom_accent_argb", restoredCustomAccent ?: 0)
                             check(appearance.commit()) { "Could not restore appearance settings." }
                             restoredProxyProfiles?.let { ProxyProfileRepository(context).replaceAll(it) }
+                            restoredInterval?.let { CloneUpdateAutomation.setIntervalHours(context, it) }
+                            restoredDailyCheck?.let { CloneUpdateAutomation.setEnabled(context, it) }
                         }
                         RestoredProfileBackup(
                             profileCount = validated.size,
@@ -1983,6 +1990,8 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                                     .put("port", proxy.port).put("protocol", proxy.protocol))
                                             }
                                             put("proxyProfiles", proxyArray)
+                            put("dailyUpdateCheck", CloneUpdateAutomation.isEnabled(context))
+                            put("updateCheckIntervalHours", CloneUpdateAutomation.intervalHours(context))
                                         })
                                     }.toString(2)
                                     exportProfileBackup.launch("openclone-profiles-backup.json")
