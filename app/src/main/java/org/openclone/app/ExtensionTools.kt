@@ -80,17 +80,17 @@ class ProxyProfileRepository(context: Context) {
     }.getOrDefault(emptyList())
 
     @Synchronized fun save(profile: ProxyProfile) {
-        ProxyProfile.validate(profile.name, profile.host, profile.port)
+        ProxyProfile.validate(profile.name, profile.host, profile.port, profile.protocol)
         val updated = (getAll().filterNot { it.name.equals(profile.name, true) } + profile).sortedBy { it.name.lowercase() }
         require(updated.size <= 10) { "A maximum of 10 proxy profiles can be saved." }
         val array = JSONArray()
-        updated.forEach { p -> array.put(JSONObject().put("name", p.name.trim()).put("host", p.host.trim()).put("port", p.port)) }
+        updated.forEach { p -> array.put(JSONObject().put("name", p.name.trim()).put("host", p.host.trim()).put("port", p.port).put("protocol", p.protocol)) }
         check(prefs.edit().putString(PROFILES, array.toString()).commit()) { "Could not save proxy profile." }
     }
 
     @Synchronized fun delete(name: String) {
         val array = JSONArray()
-        getAll().filterNot { it.name == name }.forEach { p -> array.put(JSONObject().put("name", p.name).put("host", p.host).put("port", p.port)) }
+        getAll().filterNot { it.name == name }.forEach { p -> array.put(JSONObject().put("name", p.name).put("host", p.host).put("port", p.port).put("protocol", p.protocol)) }
         check(prefs.edit().putString(PROFILES, array.toString()).commit()) { "Could not remove proxy profile." }
     }
 }
@@ -231,7 +231,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var port by remember { mutableStateOf("8080") }
     var protocol by remember { mutableStateOf("HTTP_CONNECT") }
     var privacyAudits by remember { mutableStateOf(PrivacyAuditRepository(context).getAll()) }
-    var storage by remember { mutableStateOf(StorageSnapshot.read(context)) }
+    var storage by remember { mutableStateOf(StorageSnapshot(0L, 0L, 0L, 0)) }
     var installedClones by remember { mutableStateOf<List<InstalledClone>>(emptyList()) }
     var showClearCache by remember { mutableStateOf(false) }
     var diagnostics by remember { mutableStateOf(ExtensionDiagnosticsLog(context).getAll()) }
