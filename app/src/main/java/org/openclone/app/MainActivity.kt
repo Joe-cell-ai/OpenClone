@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
@@ -97,7 +98,6 @@ import org.openclone.app.data.InstalledAppRepository
 import org.openclone.app.data.InstalledClone
 import org.openclone.app.data.InstalledCloneRepository
 import org.openclone.app.data.CloneBuildHistoryRepository
-import org.openclone.app.data.CloneProfile
 import org.openclone.app.data.CloneProfileRepository
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -919,7 +919,10 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
             onDismissRequest = { if (!cloneBuilding) { cloneSource = null; externalSource = null; cloneUpdateMode = false } },
             title = { Text(if (cloneUpdateMode) "Update clone" else "Create clone") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text("Original: $sourcePackage · $sourceLabel", style = MaterialTheme.typography.bodyMedium)
                     Text(
                         if (cloneUpdateMode) "OpenClone will rebuild this clone using its existing package ID and signing identity." else "OpenClone will create a separate copy using the recommended app name and package ID. Default clone settings will be applied automatically.",
