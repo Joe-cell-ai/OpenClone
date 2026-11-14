@@ -2,9 +2,11 @@
 
 ## Current status
 
-The Extensions screen now links to built-in OpenClone capabilities and includes working proxy-profile storage with TCP reachability checks, Android connectivity diagnostics, OpenClone notification-channel settings and an opt-in daily clone-source update check. These are built-in tools, not third-party extension packages. Third-party extension download, installation, execution, update and removal are **not implemented**.
+The Extensions screen now links to built-in OpenClone capabilities and includes HTTP CONNECT/SOCKS5 proxy handshake tests, live Android connectivity diagnostics, OpenClone cache inspection/cleanup, per-clone Android notification settings, selectable 1/3/7-day update-check automation, persistent privacy audit history, runtime diagnostics export, custom theme colors and expanded profile/settings backups. These are built-in tools, not third-party extension packages.
 
-The App Lock tool can use the Android device PIN, pattern or password and locks OpenClone when it leaves the foreground; biometric-specific support and device-level lifecycle verification remain outstanding. The approved 16-extension delivery plan is tracked in [EXTENSION_ROADMAP.md](EXTENSION_ROADMAP.md). A status of Foundation or Partial does not mean the complete extension is available. In particular, saved proxy profiles do not route cloned-app traffic; the network monitor does not capture third-party traffic; notifications are limited to OpenClone's own channels; and automation only reports update availability without installing apps.
+Security foundations now include a bounded privacy audit repository, ECDSA-signed extension descriptor and package-digest verification, HMAC request signing with freshness and replay-guard primitives, and a fail-closed HTTPS host policy for future OpenClone-owned WebViews. These do not activate a third-party extension marketplace or remote-control server: no trusted publisher key/catalogue has been provisioned, no extension code is dynamically loaded, and no remote network listener is exposed.
+
+The approved 16-extension delivery plan is tracked in [EXTENSION_ROADMAP.md](EXTENSION_ROADMAP.md). A status of Foundation or Partial does not mean the complete extension is available. Android does not expose other apps' private data/cache sizes to ordinary apps; saved proxy profiles do not route cloned-app traffic; network diagnostics do not capture third-party traffic; notification settings are delegated to Android; and automation only reports update availability without installing apps.
 
 ## Architecture and trust requirements
 
