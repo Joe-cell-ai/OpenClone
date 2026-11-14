@@ -35,13 +35,18 @@ object CloneCompatibilityAnalyzer {
         metadataKeys: Collection<String> = emptyList(),
         componentNames: Collection<String> = emptyList(),
         providerAuthorities: Collection<String> = emptyList(),
-        sharedUserId: String? = null
+        sharedUserId: String? = null,
+        declaredPermissions: Collection<String> = emptyList()
     ): CloneCompatibilityReport {
         val permissions = requestedPermissions.toSet()
         val metadata = metadataKeys.toSet()
         val components = componentNames.map { it.lowercase() }
         val authorities = providerAuthorities.map { it.lowercase() }
+        val packageOwnedPermissions = declaredPermissions.filter { it.startsWith("$packageName.") }.distinct()
         val findings = buildList {
+            if (packageOwnedPermissions.isNotEmpty()) {
+                add("The APK declares app-owned permissions (${packageOwnedPermissions.joinToString()}). Other apps or integrations may request these exact names; cloning changes their identity and can break cross-app permission contracts.")
+            }
             if (permissions.any { it in firebasePermissions } ||
                 metadata.any { it.startsWith("com.google.firebase.") } ||
                 components.any { "firebase" in it && ("messaging" in it || "instanceid" in it) } ||

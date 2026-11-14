@@ -69,6 +69,28 @@ class CloneCompatibilityAnalyzerTest {
         assertTrue(report.findings.any { it.contains("does not bypass") })
     }
 
+    @Test fun detectsAppOwnedPermissionsThatMayBreakCrossAppContracts() {
+        val report = CloneCompatibilityAnalyzer.analyze(
+            "com.example.wallet",
+            emptyList(),
+            declaredPermissions = listOf(
+                "com.example.wallet.permission.SYNC",
+                "com.vendor.shared.permission.ACCESS"
+            )
+        )
+        assertTrue(report.findings.any { it.contains("cross-app permission contracts") })
+        assertTrue(report.findings.single().contains("com.example.wallet.permission.SYNC"))
+    }
+
+    @Test fun doesNotFlagUnrelatedDeclaredPermissions() {
+        val report = CloneCompatibilityAnalyzer.analyze(
+            "com.example.wallet",
+            emptyList(),
+            declaredPermissions = listOf("com.vendor.shared.permission.ACCESS")
+        )
+        assertFalse(report.hasFindings)
+    }
+
     @Test fun ordinaryAppGetsGeneralLimitationsButNoFalsePositiveFinding() {
         val report = CloneCompatibilityAnalyzer.analyze("com.example.notes", listOf("android.permission.INTERNET"))
         assertFalse(report.hasFindings)
