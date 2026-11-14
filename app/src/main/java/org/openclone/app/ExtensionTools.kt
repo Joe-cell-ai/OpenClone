@@ -46,6 +46,9 @@ import org.openclone.app.data.CatalogueExtension
 import org.openclone.app.data.ExtensionCatalogueClient
 import org.openclone.app.data.ExtensionPackageDownloader
 import org.openclone.app.data.ExtensionPackageInstaller
+import org.openclone.app.RemoteControlPairingStore
+import org.openclone.app.RemotePairingInfo
+import org.openclone.app.RemoteControlService
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.DataInputStream
@@ -284,6 +287,8 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var catalogueUrl by remember { mutableStateOf("") }
     var catalogueEntries by remember { mutableStateOf<List<CatalogueExtension>>(emptyList()) }
     var updaterBusy by remember { mutableStateOf(false) }
+    var remotePairingInfo by remember { mutableStateOf<RemotePairingInfo?>(null) }
+    var remoteMessage by remember { mutableStateOf("Remote control is off. Start it only when you need a trusted local-network session.") }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
     var automationInterval by remember { mutableStateOf(CloneUpdateAutomation.intervalHours(context)) }
@@ -494,6 +499,43 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                     }
                 }
                 Text(updaterMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("🖥️ Remote Control · Secure local session", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Opt-in TLS 1.2 server with a pinned device certificate, Android Keystore-encrypted pairing secret, HMAC authentication and replay protection. The API exposes status and launch of OpenClone-created clones only. It does not expose arbitrary shell commands or private app data.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (remotePairingInfo == null) {
+                    Button(onClick = {
+                        runCatching {
+                            val pairing = RemoteControlPairingStore.create(context)
+                            context.startForegroundService(Intent(context, RemoteControlService::class.java))
+                            remotePairingInfo = pairing
+                            remoteMessage = "Remote session started. Share the pairing link only with a client you trust; it contains the pairing secret."
+                            ExtensionDiagnosticsLog(context).append("remote", "session_started", "User started a TLS-protected remote-control session.")
+                        }.onFailure { remoteMessage = it.message ?: "Could not start remote control." }
+                    }) { Text("Start remote control") }
+                } else {
+                    Text("Listening address: ${remotePairingInfo!!.host}:${remotePairingInfo!!.port}")
+                    Text("TLS certificate SHA-256: ${remotePairingInfo!!.certificateFingerprint.chunked(4).joinToString(" ")}", style = MaterialTheme.typography.labelSmall)
+                    Text("Pairing link (keep secret):", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+                    Text(remotePairingInfo!!.toUri(), style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = {
+                            val share = Intent(Intent.ACTION_SEND).setType("text/plain")
+                                .putExtra(Intent.EXTRA_TEXT, remotePairingInfo!!.toUri())
+                            context.startActivity(Intent.createChooser(share, "Share secure OpenClone pairing link"))
+                        }) { Text("Share pairing link") }
+                        TextButton(onClick = {
+                            context.stopService(Intent(context, RemoteControlService::class.java))
+                            RemoteControlPairingStore.revoke(context)
+                            remotePairingInfo = null
+                            remoteMessage = "Remote session stopped and pairing credential revoked."
+                        }) { Text("Stop & revoke") }
+                    }
+                }
+                Text(remoteMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
