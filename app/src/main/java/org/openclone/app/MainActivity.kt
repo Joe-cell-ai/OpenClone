@@ -1213,6 +1213,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         Text("Selected: ${info.label}", modifier = Modifier.padding(top = 12.dp))
                     }
                 }
+                "Mi Remote" -> MiRemoteSoftwareScreen()
                 "Cloned APKs" -> Column(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Saved builds · ${buildHistory.size}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -1329,7 +1330,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    listOf("Home", "Apps", "APKs", "Cloned apps", "Cloned APKs", "Store").forEach { tab ->
+                    listOf("Home", "Apps", "APKs", "Cloned apps", "Cloned APKs", "Mi Remote", "Store").forEach { tab ->
                         NavigationBarItem(
                             selected = currentTab == tab,
                             onClick = { currentTab = tab; query = "" },
@@ -1340,6 +1341,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                     "APKs" -> "📦" to Color(0xFFFFA64D)
                                     "Cloned apps" -> "🧬" to Color(0xFFB56BFF)
                                     "Cloned APKs" -> "📥" to Color(0xFF55D88A)
+                                    "Mi Remote" -> "🎛️" to Color(0xFF55C7E8)
                                     else -> "🛍️" to Color(0xFFFF79C6)
                                 }
                                 Text(glyph, style = MaterialTheme.typography.headlineSmall)
