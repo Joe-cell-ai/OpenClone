@@ -542,6 +542,8 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
 
         RemoteControlCompanionCard()
 
+        RemoteScreenCaptureControlCard(context)
+
         InfraredApplianceRemoteCard()
 
         Card {
@@ -936,5 +938,51 @@ fun AppLockGate(onUnlock: () -> Unit) {
         Text("Confirm your Android device screen lock to continue.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Spacer(Modifier.height(18.dp))
         Button(onClick = onUnlock) { Text("Unlock OpenClone") }
+    }
+}
+
+@Composable
+private fun RemoteScreenCaptureControlCard(context: Context) {
+    var active by remember {
+        mutableStateOf(context.getSharedPreferences(RemoteScreenCaptureService.PREFERENCES, Context.MODE_PRIVATE)
+            .getBoolean(RemoteScreenCaptureService.KEY_ACTIVE, false))
+    }
+    var message by remember { mutableStateOf("Screen capture starts only after Android's system consent prompt.") }
+    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
+            runCatching {
+                val start = Intent(context, RemoteScreenCaptureService::class.java)
+                    .putExtra(RemoteScreenCaptureService.EXTRA_RESULT_CODE, result.resultCode)
+                    .putExtra(RemoteScreenCaptureService.EXTRA_RESULT_DATA, result.data)
+                androidx.core.content.ContextCompat.startForegroundService(context, start)
+                active = true
+                message = "Screen capture is active on this device. Remote streaming is not enabled yet."
+            }.onFailure {
+                active = false
+                message = it.message ?: "Could not start screen capture."
+            }
+        } else message = "Screen capture consent was declined or cancelled."
+    }
+    Card {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("📺 Consent-based screen sharing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            Text("The target phone must approve Android's screen-capture prompt. A persistent notification with a Stop action remains visible while capture is active. This stage captures locally; authenticated network streaming is not enabled yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (active) {
+                Text("Screen capture active on this device", color = MaterialTheme.colorScheme.primary)
+                Button(onClick = {
+                    context.stopService(Intent(context, RemoteScreenCaptureService::class.java))
+                    active = false
+                    message = "Screen capture stopped."
+                }) { Text("Stop screen capture") }
+            } else {
+                Button(onClick = {
+                    val manager = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as android.media.projection.MediaProjectionManager
+                    launcher.launch(manager.createScreenCaptureIntent())
+                }) { Text("Request screen-capture consent") }
+            }
+            Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
