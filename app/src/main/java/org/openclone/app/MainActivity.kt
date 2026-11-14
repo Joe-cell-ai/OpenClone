@@ -709,7 +709,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                     ) {
                         Text("⚙️  Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                     }
-                } else if (currentTab in setOf("Apps", "APKs", "Cloned apps", "Cloned APKs")) {
+                } else if (currentTab in setOf("Apps", "Cloned apps")) {
                     TextButton(
                         onClick = { runCatching { listSearchFocusRequester.requestFocus() } },
                         modifier = Modifier.padding(top = 8.dp)
@@ -806,7 +806,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         Text("Each app requires its own Android system confirmation. OpenClone will not remove apps silently.",
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(),
+                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().focusRequester(listSearchFocusRequester),
                         singleLine = true, label = { Text("Search clone name or package ID") })
                     if (filteredClones.isEmpty()) {
                         Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
