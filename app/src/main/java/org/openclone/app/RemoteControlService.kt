@@ -194,7 +194,7 @@ class RemoteControlService : Service() {
             .setContentTitle("OpenClone remote control is active")
             .setContentText("TLS-protected local network session · port $REMOTE_PORT")
             .setOngoing(true)
-            .addAction(Notification.Action.Builder(null, "Stop", stopIntent).build())
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Stop", stopIntent).build())
             .build()
         startForeground(38473, notification)
         running = true
