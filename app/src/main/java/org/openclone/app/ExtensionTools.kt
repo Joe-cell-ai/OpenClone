@@ -40,6 +40,8 @@ import org.openclone.app.data.InstalledAppRepository
 import org.openclone.app.data.InstalledCloneRepository
 import org.openclone.app.data.InstalledClone
 import org.openclone.app.data.ManagedWebViewPolicy
+import org.openclone.app.data.TrustedPublisher
+import org.openclone.app.data.TrustedPublisherRepository
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.DataInputStream
@@ -268,6 +270,13 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var webViewHostInput by remember { mutableStateOf("") }
     var webViewMessage by remember { mutableStateOf("Add exact HTTPS hosts before opening the isolated browser.") }
     var message by remember { mutableStateOf("Saved profiles are not applied to cloned apps or device traffic.") }
+    val publisherRepository = remember { TrustedPublisherRepository(context) }
+    var trustedPublishers by remember { mutableStateOf(publisherRepository.all()) }
+    var publisherLabel by remember { mutableStateOf("") }
+    var publisherKey by remember { mutableStateOf("") }
+    var publisherFingerprintConfirmation by remember { mutableStateOf("") }
+    var publisherCandidate by remember { mutableStateOf<TrustedPublisher?>(null) }
+    var updaterMessage by remember { mutableStateOf("Import a publisher EC public key, inspect its fingerprint, then confirm the fingerprint to trust it.") }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
     var automationInterval by remember { mutableStateOf(CloneUpdateAutomation.intervalHours(context)) }
@@ -368,6 +377,50 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                     val share = Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_TEXT, report)
                     context.startActivity(Intent.createChooser(share, "Share OpenClone diagnostics"))
                 }) { Text("Share runtime diagnostics") }
+            }
+        }
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("📦 Extension Updater · Trusted publishers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Trust publisher EC public keys only after checking their SHA-256 fingerprint through a separate trusted channel. Catalogue and package verification APIs are available; a hosted catalogue is not configured by default.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(publisherLabel, { publisherLabel = it.take(120) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Publisher name") })
+                OutlinedTextField(publisherKey, { publisherKey = it }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, label = { Text("EC public key (PEM or Base64)") })
+                Button(onClick = {
+                    runCatching { publisherCandidate = publisherRepository.inspect(publisherLabel, publisherKey); updaterMessage = "Fingerprint: " + publisherCandidate!!.fingerprintSha256 }
+                        .onFailure { publisherCandidate = null; updaterMessage = it.message ?: "Could not inspect publisher key." }
+                }) { Text("Inspect fingerprint") }
+                publisherCandidate?.let { candidate ->
+                    Text("Confirm this fingerprint using the publisher's independent official channel:", style = MaterialTheme.typography.bodySmall)
+                    Text(candidate.fingerprintSha256.chunked(4).joinToString(" "), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(publisherFingerprintConfirmation, { publisherFingerprintConfirmation = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Type the full SHA-256 fingerprint") })
+                    Button(onClick = {
+                        runCatching {
+                            publisherRepository.trust(candidate, publisherFingerprintConfirmation)
+                            trustedPublishers = publisherRepository.all()
+                            publisherCandidate = null
+                            publisherFingerprintConfirmation = ""
+                            publisherKey = ""
+                            updaterMessage = "Publisher trusted. Its key can now verify signed catalogues."
+                            ExtensionDiagnosticsLog(context).append("updater", "publisher_trusted", "A publisher key was explicitly trusted.")
+                        }.onFailure { updaterMessage = it.message ?: "Could not trust publisher." }
+                    }) { Text("Trust publisher") }
+                }
+                trustedPublishers.forEach { publisher ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(publisher.label, fontWeight = FontWeight.Medium)
+                            Text(publisher.fingerprintSha256.chunked(4).joinToString(" "), style = MaterialTheme.typography.labelSmall)
+                        }
+                        TextButton(onClick = {
+                            publisherRepository.revoke(publisher.id)
+                            trustedPublishers = publisherRepository.all()
+                            updaterMessage = "Publisher trust revoked."
+                            ExtensionDiagnosticsLog(context).append("updater", "publisher_revoked", "A publisher key was revoked.")
+                        }) { Text("Revoke") }
+                    }
+                }
+                Text(updaterMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
