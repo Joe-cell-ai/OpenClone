@@ -333,6 +333,10 @@ data class ManagedWebViewPolicy(
             domStorageEnabled = this@ManagedWebViewPolicy.domStorageEnabled
             allowFileAccess = this@ManagedWebViewPolicy.allowFileAccess
             allowContentAccess = this@ManagedWebViewPolicy.allowContentAccess
+            allowUniversalAccessFromFileURLs = false
+            javaScriptCanOpenWindowsAutomatically = false
+            setSupportMultipleWindows(false)
+            if (android.os.Build.VERSION.SDK_INT >= 26) safeBrowsingEnabled = true
             mixedContentMode = if (this@ManagedWebViewPolicy.mixedContentAllowed) {
                 android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
             } else {
@@ -342,6 +346,15 @@ data class ManagedWebViewPolicy(
         webView.webViewClient = object : android.webkit.WebViewClient() {
             override fun shouldOverrideUrlLoading(view: android.webkit.WebView, request: android.webkit.WebResourceRequest): Boolean =
                 !allows(request.url.toString())
+
+            override fun shouldInterceptRequest(view: android.webkit.WebView, request: android.webkit.WebResourceRequest): android.webkit.WebResourceResponse? {
+                if (allows(request.url.toString())) return null
+                return android.webkit.WebResourceResponse(
+                    "text/plain",
+                    "UTF-8",
+                    java.io.ByteArrayInputStream(ByteArray(0))
+                )
+            }
         }
     }
 }
