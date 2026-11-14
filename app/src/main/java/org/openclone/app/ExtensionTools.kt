@@ -208,7 +208,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                     }) { Text("Save") }
                     TextButton(onClick = {
                         val targetPort = port.toIntOrNull()
-                        if (host.isBlank() || targetPort !in 1..65535) message = "Enter a valid host and port."
+                        if (host.isBlank() || targetPort == null || targetPort !in 1..65535) message = "Enter a valid host and port."
                         else {
                             message = "Testing TCP connection…"
                             scope.launch {
