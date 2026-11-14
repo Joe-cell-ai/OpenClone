@@ -121,20 +121,8 @@ class RemoteScreenCaptureService : Service() {
         val display = virtualDisplay ?: return
         runCatching {
             val size = ScreenCaptureBounds.fit(width, height)
-            reader.setOnImageAvailableListener(null, null)
-            reader.surface.let { reader.setOnImageAvailableListener({ source ->
-                source.acquireLatestImage()?.use { frame ->
-                    runCatching { RemoteScreenFrameStore.publish(frame) }
-                        .onFailure { android.util.Log.w("OpenCloneScreen", "Could not encode resized screen frame", it) }
-                }
-            }, encoderThread?.looper?.let(::Handler)) }
+            reader.surface.setDefaultBufferSize(size.first, size.second)
             display.resize(size.first, size.second, captureDensityDpi)
-            reader.setOnImageAvailableListener({ source ->
-                source.acquireLatestImage()?.use { frame ->
-                    runCatching { RemoteScreenFrameStore.publish(frame) }
-                        .onFailure { android.util.Log.w("OpenCloneScreen", "Could not encode resized screen frame", it) }
-                }
-            }, encoderThread?.looper?.let(::Handler))
         }.onFailure { android.util.Log.w("OpenCloneScreen", "Could not resize capture surface", it) }
     }
 
