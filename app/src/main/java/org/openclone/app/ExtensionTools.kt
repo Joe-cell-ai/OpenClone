@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Network
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.clickable
@@ -331,6 +332,16 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                 Text("OpenClone files: ${formatBytes(storage.filesBytes)}")
                 Text("Generated clone outputs: ${formatBytes(storage.buildOutputBytes)} · ${storage.buildOutputFiles} file(s)")
                 Text("Installed clones: ${installedClones.size}. APK footprint is shown per clone; Android does not expose another app's private data/cache size.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                installedClones.forEach { clone ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(clone.cloneLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = {
+                            context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                .setData(Uri.parse("package:${clone.clonePackage}"))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }) { Text("Android storage details") }
+                    }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { showClearCache = true }) { Text("Clear OpenClone cache") }
                     TextButton(onClick = { onOpenClones() }) { Text("View clone sizes") }
