@@ -52,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -102,41 +103,81 @@ import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent { OpenCloneTheme { OpenCloneHome() } }
-    }
-}
-
+private const val THEME_PREFERENCES = "openclone_appearance"
+private const val THEME_MODE_KEY = "theme_mode"
 private const val CLONE_WORK_PREFERENCES = "openclone_clone_work"
 private const val ACTIVE_CLONE_WORK_ID = "active_clone_work_id"
 
+private enum class OpenCloneThemeMode(val label: String) {
+    SYSTEM("System default"), LIGHT("Light"), DARK("Dark"), AMOLED("AMOLED")
+}
+
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent {
+            var themeMode by remember {
+                mutableStateOf(
+                    runCatching {
+                        OpenCloneThemeMode.valueOf(
+                            getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name)!!
+                        )
+                    }.getOrDefault(OpenCloneThemeMode.DARK)
+                )
+            }
+            OpenCloneTheme(themeMode) {
+                OpenCloneHome(themeMode) { selected ->
+                    themeMode = selected
+                    getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                        .putString(THEME_MODE_KEY, selected.name).apply()
+                }
+            }
+        }
+    }
+}
+
 @Composable
-private fun OpenCloneTheme(content: @Composable () -> Unit) {
-    val colors = darkColorScheme(
-        primary = Color(0xFF8B7CFF),
-        onPrimary = Color(0xFF100D2B),
-        primaryContainer = Color(0xFF342B78),
-        onPrimaryContainer = Color(0xFFE7E3FF),
-        secondary = Color(0xFFB18CFF),
-        onSecondary = Color(0xFF21113D),
-        secondaryContainer = Color(0xFF38265A),
-        onSecondaryContainer = Color(0xFFEADFFF),
-        tertiary = Color(0xFF55D8E8),
-        onTertiary = Color(0xFF002F35),
-        background = Color(0xFF090B18),
-        surface = Color(0xFF14182A),
-        surfaceVariant = Color(0xFF20263B),
-        onSurface = Color(0xFFE9EBFF),
-        onSurfaceVariant = Color(0xFFB8BED8),
-        outline = Color(0xFF3A4260)
-    )
+private fun OpenCloneTheme(mode: OpenCloneThemeMode, content: @Composable () -> Unit) {
+    val dark = when (mode) {
+        OpenCloneThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
+        OpenCloneThemeMode.LIGHT -> false
+        OpenCloneThemeMode.DARK, OpenCloneThemeMode.AMOLED -> true
+    }
+    val colors = when {
+        mode == OpenCloneThemeMode.AMOLED -> darkColorScheme(
+            primary = Color(0xFF9B8CFF), onPrimary = Color(0xFF100D2B),
+            primaryContainer = Color(0xFF342B78), onPrimaryContainer = Color(0xFFE7E3FF),
+            secondary = Color(0xFFB18CFF), onSecondary = Color(0xFF21113D),
+            tertiary = Color(0xFF55D8E8), background = Color.Black,
+            surface = Color(0xFF050505), surfaceVariant = Color(0xFF171717),
+            onSurface = Color(0xFFF1F1F7), onSurfaceVariant = Color(0xFFB8BED8),
+            outline = Color(0xFF3A4260)
+        )
+        dark -> darkColorScheme(
+            primary = Color(0xFF8B7CFF), onPrimary = Color(0xFF100D2B),
+            primaryContainer = Color(0xFF342B78), onPrimaryContainer = Color(0xFFE7E3FF),
+            secondary = Color(0xFFB18CFF), onSecondary = Color(0xFF21113D),
+            secondaryContainer = Color(0xFF38265A), onSecondaryContainer = Color(0xFFEADFFF),
+            tertiary = Color(0xFF55D8E8), onTertiary = Color(0xFF002F35),
+            background = Color(0xFF090B18), surface = Color(0xFF14182A),
+            surfaceVariant = Color(0xFF20263B), onSurface = Color(0xFFE9EBFF),
+            onSurfaceVariant = Color(0xFFB8BED8), outline = Color(0xFF3A4260)
+        )
+        else -> lightColorScheme(
+            primary = Color(0xFF5546B8), onPrimary = Color.White,
+            primaryContainer = Color(0xFFE8E2FF), onPrimaryContainer = Color(0xFF20145C),
+            secondary = Color(0xFF65518C), tertiary = Color(0xFF006874),
+            background = Color(0xFFF7F6FC), surface = Color.White,
+            surfaceVariant = Color(0xFFEDEBF5), onSurface = Color(0xFF191827),
+            onSurfaceVariant = Color(0xFF55546A), outline = Color(0xFF77758A)
+        )
+    }
     MaterialTheme(colorScheme = colors, typography = Typography(), content = content)
 }
 
 @Composable
-private fun OpenCloneHome() {
+private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (OpenCloneThemeMode) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
@@ -497,8 +538,7 @@ private fun OpenCloneHome() {
             .putString(CloneBuildWorker.KEY_VERSION_NAME_OVERRIDE, versionNameOverride.trim().takeIf { it.isNotEmpty() })
             .putInt(CloneBuildWorker.KEY_VERSION_CODE_OVERRIDE, versionCode?.toInt() ?: 0)
             .putBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, cloneUpdateMode)
-            .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)
-            .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
+            .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)            .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
             .putStringArray(CloneBuildWorker.KEY_OBB_FILES, importedSource?.obbFiles?.map { it.absolutePath }?.toTypedArray() ?: emptyArray())
             .putString(CloneBuildWorker.KEY_BADGE_POSITION, badgePosition.name)
             .build()
@@ -997,8 +1037,7 @@ private fun OpenCloneHome() {
                                     ?: runCatching {
                                         InstalledAppRepository(context.packageManager)
                                             .getInstalledApps(includeSystemApps = true)
-                                            .firstOrNull { it.packageName == clone.originalPackage }
-                                    }.getOrNull()
+                                            .firstOrNull { it.packageName == clone.originalPackage }                                    }.getOrNull()
                             }
                             if (original == null) {
                                 statusMessage = "The original app must be installed before this clone can be updated."
@@ -1043,6 +1082,23 @@ private fun OpenCloneHome() {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Manage OpenClone preferences and information.")
+                    Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("Choose how OpenClone looks. Changes apply immediately and are saved on this device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OpenCloneThemeMode.values().forEach { option ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { onThemeModeChange(option) }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = themeMode == option, onClick = { onThemeModeChange(option) })
+                            Column(Modifier.padding(start = 8.dp)) {
+                                Text(option.label, fontWeight = FontWeight.Medium)
+                                if (option == OpenCloneThemeMode.AMOLED) {
+                                    Text("True-black surfaces for OLED displays", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    HorizontalDivider()
                     Text("Account & Tools", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable {
