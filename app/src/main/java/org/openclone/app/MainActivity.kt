@@ -255,6 +255,7 @@ class MainActivity : ComponentActivity() {
             val promptInfo = BiometricPrompt.PromptInfo.Builder()
                 .setTitle("Unlock OpenClone")
                 .setSubtitle("Authenticate to continue")
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
                 .setNegativeButtonText("Use device PIN")
                 .build()
             showBiometricPrompt(promptInfo)
