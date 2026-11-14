@@ -20,7 +20,7 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 |---|---|---|---|
 | P0 | Icon & Name Studio | Unified per-clone icon/label editor, preview and format diagnostics | Partial: clone name/package editor, custom PNG chooser/preview, original-icon reset and four badge positions; adaptive/vector resource diagnostics remain |
 | P0 | Clone Profiles | Save, list, apply and delete reusable non-secret clone configurations | Implemented: save/update, apply, rename, duplicate and delete; profile intentionally excludes APK bytes, signing keys, credentials and app data |
-| P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: discovery, search, name/update sorting, multi-select and sequential system-confirmed bulk uninstall; grouping remains planned |
+| P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: discovery, search, persistent grouping by original package, name/update sorting, multi-select and sequential system-confirmed bulk uninstall; friendly original-app labels and group actions remain |
 | P0 | Theme Studio | More theme presets and user-selectable accent/surface options | Partial: System, Light, Dark and AMOLED modes plus four persistent accent palettes (Violet, Ocean, Emerald, Sunset); custom color picker and dedicated live preview remain |
 | P1 | Privacy Guard | Per-clone permission review, explain manifest changes and privacy checklist | Partial: clone setup lists requested manifest permissions, lets users select removals and explains manifest-only impact; persistent audit history and deeper permission rationale remain |
 | P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Partial: installed clone APK/split footprint is shown; other apps' private data/cache sizes are not exposed to ordinary apps |
@@ -48,7 +48,7 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 - Apply profiles to the existing clone setup form without silently changing a previously selected app.
 - Consolidate icon, label, package ID and badge settings into Icon & Name Studio.
 - Expand icon replacement diagnostics for unsupported adaptive/vector/layer-list resources.
-- Add clone grouping and sorting; filtering, multi-select and sequential system-confirmed bulk uninstall are implemented in the current delivery branch.
+- Add clone grouping and sorting; persistent grouping by original package, filtering, multi-select and sequential system-confirmed bulk uninstall are implemented.
 - Extend the existing theme selector without breaking current saved preferences; four persistent accent palettes are now available alongside the four theme modes.
 
 ### M2 — Privacy and data lifecycle

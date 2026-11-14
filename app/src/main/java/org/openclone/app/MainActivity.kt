@@ -35,6 +35,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -290,6 +291,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var selectedClone by remember { mutableStateOf<InstalledClone?>(null) }
     var cloneSelectionMode by remember { mutableStateOf(false) }
     var cloneSortByName by remember { mutableStateOf(true) }
+    var groupClonesByOriginal by remember { mutableStateOf(context.getSharedPreferences("openclone_clone_manager", Context.MODE_PRIVATE).getBoolean("group_by_original", false)) }
     var selectedClonePackages by remember { mutableStateOf<Set<String>>(emptySet()) }
     var bulkUninstallQueue by remember { mutableStateOf<List<String>>(emptyList()) }
     var bulkUninstallIndex by remember { mutableStateOf(0) }
@@ -959,12 +961,21 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         it.cloneLabel.contains(query, true) || it.clonePackage.contains(query, true) ||
                             it.originalPackage.contains(query, true)
                     }.let { matches ->
-                        if (cloneSortByName) matches.sortedBy { it.cloneLabel.lowercase() }
+                        if (groupClonesByOriginal) {
+                            matches.sortedWith(compareBy<InstalledClone>({ it.originalPackage.lowercase() }, { it.cloneLabel.lowercase() }))
+                        } else if (cloneSortByName) matches.sortedBy { it.cloneLabel.lowercase() }
                         else matches.sortedByDescending { it.updateAvailable }
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("${clones.size} installed · ${selectedClonePackages.size} selected", style = MaterialTheme.typography.titleSmall)
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = {
+                                groupClonesByOriginal = !groupClonesByOriginal
+                                context.getSharedPreferences("openclone_clone_manager", Context.MODE_PRIVATE).edit()
+                                    .putBoolean("group_by_original", groupClonesByOriginal).apply()
+                            }) {
+                                Text(if (groupClonesByOriginal) "Grouped" else "Group")
+                            }
                             TextButton(onClick = { cloneSortByName = !cloneSortByName }) {
                                 Text(if (cloneSortByName) "Sort: name" else "Sort: updates")
                             }
@@ -999,7 +1010,14 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             Text(if (clones.isEmpty()) "Installed clones will appear here" else "No clones match this search")
                         }
                     } else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(filteredClones, key = { it.clonePackage }) { clone ->
+                        itemsIndexed(filteredClones, key = { _, clone -> clone.clonePackage }) { index, clone ->
+                            if (groupClonesByOriginal && (index == 0 || filteredClones[index - 1].originalPackage != clone.originalPackage)) {
+                                Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text("ORIGINAL APP", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    Text(clone.originalPackage, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                                    Text("${filteredClones.count { it.originalPackage == clone.originalPackage }} clone(s)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 if (cloneSelectionMode) Checkbox(
                                     checked = clone.clonePackage in selectedClonePackages,
