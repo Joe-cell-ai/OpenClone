@@ -100,7 +100,7 @@ private object MiRemoteFeatureStore {
                 put(JSONObject().apply {
                     put("id", item.id); put("name", item.name); put("room", item.room)
                     put("profileId", item.profileId)
-                    put("commands", JSONArray().apply { item.commandNames.forEach(::put) })
+                    put("commands", JSONArray().apply { item.commandNames.forEach { put(it) } })
                 })
             }
         }
