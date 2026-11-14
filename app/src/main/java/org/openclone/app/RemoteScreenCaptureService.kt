@@ -127,15 +127,23 @@ class RemoteScreenCaptureService : Service() {
         val display = virtualDisplay ?: return
         runCatching {
             val size = ScreenCaptureBounds.fit(width, height)
-            val replacement = createFrameReader(size.first, size.second)
             val previous = imageReader
-            // Switch the virtual display to a correctly sized Surface. Surface itself has
-            // no setDefaultBufferSize API; ImageReader must be recreated for new dimensions.
-            display.resize(size.first, size.second, captureDensityDpi)
-            display.setSurface(replacement.surface)
-            imageReader = replacement
-            previous?.setOnImageAvailableListener(null, null)
-            previous?.close()
+            if (previous?.width == size.first && previous.height == size.second) return
+            val replacement = createFrameReader(size.first, size.second)
+            try {
+                // Surface itself has no setDefaultBufferSize API; recreate the reader
+                // and atomically switch the VirtualDisplay to its correctly sized Surface.
+                display.setSurface(replacement.surface)
+                display.resize(size.first, size.second, captureDensityDpi)
+                imageReader = replacement
+                previous?.setOnImageAvailableListener(null, null)
+                previous?.close()
+            } catch (error: Exception) {
+                display.setSurface(previous?.surface)
+                replacement.setOnImageAvailableListener(null, null)
+                replacement.close()
+                throw error
+            }
         }.onFailure { android.util.Log.w("OpenCloneScreen", "Could not resize capture surface", it) }
     }
 
