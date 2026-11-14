@@ -4,7 +4,6 @@ import android.content.Context
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.os.Bundle
-import android.content.Intent
 import android.net.Uri
 import android.content.pm.PackageManager
 import java.io.ByteArrayOutputStream
@@ -186,7 +185,7 @@ object ExtensionPackageDownloader {
 
 /** Uses Android's package installer session; Android still displays and controls user confirmation. */
 object ExtensionPackageInstaller {
-    fun stage(context: Context, packageBytes: ByteArray, packageName: String): Intent {
+    fun stage(context: Context, packageBytes: ByteArray, packageName: String): Int {
         require(packageBytes.isNotEmpty() && packageBytes.size <= 100 * 1024 * 1024)
         require(packageName.matches(Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")))
         val installer = context.packageManager.packageInstaller
@@ -212,7 +211,7 @@ object ExtensionPackageInstaller {
             runCatching { installer.abandonSession(sessionId) }
             throw error
         }
-        return Intent(Intent.ACTION_VIEW).setDataAndType(Uri.parse("package:$packageName"), "application/vnd.android.package-archive")
+        return sessionId
     }
 
     const val ACTION_INSTALL_STATUS = "org.openclone.app.EXTENSION_INSTALL_STATUS"
