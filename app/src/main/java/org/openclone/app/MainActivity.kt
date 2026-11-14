@@ -171,15 +171,27 @@ class MainActivity : ComponentActivity() {
                         }.getOrDefault(OpenCloneAccent.VIOLET)
                     )
                 }
-                OpenCloneTheme(themeMode, accent) {
-                    OpenCloneHome(themeMode, accent, onThemeModeChange = { selected ->
+                var customAccentArgb by remember {
+                    mutableStateOf(
+                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                            .getInt("custom_accent_argb", 0).takeIf { it != 0 }
+                    )
+                }
+                OpenCloneTheme(themeMode, accent, customAccentArgb?.let { Color(it) }) {
+                    OpenCloneHome(themeMode, accent, customAccentArgb, onThemeModeChange = { selected ->
                         themeMode = selected
                         getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
                             .putString(THEME_MODE_KEY, selected.name).apply()
                     }, onAccentChange = { selected ->
                         accent = selected
+                        customAccentArgb = null
                         getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
-                            .putString("accent_palette", selected.name).apply()
+                            .putString("accent_palette", selected.name)
+                            .remove("custom_accent_argb").apply()
+                    }, onCustomAccentChange = { selected ->
+                        customAccentArgb = selected
+                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                            .putInt("custom_accent_argb", selected ?: 0).apply()
                     })
                 }
             }
@@ -227,7 +239,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun OpenCloneTheme(mode: OpenCloneThemeMode, accent: OpenCloneAccent, content: @Composable () -> Unit) {
+private fun OpenCloneTheme(mode: OpenCloneThemeMode, accent: OpenCloneAccent, customAccent: Color?, content: @Composable () -> Unit) {
     val dark = when (mode) {
         OpenCloneThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
         OpenCloneThemeMode.LIGHT -> false
@@ -262,18 +274,27 @@ private fun OpenCloneTheme(mode: OpenCloneThemeMode, accent: OpenCloneAccent, co
             onSurfaceVariant = Color(0xFF55546A), outline = Color(0xFF77758A)
         )
     }
+    val selectedPrimary = customAccent ?: accent.primary
+    val contrastText = if (0.299f * selectedPrimary.red + 0.587f * selectedPrimary.green + 0.114f * selectedPrimary.blue > 0.58f) Color.Black else Color.White
+    val customContainer = if (customAccent == null) accent.container else Color(
+        red = customAccent.red * 0.24f + colors.surface.red * 0.76f,
+        green = customAccent.green * 0.24f + colors.surface.green * 0.76f,
+        blue = customAccent.blue * 0.24f + colors.surface.blue * 0.76f,
+        alpha = 1f
+    )
     val accentedColors = colors.copy(
-        primary = accent.primary,
-        secondary = accent.secondary,
+        primary = selectedPrimary,
+        onPrimary = if (customAccent == null) colors.onPrimary else contrastText,
+        secondary = customAccent ?: accent.secondary,
         tertiary = accent.tertiary,
-        primaryContainer = accent.container,
-        onPrimaryContainer = accent.onContainer
+        primaryContainer = customContainer,
+        onPrimaryContainer = if (customAccent == null) accent.onContainer else contrastText
     )
     MaterialTheme(colorScheme = accentedColors, typography = Typography(), content = content)
 }
 
 @Composable
-private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent, onThemeModeChange: (OpenCloneThemeMode) -> Unit, onAccentChange: (OpenCloneAccent) -> Unit) {
+private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent, customAccentColor: Int?, onThemeModeChange: (OpenCloneThemeMode) -> Unit, onAccentChange: (OpenCloneAccent) -> Unit, onCustomAccentChange: (Int?) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listSearchFocusRequester = remember { FocusRequester() }
@@ -319,6 +340,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingExport by remember { mutableStateOf<CloneBuildResult?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var customAccentHex by remember { mutableStateOf(customAccentColor?.let { "%06X".format(it and 0xFFFFFF) } ?: "") }
     var currentTab by rememberSaveable { mutableStateOf("Home") }
     BackHandler(enabled = currentTab != "Home" || cloneSelectionMode) {
         if (cloneSelectionMode) {
@@ -1801,6 +1823,30 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             ) {}
                             Text(option.label, modifier = Modifier.padding(start = 10.dp), fontWeight = FontWeight.Medium)
                         }
+                    }
+                    Text("Custom accent", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = customAccentHex,
+                        onValueChange = { customAccentHex = it.filter { char -> char.isDigit() || char.lowercaseChar() in 'a'..'f' }.take(6).uppercase() },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Hex color · RRGGBB") },
+                        leadingIcon = { Text("#") }
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = {
+                            val parsed = customAccentHex.removePrefix("#").takeIf { it.length == 6 }?.toLongOrNull(16)
+                            if (parsed == null) {
+                                statusMessage = "Enter a six-digit hex color, for example 6750A4."
+                            } else {
+                                onCustomAccentChange((0xFF000000L or parsed).toInt())
+                                statusMessage = "Custom accent applied."
+                            }
+                        }) { Text("Apply custom color") }
+                        TextButton(enabled = customAccentColor != null, onClick = {
+                            onCustomAccentChange(null)
+                            customAccentHex = ""
+                        }) { Text("Clear custom") }
                     }
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
