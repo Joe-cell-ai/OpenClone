@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.os.Build
 import android.os.Bundle
-import android.net.Uri
 import android.content.pm.PackageManager
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
@@ -138,7 +137,7 @@ object ExtensionCatalogueVerifier {
                         item.getString("sha256"), item.getString("downloadUrl"), item.getString("signature")
                     )
                     entry.descriptor().canonicalPayload()
-                    val uri = Uri.parse(entry.downloadUrl)
+                    val uri = java.net.URI(entry.downloadUrl)
                     require(uri.scheme == "https" && uri.host != null && uri.userInfo == null) {
                         "Extension downloads must use HTTPS."
                     }
@@ -151,7 +150,7 @@ object ExtensionCatalogueVerifier {
 /** HTTPS-only bounded downloader; callers must verify the returned bytes before installation. */
 object ExtensionPackageDownloader {
     fun download(url: String, maxBytes: Int = 100 * 1024 * 1024): ByteArray {
-        val uri = Uri.parse(url)
+        val uri = java.net.URI(url)
         require(uri.scheme == "https" && uri.host != null && uri.userInfo == null) { "Only HTTPS download URLs are accepted." }
         require(maxBytes in 1..(100 * 1024 * 1024))
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
