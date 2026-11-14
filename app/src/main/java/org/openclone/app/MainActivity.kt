@@ -107,6 +107,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import org.json.JSONArray
+import org.json.JSONObject
 
 private const val THEME_PREFERENCES = "openclone_appearance"
 private const val THEME_MODE_KEY = "theme_mode"
@@ -117,33 +119,111 @@ private enum class OpenCloneThemeMode(val label: String) {
     SYSTEM("System default"), LIGHT("Light"), DARK("Dark"), AMOLED("AMOLED")
 }
 
+private enum class OpenCloneAccent(val label: String, val primary: Color, val secondary: Color, val tertiary: Color, val container: Color, val onContainer: Color) {
+    VIOLET("Violet", Color(0xFF8B7CFF), Color(0xFFB18CFF), Color(0xFF55D8E8), Color(0xFF342B78), Color(0xFFE7E3FF)),
+    OCEAN("Ocean", Color(0xFF168AAD), Color(0xFF52B6C8), Color(0xFF55C7A5), Color(0xFF104B66), Color(0xFFDDF7FF)),
+    EMERALD("Emerald", Color(0xFF23856D), Color(0xFF55A88E), Color(0xFF83B85C), Color(0xFF174E40), Color(0xFFD9F7E9)),
+    SUNSET("Sunset", Color(0xFFC05A42), Color(0xFFE18B55), Color(0xFFB56A9F), Color(0xFF693326), Color(0xFFFFE8DF))
+}
+
 class MainActivity : ComponentActivity() {
+    private val appLocked = mutableStateOf(false)
+    private var appLockEnabled = false
+    private var credentialPromptActive = false
+    private var authenticateOnResume = false
+    private lateinit var credentialLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        credentialLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            credentialPromptActive = false
+            appLocked.value = result.resultCode != RESULT_OK
+        }
+        appLockEnabled = getSharedPreferences("openclone_extension_tools", MODE_PRIVATE)
+            .getBoolean("app_lock_enabled", false)
+        appLocked.value = appLockEnabled
+        authenticateOnResume = appLockEnabled
         setContent {
-            var themeMode by remember {
-                mutableStateOf(
-                    runCatching {
-                        OpenCloneThemeMode.valueOf(
-                            getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
-                                .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name)!!
-                        )
-                    }.getOrDefault(OpenCloneThemeMode.DARK)
-                )
-            }
-            OpenCloneTheme(themeMode) {
-                OpenCloneHome(themeMode) { selected ->
-                    themeMode = selected
-                    getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
-                        .putString(THEME_MODE_KEY, selected.name).apply()
+            if (appLockEnabled && appLocked.value) {
+                AppLockGate(onUnlock = { launchDeviceCredential() })
+            } else {
+                var themeMode by remember {
+                    mutableStateOf(
+                        runCatching {
+                            OpenCloneThemeMode.valueOf(
+                                getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                    .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name)!!
+                            )
+                        }.getOrDefault(OpenCloneThemeMode.DARK)
+                    )
+                }
+                var accent by remember {
+                    mutableStateOf(
+                        runCatching {
+                            OpenCloneAccent.valueOf(
+                                getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                    .getString("accent_palette", OpenCloneAccent.VIOLET.name)!!
+                            )
+                        }.getOrDefault(OpenCloneAccent.VIOLET)
+                    )
+                }
+                OpenCloneTheme(themeMode, accent) {
+                    OpenCloneHome(themeMode, accent, onThemeModeChange = { selected ->
+                        themeMode = selected
+                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                            .putString(THEME_MODE_KEY, selected.name).apply()
+                    }, onAccentChange = { selected ->
+                        accent = selected
+                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                            .putString("accent_palette", selected.name).apply()
+                    })
                 }
             }
         }
     }
+
+    override fun onResume() {
+        super.onResume()
+        appLockEnabled = getSharedPreferences("openclone_extension_tools", MODE_PRIVATE)
+            .getBoolean("app_lock_enabled", false)
+        if (appLockEnabled && authenticateOnResume && !credentialPromptActive) {
+            authenticateOnResume = false
+            launchDeviceCredential()
+        }
+    }
+
+    override fun onPause() {
+        if (appLockEnabled && !credentialPromptActive) {
+            appLocked.value = true
+            authenticateOnResume = true
+        }
+        super.onPause()
+    }
+
+    private fun launchDeviceCredential() {
+        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        if (!keyguard.isDeviceSecure) {
+            getSharedPreferences("openclone_extension_tools", MODE_PRIVATE).edit()
+                .putBoolean("app_lock_enabled", false).apply()
+            appLockEnabled = false
+            appLocked.value = false
+            return
+        }
+        val intent = keyguard.createConfirmDeviceCredentialIntent(
+            "Unlock OpenClone",
+            "Confirm your device screen lock to continue"
+        )
+        if (intent == null) {
+            appLocked.value = false
+            return
+        }
+        credentialPromptActive = true
+        credentialLauncher.launch(intent)
+    }
 }
 
 @Composable
-private fun OpenCloneTheme(mode: OpenCloneThemeMode, content: @Composable () -> Unit) {
+private fun OpenCloneTheme(mode: OpenCloneThemeMode, accent: OpenCloneAccent, content: @Composable () -> Unit) {
     val dark = when (mode) {
         OpenCloneThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
         OpenCloneThemeMode.LIGHT -> false
@@ -178,11 +258,18 @@ private fun OpenCloneTheme(mode: OpenCloneThemeMode, content: @Composable () -> 
             onSurfaceVariant = Color(0xFF55546A), outline = Color(0xFF77758A)
         )
     }
-    MaterialTheme(colorScheme = colors, typography = Typography(), content = content)
+    val accentedColors = colors.copy(
+        primary = accent.primary,
+        secondary = accent.secondary,
+        tertiary = accent.tertiary,
+        primaryContainer = accent.container,
+        onPrimaryContainer = accent.onContainer
+    )
+    MaterialTheme(colorScheme = accentedColors, typography = Typography(), content = content)
 }
 
 @Composable
-private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (OpenCloneThemeMode) -> Unit) {
+private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent, onThemeModeChange: (OpenCloneThemeMode) -> Unit, onAccentChange: (OpenCloneAccent) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listSearchFocusRequester = remember { FocusRequester() }
@@ -242,6 +329,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
     var profileNameInput by remember { mutableStateOf("") }
     var editingProfileId by remember { mutableStateOf<String?>(null) }
     var profileMessage by remember { mutableStateOf<String?>(null) }
+    var pendingProfileBackup by remember { mutableStateOf("") }
 
     fun refreshApps() {
         loading = true
@@ -295,6 +383,77 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
             installPermissionLauncher.launch(settingsIntent)
         } else {
             commitInstall(result)
+        }
+    }
+
+    val exportProfileBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+        if (uri != null) {
+            val result = runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(pendingProfileBackup.toByteArray(Charsets.UTF_8)) }
+                    ?: error("Could not open the selected backup destination.")
+            }
+            statusMessage = result.fold({ "Profile backup exported. Signing keys, APK bytes and app data are not included." }, { it.message ?: "Backup export failed." })
+        }
+    }
+
+    val importProfileBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val raw = context.contentResolver.openInputStream(uri)?.use { input ->
+                            val output = ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                require(total <= 2 * 1024 * 1024) { "Backup file exceeds the 2 MB safety limit." }
+                                output.write(buffer, 0, count)
+                            }
+                            output.toString(Charsets.UTF_8.name())
+                        } ?: error("Could not read the selected backup.")
+                        val root = JSONObject(raw)
+                        require(root.optString("format") == "openclone-profile-backup" && root.optInt("formatVersion", -1) == 1) {
+                            "Unsupported OpenClone backup format."
+                        }
+                        val items = root.optJSONArray("profiles") ?: JSONArray()
+                        require(items.length() <= 100) { "Backup contains too many profiles." }
+                        val validated = buildList {
+                            for (index in 0 until items.length()) {
+                                val item = items.optJSONObject(index) ?: error("Backup profile #${index + 1} is invalid.")
+                                val name = item.getString("name")
+                                val original = item.getString("originalPackage")
+                                val clone = item.getString("clonePackage")
+                                val label = item.getString("cloneLabel")
+                                val badge = item.optString("badgePosition", "BOTTOM_RIGHT")
+                                org.openclone.app.data.CloneProfile.validate(name, original, clone, label)
+                                require(badge in setOf("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT")) {
+                                    "Backup profile #${index + 1} has an invalid badge position."
+                                }
+                                add(Triple(item, name, badge))
+                            }
+                        }
+                        val repository = CloneProfileRepository(context)
+                        validated.forEach { (item, name, badge) ->
+                            repository.save(
+                                name = name,
+                                originalPackage = item.getString("originalPackage"),
+                                clonePackage = item.getString("clonePackage"),
+                                cloneLabel = item.getString("cloneLabel"),
+                                markIcon = item.optBoolean("markIcon", true),
+                                badgePosition = badge
+                            )
+                        }
+                        validated.size
+                    }
+                }
+                result.onSuccess { count ->
+                    profiles = CloneProfileRepository(context).getAll()
+                    statusMessage = "Restored $count profile(s). Existing profiles were preserved; signing keys, APKs and app data are not restored."
+                }.onFailure { statusMessage = it.message ?: "Could not restore this backup." }
+            }
         }
     }
 
@@ -873,7 +1032,12 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         }
                     }
                 }
-                else -> LazyColumn(
+                else -> if (currentTab == "Store") ExtensionToolsScreen(
+                    onOpenSettings = { showSettings = true },
+                    onOpenProfiles = { showProfiles = true },
+                    onOpenApps = { currentTab = "Apps" },
+                    onOpenClones = { currentTab = "Cloned apps" }
+                ) else LazyColumn(
                     modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -897,7 +1061,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         ExtensionPreviewCard("🗂️", "Multi-Clone Manager", "Search, sort, multi-select and Android-confirmed bulk uninstall; grouping remains", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("🎭", "Theme Studio", "System, Light, Dark and AMOLED appearance modes", "Partial")
+                        ExtensionPreviewCard("🎭", "Theme Studio", "System, Light, Dark and AMOLED modes plus four persistent accent palettes", "Partial")
                     }
                     item {
                         ExtensionPreviewCard("🛡️", "Privacy Guard", "Permission removal exists; impact review and audit history remain", "Partial")
@@ -906,7 +1070,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         ExtensionPreviewCard("💾", "Storage Manager", "Installed clone APK/split footprint; private app data is restricted by Android", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("📦", "Backup & Restore", "APK-set export and signing identity backup; unified profile backup remains", "Partial")
+                        ExtensionPreviewCard("📦", "Backup & Restore", "Versioned clone-profile export/restore; APK sets and signing identity remain separate backups", "Partial")
                     }
                     item {
                         ExtensionPreviewCard("🔒", "App Lock", "Device-authentication gate for OpenClone", "Research")
@@ -918,7 +1082,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         ExtensionPreviewCard("📡", "Network Monitor", "Diagnostics for traffic OpenClone can legitimately observe", "Research")
                     }
                     item {
-                        ExtensionPreviewCard("🧰", "Developer Toolkit", "APK inspection and compatibility preflight exist; structured logs/export remain", "Partial")
+                        ExtensionPreviewCard("🧰", "Developer Toolkit", "APK preflight plus redacted build-history diagnostics export", "Partial")
                     }
                     item {
                         ExtensionPreviewCard("🌍", "WebView Manager", "Controls limited to WebViews hosted by OpenClone", "Research")
@@ -1556,6 +1720,51 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                             }
                         }
                     }
+                    Text("Accent palette", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("Choose a saved color family. The preview updates immediately.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OpenCloneAccent.values().forEach { option ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { onAccentChange(option) }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = accent == option, onClick = { onAccentChange(option) })
+                            Surface(
+                                modifier = Modifier.size(22.dp),
+                                shape = RoundedCornerShape(50),
+                                color = option.primary
+                            ) {}
+                            Text(option.label, modifier = Modifier.padding(start = 10.dp), fontWeight = FontWeight.Medium)
+                        }
+                    }
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Developer Toolkit", fontWeight = FontWeight.SemiBold)
+                            Text("Export a redacted build-history report. Local file paths and signing material are excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            TextButton(onClick = {
+                                val entries = JSONArray()
+                                buildHistory.forEach { entry ->
+                                    entries.put(JSONObject().apply {
+                                        put("originalPackage", entry.originalPackage)
+                                        put("clonePackage", entry.clonePackage)
+                                        put("cloneLabel", entry.cloneLabel)
+                                        put("apkComponentCount", entry.apkPaths.size)
+                                        put("obbComponentCount", entry.obbPaths.size)
+                                        put("filesAvailable", entry.filesAvailable)
+                                        put("iconBadgeApplied", entry.iconBadgeApplied)
+                                        put("customIconApplied", entry.customIconApplied)
+                                        put("createdAtMillis", entry.createdAtMillis)
+                                    })
+                                }
+                                pendingProfileBackup = JSONObject().apply {
+                                    put("format", "openclone-redacted-build-diagnostics")
+                                    put("formatVersion", 1)
+                                    put("generatedAtMillis", System.currentTimeMillis())
+                                    put("buildHistory", entries)
+                                }.toString(2)
+                                exportProfileBackup.launch("openclone-build-diagnostics.json")
+                            }) { Text("Export build diagnostics") }
+                        }
+                    }
                     HorizontalDivider()
                     Text("Account & Tools", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Card(
@@ -1570,15 +1779,33 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                             Text("Add-ons and integrations", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    Card(
-                        modifier = Modifier.fillMaxWidth().clickable {
-                            statusMessage = "Backup and profile tools are not available yet."
-                        },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(Modifier.padding(14.dp)) {
-                            Text("Backup / Profile", fontWeight = FontWeight.SemiBold)
-                            Text("Local presets and restore · coming soon", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Backup & Restore", fontWeight = FontWeight.SemiBold)
+                            Text("Export or restore versioned clone profiles. APKs, signing identities, credentials and cloned-app private data are deliberately excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = {
+                                    val profileArray = JSONArray()
+                                    profiles.forEach { profile ->
+                                        profileArray.put(JSONObject().apply {
+                                            put("name", profile.name)
+                                            put("originalPackage", profile.originalPackage)
+                                            put("clonePackage", profile.clonePackage)
+                                            put("cloneLabel", profile.cloneLabel)
+                                            put("markIcon", profile.markIcon)
+                                            put("badgePosition", profile.badgePosition)
+                                        })
+                                    }
+                                    pendingProfileBackup = JSONObject().apply {
+                                        put("format", "openclone-profile-backup")
+                                        put("formatVersion", 1)
+                                        put("createdAtMillis", System.currentTimeMillis())
+                                        put("profiles", profileArray)
+                                    }.toString(2)
+                                    exportProfileBackup.launch("openclone-profiles-backup.json")
+                                }) { Text("Export") }
+                                TextButton(onClick = { importProfileBackup.launch(arrayOf("application/json", "text/json", "*/*")) }) { Text("Restore") }
+                            }
                         }
                     }
                     Card(
