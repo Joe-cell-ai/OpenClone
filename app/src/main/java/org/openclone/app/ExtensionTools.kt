@@ -229,13 +229,42 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var name by remember { mutableStateOf("") }
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("8080") }
+    var protocol by remember { mutableStateOf("HTTP_CONNECT") }
+    var privacyAudits by remember { mutableStateOf(PrivacyAuditRepository(context).getAll()) }
+    var storage by remember { mutableStateOf(StorageSnapshot.read(context)) }
+    var installedClones by remember { mutableStateOf<List<InstalledClone>>(emptyList()) }
+    var showClearCache by remember { mutableStateOf(false) }
+    var diagnostics by remember { mutableStateOf(ExtensionDiagnosticsLog(context).getAll()) }
     var message by remember { mutableStateOf("Saved profiles are not applied to cloned apps or device traffic.") }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
     var appLockEnabled by remember { mutableStateOf(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(APP_LOCK, false)) }
     var appLockMessage by remember { mutableStateOf("Uses the Android device screen lock; OpenClone does not store a separate password.") }
 
-    LaunchedEffect(Unit) { OpenCloneNotificationChannels.ensure(context); network = NetworkSnapshot.read(context) }
+    val refreshNetwork = { network = NetworkSnapshot.read(context) }
+    LaunchedEffect(Unit) {
+        OpenCloneNotificationChannels.ensure(context)
+        refreshNetwork()
+        withContext(Dispatchers.IO) {
+            installedClones = runCatching {
+                val apps = InstalledAppRepository(context.packageManager).getInstalledApps(true)
+                InstalledCloneRepository(context.packageManager).findClones(apps)
+            }.getOrDefault(emptyList())
+            storage = StorageSnapshot.read(context)
+        }
+        privacyAudits = PrivacyAuditRepository(context).getAll()
+        diagnostics = ExtensionDiagnosticsLog(context).getAll()
+    }
+    DisposableEffect(context) {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { refreshNetwork() }
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) { refreshNetwork() }
+            override fun onLost(network: Network) { refreshNetwork() }
+        }
+        runCatching { manager.registerDefaultNetworkCallback(callback) }
+        onDispose { runCatching { manager.unregisterNetworkCallback(callback) } }
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Extensions", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
