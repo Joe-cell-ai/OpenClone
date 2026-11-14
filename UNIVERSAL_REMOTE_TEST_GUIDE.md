@@ -36,3 +36,16 @@ Refrigerators, washing machines, smart plugs, lights, curtains and air purifiers
 - Test DNS-SD discovery on real Wi-Fi networks, including guest/client-isolated networks.
 - Confirm imported IR codes on the exact brand/model and report unsupported devices clearly.
 - Do not publish Matter, BLE, Cast/AirPlay, RF or cloud control as implemented until a working, reviewed adapter and device-specific tests exist.
+
+
+## Mi Remote-style layouts, favorites, rooms and scenes
+
+1. Import a raw Flipper `.ir` file for the exact appliance and save it with its brand, model and category.
+2. Open **Mi Remote-style appliance controls** in the Remote Centre and select the saved profile.
+3. The TV/media layout exposes Power, Mute, Home, Back, Volume, Channel and navigation buttons. The AC layout exposes Power, Mode, Fan, Swing and temperature up/down.
+4. A layout button is enabled only when a matching command label exists in the imported profile. The layout never fabricates IR timings. Rename command labels in the source profile if you need to align them with the expected action names.
+5. Mark a profile as a favorite with the star control and assign a room name to keep the remote organized.
+6. Select individual imported commands, name a scene, optionally assign a room, and save it. Running a scene transmits its selected commands sequentially with a short gap. Test scenes while watching the appliance and do not use them for safety-critical actions.
+7. Favorite and room metadata and scenes are stored locally. Removing an IR profile can leave a scene reference; the scene runner reports an incomplete scene rather than transmitting a different command.
+
+**Important:** These are Mi Remote-style layouts, not a ready-made manufacturer code database. A phone without an IR emitter needs a compatible external IR transmitter. Android's ConsumerIrManager cannot learn IR signals. A model-specific verified code catalogue, BLE GATT control, Matter commissioning and Cast/AirPlay control are still separate deliverables.
