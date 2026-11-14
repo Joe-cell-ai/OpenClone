@@ -15,22 +15,26 @@ class RemoteControlCompanionInstrumentedTest {
         val pairing = RemoteControlPairingStore.create(context)
         val service = Intent(context, RemoteControlService::class.java)
         try {
+            RemoteControlServerState.stopped()
             context.startForegroundService(service)
-            // The foreground service binds asynchronously; retry only transient startup failures.
-            var response: String? = null
-            var lastFailure: Throwable? = null
-            repeat(12) {
-                if (response == null) {
-                    try {
-                        val endpoint = RemoteControlPairingEndpoint.parse(pairing.toUri()).copy(host = "127.0.0.1")
-                        response = RemoteControlCompanionClient.status(endpoint)
-                    } catch (error: Throwable) {
-                        lastFailure = error
-                        Thread.sleep(250)
-                    }
-                }
+            // Wait for the service's explicit bind signal instead of making repeated
+            // long socket attempts while Android is still starting the TLS listener.
+            val deadline = System.currentTimeMillis() + 20_000
+            while (!RemoteControlServerState.isListening &&
+                RemoteControlServerState.failure == null &&
+                System.currentTimeMillis() < deadline
+            ) {
+                Thread.sleep(100)
             }
-            assertTrue("Companion could not authenticate with the local service: ${lastFailure?.message}", response?.contains("\"ok\":true") == true)
+            val startupFailure = RemoteControlServerState.failure
+            assertTrue(
+                "Remote service did not bind. Startup failure: $startupFailure; diagnostics: " +
+                    ExtensionDiagnosticsLog(context).getAll().filter { it.area == "remote" }.takeLast(5),
+                RemoteControlServerState.isListening
+            )
+            val endpoint = RemoteControlPairingEndpoint.parse(pairing.toUri()).copy(host = "127.0.0.1")
+            val response = RemoteControlCompanionClient.status(endpoint)
+            assertTrue("Companion status response was invalid: $response", response.contains("\\"ok\\":true"))
         } finally {
             context.stopService(service)
             RemoteControlPairingStore.revoke(context)
