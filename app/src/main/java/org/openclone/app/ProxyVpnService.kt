@@ -58,7 +58,7 @@ class ProxyVpnService : VpnService() {
             val proxyHost = if (host.contains(':') && !host.startsWith("[")) "[$host]" else host
             val proxyScheme = if (protocol == "SOCKS5") "socks5" else "http"
             val proxyUrl = "$proxyScheme://$proxyHost:$port"
-            val arguments = "--tun-fd ${descriptor.fd} --close-fd-on-drop false --proxy $proxyUrl --dns virtual --ipv6-enabled --verbosity warn"
+            val arguments = "tun2proxy-bin --tun-fd ${descriptor.fd} --close-fd-on-drop false --proxy $proxyUrl --dns virtual --ipv6-enabled --verbosity warn"
             stopRequested = false
             running = true
             engineThread = Thread({
