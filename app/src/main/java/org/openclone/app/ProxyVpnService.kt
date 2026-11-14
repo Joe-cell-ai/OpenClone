@@ -16,6 +16,7 @@ import java.net.InetAddress
 /** Android VpnService routes only the selected clone; OpenClone and other apps bypass this tunnel. */
 class ProxyVpnService : VpnService() {
     @Volatile private var running = false
+    @Volatile private var stopRequested = false
     @Volatile private var tunDescriptor: android.os.ParcelFileDescriptor? = null
     private var engineThread: Thread? = null
 
@@ -58,19 +59,26 @@ class ProxyVpnService : VpnService() {
             val proxyScheme = if (protocol == "SOCKS5") "socks5" else "http"
             val proxyUrl = "$proxyScheme://$proxyHost:$port"
             val arguments = "--tun-fd ${descriptor.fd} --close-fd-on-drop false --proxy $proxyUrl --dns virtual --ipv6-enabled --verbosity warn"
+            stopRequested = false
             running = true
             engineThread = Thread({
                 val result = runCatching { com.github.shadowsocks.bg.Tun2proxy.run(arguments, TUN_MTU.toChar()) }
-                result.onFailure {
-                    ExtensionDiagnosticsLog(this).append("proxy", "engine_failed", it.javaClass.simpleName)
+                if (stopRequested) {
+                    running = false
+                    runCatching { tunDescriptor?.close() }
+                    tunDescriptor = null
+                    stopSelf()
+                } else {
+                    val detail = result.fold(
+                        { "TUN engine exited unexpectedly with code $it." },
+                        { "TUN engine failed: " + it.javaClass.simpleName }
+                    )
+                    ExtensionDiagnosticsLog(this).append("proxy", "engine_failed_closed", detail)
+                    showFailClosedNotification()
+                    // Keep the VPN descriptor and foreground service alive. With no packet
+                    // engine, the selected app remains on the TUN path and traffic is blocked
+                    // until the user explicitly stops the route.
                 }
-                if (result.isSuccess) {
-                    ExtensionDiagnosticsLog(this).append("proxy", "engine_stopped", "TUN proxy engine exited with code " + result.getOrNull())
-                }
-                running = false
-                runCatching { tunDescriptor?.close() }
-                tunDescriptor = null
-                stopSelf()
             }, "OpenCloneTun2Proxy").apply { isDaemon = true; start() }
             ExtensionDiagnosticsLog(this).append("proxy", "route_started", "Started an Android per-clone VPN route.")
         } catch (error: Throwable) {
@@ -104,7 +112,23 @@ class ProxyVpnService : VpnService() {
         }
     }
 
+    private fun showFailClosedNotification() {
+        val stopIntent = PendingIntent.getService(
+            this, NOTIFICATION_ID, Intent(this, ProxyVpnService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = Notification.Builder(this, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_warning)
+            .setContentTitle("OpenClone proxy route blocked")
+            .setContentText("Proxy engine stopped. Selected-clone traffic remains blocked until you stop this route.")
+            .setOngoing(true)
+            .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Stop route", stopIntent).build())
+            .build()
+        (getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager).notify(NOTIFICATION_ID, notification)
+    }
+
     private fun stopTunnel() {
+        stopRequested = true
         running = false
         runCatching { com.github.shadowsocks.bg.Tun2proxy.stop() }
         runCatching { tunDescriptor?.close() }
