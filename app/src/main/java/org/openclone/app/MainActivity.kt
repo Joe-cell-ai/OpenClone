@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
@@ -97,6 +98,7 @@ import org.openclone.app.data.InstalledAppRepository
 import org.openclone.app.data.InstalledClone
 import org.openclone.app.data.InstalledCloneRepository
 import org.openclone.app.data.CloneBuildHistoryRepository
+import org.openclone.app.data.CloneProfileRepository
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -225,6 +227,11 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
     var signingPassword by remember { mutableStateOf("") }
     var pendingSigningExportAlias by remember { mutableStateOf<String?>(null) }
     var signingMessage by remember { mutableStateOf<String?>(null) }
+    var profiles by remember { mutableStateOf(CloneProfileRepository(context).getAll()) }
+    var showProfiles by remember { mutableStateOf(false) }
+    var profileNameInput by remember { mutableStateOf("") }
+    var editingProfileId by remember { mutableStateOf<String?>(null) }
+    var profileMessage by remember { mutableStateOf<String?>(null) }
 
     fun refreshApps() {
         loading = true
@@ -912,13 +919,78 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
             onDismissRequest = { if (!cloneBuilding) { cloneSource = null; externalSource = null; cloneUpdateMode = false } },
             title = { Text(if (cloneUpdateMode) "Update clone" else "Create clone") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    modifier = Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text("Original: $sourcePackage · $sourceLabel", style = MaterialTheme.typography.bodyMedium)
                     Text(
                         if (cloneUpdateMode) "OpenClone will rebuild this clone using its existing package ID and signing identity." else "OpenClone will create a separate copy using the recommended app name and package ID. Default clone settings will be applied automatically.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    OutlinedTextField(
+                        value = cloneName,
+                        onValueChange = { cloneName = it; cloneError = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Clone app name") }
+                    )
+                    OutlinedTextField(
+                        value = clonePackage,
+                        onValueChange = { clonePackage = it; cloneError = null },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Clone package ID") }
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(checked = markCloneIcon, onCheckedChange = { markCloneIcon = it })
+                        Text("Add clone badge to icon")
+                    }
+                    TextButton(onClick = {
+                        profiles = CloneProfileRepository(context).getAll()
+                        profileMessage = null
+                        profileNameInput = ""
+                        editingProfileId = null
+                        showProfiles = true
+                    }) { Text("Apply saved profile") }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(
+                            value = profileNameInput,
+                            onValueChange = { profileNameInput = it },
+                            modifier = Modifier.weight(1f),
+                            singleLine = true,
+                            label = { Text("Profile name") }
+                        )
+                        TextButton(onClick = {
+                            val sourcePackage = cloneSource?.packageName ?: externalSource?.packageName.orEmpty()
+                            if (sourcePackage.isBlank()) {
+                                cloneError = "Choose an original app before saving a profile."
+                            } else {
+                                runCatching {
+                                    CloneProfileRepository(context).save(
+                                        name = profileNameInput,
+                                        originalPackage = sourcePackage,
+                                        clonePackage = clonePackage.trim(),
+                                        cloneLabel = cloneName.trim(),
+                                        markIcon = markCloneIcon,
+                                        badgePosition = badgePosition.name,
+                                        existingId = editingProfileId
+                                    )
+                                }.onSuccess {
+                                    profiles = CloneProfileRepository(context).getAll()
+                                    profileNameInput = ""
+                                    editingProfileId = null
+                                    cloneError = null
+                                    statusMessage = "Clone profile saved."
+                                }.onFailure {
+                                    cloneError = it.message ?: "Could not save profile."
+                                }
+                            }
+                        }, enabled = profileNameInput.isNotBlank()) {
+                            Text(if (editingProfileId == null) "Save" else "Update")
+                        }
+                    }
                     cloneError?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
@@ -953,6 +1025,104 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                     }
                 ) { Text(if (cloneBuilding) "Cancel build" else "Cancel") }
             }
+        )
+    }
+
+    if (showProfiles) {
+        AlertDialog(
+            onDismissRequest = { showProfiles = false },
+            title = { Text("Clone Profiles") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Profiles save reusable names, package IDs and icon-badge preferences only. APK files, signing keys, credentials and app data are never included.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (profiles.isEmpty()) {
+                        Text("No saved profiles yet. Configure this clone and save a profile.")
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.heightIn(max = 360.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(profiles, key = { it.id }) { profile ->
+                                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                                    Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Text(profile.name, fontWeight = FontWeight.SemiBold)
+                                        Text(profile.originalPackage, style = MaterialTheme.typography.labelSmall)
+                                        Text("${profile.cloneLabel} · ${profile.clonePackage}", style = MaterialTheme.typography.bodySmall)
+                                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            TextButton(onClick = {
+                                                scope.launch {
+                                                    val source = withContext(Dispatchers.IO) {
+                                                        runCatching {
+                                                            InstalledAppRepository(context.packageManager)
+                                                                .getInstalledApps(includeSystemApps = true)
+                                                                .firstOrNull { it.packageName == profile.originalPackage }
+                                                        }.getOrNull()
+                                                    }
+                                                    if (source == null) {
+                                                        profileMessage = "Install the original app (${profile.originalPackage}) before applying this profile."
+                                                    } else {
+                                                        cloneSource = source
+                                                        externalSource = null
+                                                        requestedPermissions = readInstalledPermissions(context, source.packageName)
+                                                        removedPermissions = emptySet()
+                                                        cloneName = profile.cloneLabel
+                                                        clonePackage = profile.clonePackage
+                                                        markCloneIcon = profile.markIcon
+                                                        badgePosition = runCatching { BadgePosition.valueOf(profile.badgePosition) }.getOrDefault(BadgePosition.BOTTOM_RIGHT)
+                                                        customIconPath = null
+                                                        cloneUpdateMode = false
+                                                        cloneError = null
+                                                        showProfiles = false
+                                                        statusMessage = "Profile applied. Review the settings before building."
+                                                    }
+                                                }
+                                            }) { Text("Apply") }
+                                            TextButton(onClick = {
+                                                profileNameInput = profile.name
+                                                editingProfileId = profile.id
+                                                showProfiles = false
+                                            }) { Text("Rename") }
+                                            TextButton(onClick = {
+                                                runCatching {
+                                                    CloneProfileRepository(context).save(
+                                                        name = "${profile.name} copy".take(60),
+                                                        originalPackage = profile.originalPackage,
+                                                        clonePackage = profile.clonePackage,
+                                                        cloneLabel = profile.cloneLabel,
+                                                        markIcon = profile.markIcon,
+                                                        badgePosition = profile.badgePosition
+                                                    )
+                                                }.onSuccess {
+                                                    profiles = CloneProfileRepository(context).getAll()
+                                                    profileMessage = "Profile duplicated."
+                                                }.onFailure {
+                                                    profileMessage = it.message ?: "Could not duplicate profile."
+                                                }
+                                            }) { Text("Duplicate") }
+                                            TextButton(onClick = {
+                                                runCatching { CloneProfileRepository(context).delete(profile.id) }
+                                                    .onSuccess {
+                                                        profiles = CloneProfileRepository(context).getAll()
+                                                        profileMessage = if (it) "Profile deleted." else "Profile was already removed."
+                                                    }
+                                                    .onFailure { profileMessage = it.message ?: "Could not delete profile." }
+                                            }) { Text("Delete") }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    profileMessage?.let {
+                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showProfiles = false }) { Text("Close") } }
         )
     }
 
