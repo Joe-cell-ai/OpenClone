@@ -60,3 +60,34 @@ OpenClone is intended for legitimate personal use with apps the user is authoriz
 ## License
 
 GNU General Public License version 3 only (GPL-3.0-only). See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+
+### Stable CI APK signing (required for in-place updates)
+
+GitHub Actions debug APKs must use the same signing key on every run. Otherwise Android
+rejects a new APK as an update when its debug certificate differs from the installed copy.
+Create one long-lived CI keystore (keep a secure backup) and add these repository Actions
+secrets under **Settings → Secrets and variables → Actions**:
+
+- `OPENCLONE_KEYSTORE_BASE64`: base64-encoded keystore file
+- `OPENCLONE_KEYSTORE_PASSWORD`: keystore password
+- `OPENCLONE_KEY_ALIAS`: key alias
+- `OPENCLONE_KEY_PASSWORD`: key password
+
+Example commands on a trusted computer (choose and securely store your own passwords):
+
+```bash
+keytool -genkeypair -v -keystore openclone-ci.jks -alias openclone -keyalg RSA -keysize 2048 -validity 10000
+base64 -w 0 openclone-ci.jks
+```
+
+Copy the base64 output into `OPENCLONE_KEYSTORE_BASE64`, and enter the matching alias and
+passwords in the other three secrets. Never commit or share the keystore or passwords.
+Once configured, CI debug and release APKs use this same key. The workflow also assigns an
+increasing version code from the GitHub Actions run number.
+
+**One-time migration:** an APK already installed from an earlier runner-generated debug key
+cannot be updated with the new persistent key. Android requires uninstalling that old build
+before installing the first APK signed with the persistent key. Back up anything important
+first; uninstalling may erase OpenClone's local data. After this one-time switch, subsequent
+CI APKs signed with the configured key can update in place.
