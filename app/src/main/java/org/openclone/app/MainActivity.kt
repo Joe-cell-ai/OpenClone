@@ -64,6 +64,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -182,6 +184,7 @@ private fun OpenCloneTheme(mode: OpenCloneThemeMode, content: @Composable () -> 
 private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (OpenCloneThemeMode) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val listSearchFocusRequester = remember { FocusRequester() }
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
     var query by remember { mutableStateOf("") }
     var includeSystem by remember { mutableStateOf(false) }
@@ -196,6 +199,12 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
     var clones by remember { mutableStateOf<List<InstalledClone>>(emptyList()) }
     var buildHistory by remember { mutableStateOf(CloneBuildHistoryRepository(context).getAll()) }
     var selectedClone by remember { mutableStateOf<InstalledClone?>(null) }
+    var cloneSelectionMode by remember { mutableStateOf(false) }
+    var cloneSortByName by remember { mutableStateOf(true) }
+    var selectedClonePackages by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var bulkUninstallQueue by remember { mutableStateOf<List<String>>(emptyList()) }
+    var bulkUninstallIndex by remember { mutableStateOf(0) }
+    var bulkUninstallRequested by remember { mutableStateOf(false) }
 
     var cloneSource by remember { mutableStateOf<InstalledApp?>(null) }
     var cloneName by remember { mutableStateOf("") }
@@ -693,11 +702,20 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                     Text("OPENCLONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Text(currentTab, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 }
-                TextButton(
-                    onClick = { showSettings = true },
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Text("⚙️  Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                if (currentTab == "Home") {
+                    TextButton(
+                        onClick = { showSettings = true },
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Text("⚙️  Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
+                } else if (currentTab in setOf("Apps", "Cloned apps")) {
+                    TextButton(
+                        onClick = { runCatching { listSearchFocusRequester.requestFocus() } },
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Text("⌕  Search", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
             when (currentTab) {
@@ -742,7 +760,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                             Switch(checked = includeSystem, onCheckedChange = { includeSystem = it })
                         }
                     }
-                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search apps or package ID") })
+                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().focusRequester(listSearchFocusRequester), singleLine = true, label = { Text("Search apps or package ID") })
                     when {
                         loading -> Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { CircularProgressIndicator(); Text("Loading apps…") }
                         visibleApps.isEmpty() -> Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("No matching apps found.") }
@@ -752,12 +770,67 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                     }
                 }
                 "Cloned apps" -> Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search installed clones") })
-                    if (clones.isEmpty()) {
-                        Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("🧬", style = MaterialTheme.typography.displayMedium); Text("Installed clones will appear here") }
+                    val filteredClones = clones.filter {
+                        it.cloneLabel.contains(query, true) || it.clonePackage.contains(query, true) ||
+                            it.originalPackage.contains(query, true)
+                    }.let { matches ->
+                        if (cloneSortByName) matches.sortedBy { it.cloneLabel.lowercase() }
+                        else matches.sortedByDescending { it.updateAvailable }
+                    }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${clones.size} installed · ${selectedClonePackages.size} selected", style = MaterialTheme.typography.titleSmall)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { cloneSortByName = !cloneSortByName }) {
+                                Text(if (cloneSortByName) "Sort: name" else "Sort: updates")
+                            }
+                            TextButton(onClick = {
+                                cloneSelectionMode = !cloneSelectionMode
+                                if (!cloneSelectionMode) selectedClonePackages = emptySet()
+                            }) { Text(if (cloneSelectionMode) "Done" else "Select") }
+                        }
+                    }
+                    if (cloneSelectionMode) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = {
+                                val visiblePackages = filteredClones.map { it.clonePackage }.toSet()
+                                selectedClonePackages = if (visiblePackages.all { it in selectedClonePackages })
+                                    selectedClonePackages - visiblePackages else selectedClonePackages + visiblePackages
+                            }) { Text("Select all") }
+                            TextButton(enabled = selectedClonePackages.isNotEmpty(), onClick = {
+                                bulkUninstallQueue = clones.map { it.clonePackage }.filter { it in selectedClonePackages }
+                                bulkUninstallIndex = 0
+                                bulkUninstallRequested = false
+                            }) { Text("Uninstall selected") }
+                            TextButton(onClick = { selectedClonePackages = emptySet() }) { Text("Clear") }
+                        }
+                        Text("Each app requires its own Android system confirmation. OpenClone will not remove apps silently.",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().focusRequester(listSearchFocusRequester),
+                        singleLine = true, label = { Text("Search clone name or package ID") })
+                    if (filteredClones.isEmpty()) {
+                        Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            Text("🧬", style = MaterialTheme.typography.displayMedium)
+                            Text(if (clones.isEmpty()) "Installed clones will appear here" else "No clones match this search")
+                        }
                     } else LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(clones.filter { it.cloneLabel.contains(query, true) || it.clonePackage.contains(query, true) }, key = { it.clonePackage }) { clone ->
-                            InstalledAppRow(app = clone.app, onClick = { selectedClone = clone }, subtitle = clone.updateStatus)
+                        items(filteredClones, key = { it.clonePackage }) { clone ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                if (cloneSelectionMode) Checkbox(
+                                    checked = clone.clonePackage in selectedClonePackages,
+                                    onCheckedChange = { checked ->
+                                        selectedClonePackages = if (checked) selectedClonePackages + clone.clonePackage
+                                            else selectedClonePackages - clone.clonePackage
+                                    }
+                                )
+                                Column(Modifier.weight(1f)) {
+                                    InstalledAppRow(app = clone.app, onClick = {
+                                        if (cloneSelectionMode) selectedClonePackages = if (clone.clonePackage in selectedClonePackages)
+                                            selectedClonePackages - clone.clonePackage else selectedClonePackages + clone.clonePackage
+                                        else selectedClone = clone
+                                    }, subtitle = "${clone.updateStatus} · ${clone.clonePackage}")
+                                }
+                            }
                         }
                     }
                 }
@@ -1211,6 +1284,52 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
         )
     }
 
+    if (bulkUninstallQueue.isNotEmpty() && bulkUninstallIndex < bulkUninstallQueue.size) {
+        val packageName = bulkUninstallQueue[bulkUninstallIndex]
+        AlertDialog(
+            onDismissRequest = { bulkUninstallQueue = emptyList(); bulkUninstallIndex = 0; bulkUninstallRequested = false },
+            title = { Text("Bulk uninstall · ${bulkUninstallIndex + 1} of ${bulkUninstallQueue.size}") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(packageName, fontWeight = FontWeight.SemiBold)
+                    Text(if (bulkUninstallRequested)
+                        "Complete or cancel the Android system prompt, return here, then continue to the next selected clone."
+                    else "Open Android's system uninstall confirmation. You must confirm removal in Android.")
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (!bulkUninstallRequested) {
+                        scope.launch {
+                            val outcome = withContext(Dispatchers.IO) {
+                                runCatching { CloneInstaller.uninstall(context, packageName) }
+                            }
+                            statusMessage = outcome.fold(
+                                onSuccess = { "Android uninstall prompt opened for $packageName. Confirm or cancel it, then continue here." },
+                                onFailure = { it.message ?: "Could not start uninstall for $packageName." }
+                            )
+                            bulkUninstallRequested = outcome.isSuccess
+                        }
+                    } else {
+                        bulkUninstallIndex += 1
+                        bulkUninstallRequested = false
+                        if (bulkUninstallIndex >= bulkUninstallQueue.size) {
+                            bulkUninstallQueue = emptyList()
+                            bulkUninstallIndex = 0
+                            selectedClonePackages = emptySet()
+                            cloneSelectionMode = false
+                            refreshApps()
+                            statusMessage = "Uninstall requests processed. Inventory refreshed; Android confirmations determine which apps were removed."
+                        }
+                    }
+                }) { Text(if (bulkUninstallRequested) "Continue to next" else "Open system uninstall") }
+            },
+            dismissButton = {
+                TextButton(onClick = { bulkUninstallQueue = emptyList(); bulkUninstallIndex = 0; bulkUninstallRequested = false }) { Text("Stop") }
+            }
+        )
+    }
+
     selectedClone?.let { clone ->
         AlertDialog(
             onDismissRequest = { selectedClone = null },
@@ -1227,6 +1346,21 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                     DetailLine("Clone source version", clone.sourceVersionCode.takeIf { it > 0L }?.toString() ?: "Unknown")
                     DetailLine("Installed original version", clone.currentOriginalVersionCode?.toString() ?: "Original app not installed")
                     DetailLine("Update status", clone.updateStatus)
+                    val installedApkBytes = (listOf(clone.app.applicationInfo.sourceDir) +
+                        clone.app.applicationInfo.splitSourceDirs.orEmpty()).distinct().sumOf { path ->
+                        runCatching { File(path).length() }.getOrDefault(0L)
+                    }
+                    DetailLine(
+                        "Installed APK footprint",
+                        if (installedApkBytes >= 1024L * 1024L)
+                            "${"%.1f".format(installedApkBytes / (1024.0 * 1024.0))} MB"
+                        else "${installedApkBytes / 1024L} KB"
+                    )
+                    Text(
+                        "This is the installed APK footprint only. Android does not expose another app's private data/cache size to ordinary apps.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {
