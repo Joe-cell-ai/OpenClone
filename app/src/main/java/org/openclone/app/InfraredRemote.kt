@@ -1,6 +1,8 @@
 package org.openclone.app
 
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.hardware.ConsumerIrManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -120,6 +122,11 @@ fun InfraredApplianceRemoteCard() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("📺 Appliance Remote · Infrared", style = MaterialTheme.typography.titleMedium)
+            Button(onClick = {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/UberGuidoZ/Flipper-IRDB")))
+            }) {
+                Text("Browse community IR profiles")
+            }
             Button(onClick = { importRemoteLauncher.launch(arrayOf("text/plain", "application/octet-stream", "*/*")) }) {
                 Text("Import Flipper .ir remote file")
             }
