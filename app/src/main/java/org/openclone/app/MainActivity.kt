@@ -1016,10 +1016,54 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         singleLine = true,
                         label = { Text("Clone package ID") }
                     )
+                    HorizontalDivider()
+                    Text("Icon & Name Studio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Preview the launcher label and icon treatment before building. Some apps use icon resources that cannot be safely replaced.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val studioBitmap = remember(customIconPath) {
+                        customIconPath?.let { path -> runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
+                    }
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (studioBitmap != null) {
+                                Image(bitmap = studioBitmap, contentDescription = "Custom clone icon preview", modifier = Modifier.size(64.dp))
+                            } else {
+                                Surface(modifier = Modifier.size(64.dp), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(sourceLabel.take(1).uppercase(), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    }
+                                }
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(cloneName.ifBlank { "Clone name preview" }, fontWeight = FontWeight.SemiBold)
+                                Text(clonePackage.ifBlank { "package.id.preview" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(if (customIconPath == null) "Original app icon" else "Custom PNG icon selected", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { chooseCustomIcon.launch(arrayOf("image/png", "image/jpeg", "image/webp", "image/*")) }) { Text(if (customIconPath == null) "Choose icon" else "Replace icon") }
+                        TextButton(enabled = customIconPath != null, onClick = { customIconPath = null }) { Text("Use original") }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = markCloneIcon, onCheckedChange = { markCloneIcon = it })
                         Text("Add clone badge to icon")
                     }
+                    if (markCloneIcon) {
+                        Text("Badge position", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            BadgePosition.values().forEach { position ->
+                                TextButton(onClick = { badgePosition = position }) {
+                                    Text((if (badgePosition == position) "✓ " else "") + when (position) {
+                                        BadgePosition.TOP_LEFT -> "Top left"
+                                        BadgePosition.TOP_RIGHT -> "Top right"
+                                        BadgePosition.BOTTOM_LEFT -> "Bottom left"
+                                        BadgePosition.BOTTOM_RIGHT -> "Bottom right"
+                                    })
+                                }
+                            }
+                        }
+                    }
+                    HorizontalDivider()
                     TextButton(onClick = {
                         profiles = CloneProfileRepository(context).getAll()
                         profileMessage = null
