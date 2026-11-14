@@ -534,7 +534,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
             }
         }
 
-        Card {
+        RemoteControlCompanionCard()\n\n        Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🖥️ Remote Control · Secure local session", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Opt-in TLS 1.2 server with a pinned device certificate, Android Keystore-encrypted pairing secret, HMAC authentication and replay protection. The API exposes status and launch of OpenClone-created clones only. It does not expose arbitrary shell commands or private app data.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
