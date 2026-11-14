@@ -78,6 +78,31 @@ class ExtensionSuiteCoreTest {
     }
 
     @Test
+    fun remoteControlReplayGuardRejectsDuplicateAndExpiredNonces() {
+        val guard = RemoteControlReplayGuard()
+        val now = 1_800_000_000_000L
+        val nonce = "nonce_0123456789abcdef"
+        assertTrue(guard.consume(nonce, now, now))
+        assertFalse(guard.consume(nonce, now, now))
+        assertFalse(guard.consume("nonce_fedcba9876543210", now - 120_000, now))
+    }
+
+    @Test
+    fun extensionPackageVerificationRejectsIncompatibleApiVersion() {
+        val pair = KeyPairGenerator.getInstance("EC").apply { initialize(256) }.generateKeyPair()
+        val bytes = "extension".toByteArray()
+        val digest = MessageDigest.getInstance("SHA-256").digest(bytes)
+            .joinToString("") { "%02x".format(it) }
+        val unsigned = SignedExtensionDescriptor("org.openclone.test", "1.0.0", "Test", 2, 3, digest, "")
+        val signer = Signature.getInstance("SHA256withECDSA")
+        signer.initSign(pair.private)
+        signer.update(unsigned.canonicalPayload())
+        val signed = unsigned.copy(signatureBase64 = Base64.getEncoder().encodeToString(signer.sign()))
+        assertFalse(ExtensionPackageVerifier.verify(signed, bytes, pair.public, currentOpenCloneApi = 1))
+        assertTrue(ExtensionPackageVerifier.verify(signed, bytes, pair.public, currentOpenCloneApi = 2))
+    }
+
+    @Test
     fun webViewPolicyAllowsOnlyHttpsAllowlistedHosts() {
         val policy = ManagedWebViewPolicy(allowedHosts = setOf("docs.example.com"))
         assertTrue(policy.allows("https://docs.example.com/help"))
