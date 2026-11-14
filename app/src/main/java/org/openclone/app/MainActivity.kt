@@ -1334,6 +1334,21 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                     DetailLine("Clone source version", clone.sourceVersionCode.takeIf { it > 0L }?.toString() ?: "Unknown")
                     DetailLine("Installed original version", clone.currentOriginalVersionCode?.toString() ?: "Original app not installed")
                     DetailLine("Update status", clone.updateStatus)
+                    val installedApkBytes = (listOf(clone.app.applicationInfo.sourceDir) +
+                        clone.app.applicationInfo.splitSourceDirs.orEmpty()).distinct().sumOf { path ->
+                        runCatching { File(path).length() }.getOrDefault(0L)
+                    }
+                    DetailLine(
+                        "Installed APK footprint",
+                        if (installedApkBytes >= 1024L * 1024L)
+                            "${"%.1f".format(installedApkBytes / (1024.0 * 1024.0))} MB"
+                        else "${installedApkBytes / 1024L} KB"
+                    )
+                    Text(
+                        "This is the installed APK footprint only. Android does not expose another app's private data/cache size to ordinary apps.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             },
             confirmButton = {
