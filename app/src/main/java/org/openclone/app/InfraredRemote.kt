@@ -29,7 +29,7 @@ data class InfraredCommand(val carrierHz: Int, val timingsMicros: IntArray) {
                     "This device does not support the selected carrier frequency."
                 }
             }
-            val values = timings.split(',', ' ', '\\n', '\\t')
+            val values = timings.split(',', ' ', '\n', '\t')
                 .filter { it.isNotBlank() }
                 .map { it.toIntOrNull() ?: throw IllegalArgumentException("IR timings must be whole numbers in microseconds.") }
             require(values.size in 3..511 && values.size % 2 == 1) {
