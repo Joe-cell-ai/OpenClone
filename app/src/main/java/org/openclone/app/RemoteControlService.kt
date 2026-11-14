@@ -53,7 +53,7 @@ object RemoteControlPairingStore {
     fun create(context: Context): RemotePairingInfo {
         val secret = RemoteControlAuthenticator.createPairingSecret()
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, encryptionKey(), )
+        cipher.init(Cipher.ENCRYPT_MODE, encryptionKey())
         val encrypted = cipher.doFinal(secret)
         val encoded = android.util.Base64.encodeToString(cipher.iv + encrypted, android.util.Base64.NO_WRAP)
         check(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(CREDENTIAL, encoded).commit()) {
@@ -69,16 +69,19 @@ object RemoteControlPairingStore {
         return info
     }
 
-    fun read(context: Context): ByteArray? = runCatching {
-        val encoded = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(CREDENTIAL, null) ?: return null
-        val packed = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
-        require(packed.size > 12 + 16)
-        val iv = packed.copyOfRange(0, 12)
-        val ciphertext = packed.copyOfRange(12, packed.size)
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, encryptionKey(), GCMParameterSpec(128, iv))
-        cipher.doFinal(ciphertext)
-    }.getOrNull()
+    fun read(context: Context): ByteArray? {
+        return runCatching {
+            val encoded = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+                .getString(CREDENTIAL, null) ?: return@runCatching null
+            val packed = android.util.Base64.decode(encoded, android.util.Base64.DEFAULT)
+            require(packed.size > 12 + 16)
+            val iv = packed.copyOfRange(0, 12)
+            val ciphertext = packed.copyOfRange(12, packed.size)
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, encryptionKey(), GCMParameterSpec(128, iv))
+            cipher.doFinal(ciphertext)
+        }.getOrNull()
+    }
 
     fun revoke(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(CREDENTIAL).commit()
