@@ -303,18 +303,6 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var profileMenuExpanded by remember { mutableStateOf(false) }
     var pendingProxyIntent by remember { mutableStateOf<Intent?>(null) }
     var proxyRoutingMessage by remember { mutableStateOf("Assign a saved proxy profile to one clone. Android permits one active VPN per user/profile.") }
-    val vpnConsentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val pending = pendingProxyIntent
-        if (result.resultCode == Activity.RESULT_OK && pending != null) {
-            runCatching {
-                context.startForegroundService(pending)
-                proxyRoutingMessage = "Android VPN consent granted. Starting the selected clone route…"
-            }.onFailure { proxyRoutingMessage = it.message ?: "Could not start the clone VPN." }
-        } else {
-            proxyRoutingMessage = "VPN permission was not granted; no clone traffic was routed."
-        }
-        pendingProxyIntent = null
-    }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
     var automationInterval by remember { mutableStateOf(CloneUpdateAutomation.intervalHours(context)) }
@@ -364,7 +352,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
         ExtensionNavigationCard("🎭", "Theme Studio", "System, Light, Dark, AMOLED, four presets and custom hex accent", onOpenSettings)
         ExtensionNavigationCard("🛡️", "Privacy Guard", "Review requested permissions, remove manifest declarations and view build audit history", onOpenApps)
         ExtensionNavigationCard("💾", "Storage Manager", "OpenClone cache cleanup, generated output totals and Android clone storage details", onOpenClones)
-        ExtensionNavigationCard("📦", "Backup & Restore", "Clone profiles, appearance, proxy settings and automation cadence backup", onOpenSettings)
+        ExtensionNavigationCard("📦", "Backup & Restore", "Clone profiles, appearance and automation cadence backup", onOpenSettings)
         ExtensionNavigationCard("🧰", "Developer Toolkit", "APK diagnostics, compatibility preflight and redacted runtime log export", onOpenSettings)
 
 
@@ -428,124 +416,6 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
 
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("📦 Extension Updater · Trusted publishers", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Trust publisher EC public keys only after checking their SHA-256 fingerprint through a separate trusted channel. Catalogue and package verification APIs are available; a hosted catalogue is not configured by default.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedTextField(publisherLabel, { publisherLabel = it.take(120) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Publisher name") })
-                OutlinedTextField(publisherKey, { publisherKey = it }, modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4, label = { Text("EC public key (PEM or Base64)") })
-                Button(onClick = {
-                    runCatching { publisherCandidate = publisherRepository.inspect(publisherLabel, publisherKey); updaterMessage = "Fingerprint: " + publisherCandidate!!.fingerprintSha256 }
-                        .onFailure { publisherCandidate = null; updaterMessage = it.message ?: "Could not inspect publisher key." }
-                }) { Text("Inspect fingerprint") }
-                publisherCandidate?.let { candidate ->
-                    Text("Confirm this fingerprint using the publisher's independent official channel:", style = MaterialTheme.typography.bodySmall)
-                    Text(candidate.fingerprintSha256.chunked(4).joinToString(" "), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                    OutlinedTextField(publisherFingerprintConfirmation, { publisherFingerprintConfirmation = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Type the full SHA-256 fingerprint") })
-                    Button(onClick = {
-                        runCatching {
-                            publisherRepository.trust(candidate, publisherFingerprintConfirmation)
-                            trustedPublishers = publisherRepository.all()
-                            publisherCandidate = null
-                            publisherFingerprintConfirmation = ""
-                            publisherKey = ""
-                            updaterMessage = "Publisher trusted. Its key can now verify signed catalogues."
-                            ExtensionDiagnosticsLog(context).append("updater", "publisher_trusted", "A publisher key was explicitly trusted.")
-                        }.onFailure { updaterMessage = it.message ?: "Could not trust publisher." }
-                    }) { Text("Trust publisher") }
-                }
-                trustedPublishers.forEach { publisher ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(publisher.label, fontWeight = FontWeight.Medium)
-                            Text(publisher.fingerprintSha256.chunked(4).joinToString(" "), style = MaterialTheme.typography.labelSmall)
-                        }
-                        TextButton(onClick = {
-                            publisherRepository.revoke(publisher.id)
-                            trustedPublishers = publisherRepository.all()
-                            catalogueEntries = emptyList()
-                            updaterMessage = "Publisher trust revoked. Catalogues from this key are no longer trusted."
-                            ExtensionDiagnosticsLog(context).append("updater", "publisher_revoked", "A publisher key was revoked.")
-                        }) { Text("Revoke") }
-                    }
-                }
-                OutlinedTextField(catalogueUrl, { catalogueUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Signed catalogue HTTPS URL") })
-                Button(enabled = !updaterBusy && trustedPublishers.isNotEmpty(), onClick = {
-                    updaterBusy = true
-                    updaterMessage = "Downloading and verifying signed catalogue…"
-                    scope.launch {
-                        val result = withContext(Dispatchers.IO) {
-                            runCatching { ExtensionCatalogueClient.fetchAndVerify(catalogueUrl, publisherRepository, currentApi = 1) }
-                        }
-                        updaterBusy = false
-                        result.fold(
-                            { entries ->
-                                catalogueEntries = entries
-                                updaterMessage = "Verified ${entries.size} compatible extension(s)."
-                                ExtensionDiagnosticsLog(context).append("updater", "catalogue_verified", "A signed catalogue was verified.")
-                            },
-                            { error ->
-                                catalogueEntries = emptyList()
-                                updaterMessage = error.message ?: "Catalogue verification failed."
-                                ExtensionDiagnosticsLog(context).append("updater", "catalogue_rejected", "A catalogue failed verification.")
-                            }
-                        )
-                    }
-                }) { Text(if (updaterBusy) "Please wait…" else "Fetch & verify catalogue") }
-                catalogueEntries.forEach { entry ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(entry.id + " · " + entry.version, fontWeight = FontWeight.Medium)
-                            Text(entry.publisher + " · API " + entry.minimumOpenCloneApi + "–" + entry.maximumOpenCloneApi, style = MaterialTheme.typography.labelSmall)
-                        }
-                        TextButton(enabled = !updaterBusy, onClick = {
-                            updaterBusy = true
-                            updaterMessage = "Downloading and verifying " + entry.id + "…"
-                            scope.launch {
-                                val result = withContext(Dispatchers.IO) {
-                                    runCatching {
-                                        val bytes = ExtensionPackageDownloader.download(entry.downloadUrl)
-                                        check(publisherRepository.verifyPackage(entry, bytes, currentApi = 1)) {
-                                            "Package digest, publisher signature or API compatibility check failed."
-                                        }
-                                        bytes
-                                    }
-                                }
-                                result.fold(
-                                    { bytes ->
-                                        runCatching {
-                                            if (Build.VERSION.SDK_INT >= 26 &&
-                                                !context.packageManager.canRequestPackageInstalls()) {
-                                                context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
-                                                    .setData(Uri.parse("package:" + context.packageName))
-                                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                                                updaterMessage = "Allow OpenClone to request installs in Android settings, then tap Install again."
-                                            } else {
-                                                val sessionId = ExtensionPackageInstaller.stage(context, bytes, entry.id)
-                                                updaterMessage = "Verified package staged in Android installer session " + sessionId + ". Complete or cancel the system confirmation."
-                                                ExtensionDiagnosticsLog(context).append("updater", "package_staged", "A verified extension package was staged for Android installation.")
-                                            }
-                                        }.onFailure { updaterMessage = it.message ?: "Could not stage package for installation." }
-                                    },
-                                    { updaterMessage = it.message ?: "Package download or verification failed." }
-                                )
-                                updaterBusy = false
-                            }
-                        }) { Text("Install") }
-                    }
-                }
-                installStatus?.let { record ->
-                    Text("Last Android install result · session ${record.sessionId} · status ${record.status}: ${record.message}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-                TextButton(onClick = { installStatus = ExtensionInstallStatusStore.read(context) }) { Text("Refresh install result") }
-                Text(updaterMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-
-        RemoteControlCompanionCard()
-
-        RemoteScreenCaptureControlCard(context)
-
-        Card {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🖥️ Remote Control · Secure local session", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Opt-in TLS 1.2 server with a pinned device certificate, Android Keystore-encrypted pairing secret, HMAC authentication and replay protection. The API exposes status and launch of OpenClone-created clones only. It does not expose arbitrary shell commands or private app data.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (remotePairingInfo == null) {
@@ -582,151 +452,6 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                     }
                 }
                 Text(remoteMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-
-        Card {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("🌐 Proxy Manager", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Save up to 10 unauthenticated HTTP CONNECT or SOCKS5 endpoints and test a tunnel handshake. Assign a profile to a clone in the Per-clone Routing section below.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Profile name") })
-                OutlinedTextField(host, { host = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Proxy host") })
-                OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Port") })
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { protocol = "HTTP_CONNECT" }) { Text((if (protocol == "HTTP_CONNECT") "✓ " else "") + "HTTP CONNECT") }
-                    TextButton(onClick = { protocol = "SOCKS5" }) { Text((if (protocol == "SOCKS5") "✓ " else "") + "SOCKS5") }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        runCatching {
-                            repository.save(ProxyProfile(name, host, port.toInt(), protocol))
-                            profiles = repository.getAll()
-                            ExtensionDiagnosticsLog(context).append("proxy", "profile_saved", "Saved a proxy profile.")
-                            message = "Proxy profile saved."
-                        }.onFailure { message = it.message ?: "Could not save profile." }
-                    }) { Text("Save") }
-                    TextButton(onClick = {
-                        val targetPort = port.toIntOrNull()
-                        if (host.isBlank() || targetPort == null || targetPort !in 1..65535) message = "Enter a valid host and port."
-                        else {
-                            message = "Testing TCP connection…"
-                            scope.launch {
-                                val result = withContext(Dispatchers.IO) {
-                                    runCatching { ProxyConnectivityTester.test(ProxyProfile(name.ifBlank { "Test" }, host, targetPort!!, protocol)) }
-                                }
-                                message = result.fold(
-                                    {
-                                        ExtensionDiagnosticsLog(context).append("proxy", "handshake_success", "Proxy tunnel handshake succeeded.")
-                                        "Proxy handshake succeeded. Proxy authentication is not configured; use Per-clone Routing to apply this endpoint."
-                                    },
-                                    {
-                                        ExtensionDiagnosticsLog(context).append("proxy", "handshake_failed", "Proxy tunnel handshake failed.")
-                                        "Connection failed: " + (it.message ?: "host unreachable")
-                                    }
-                                )
-                            }
-                        }
-                    }) { Text("Test host") }
-                }
-                Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                profiles.forEach { p ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(p.name, fontWeight = FontWeight.Medium)
-                            Text(p.protocol + " · " + p.host + ":" + p.port, style = MaterialTheme.typography.labelSmall)
-                        }
-                        TextButton(onClick = { name = p.name; host = p.host; port = p.port.toString(); protocol = p.protocol }) { Text("Edit") }
-                        TextButton(onClick = {
-                            repository.delete(p.name)
-                            assignmentRepository.removeProfile(p.name)
-                            profiles = repository.getAll()
-                            proxyAssignments = assignmentRepository.getAll()
-                        }) { Text("Delete") }
-                    }
-                }
-            }
-        }
-
-        Card {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("🎯 Proxy Manager · Per-clone Routing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Choose a clone and proxy profile. Android's VpnService allowlist sends only that clone's traffic through the tunnel; OpenClone and other apps bypass it. Android permits one active VPN per user/profile, so only one clone can be routed at a time. Existing VPN sessions must be disconnected first.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Box {
-                    OutlinedButton(onClick = { cloneMenuExpanded = true }, modifier = Modifier.fillMaxWidth(), enabled = installedClones.isNotEmpty()) {
-                        Text(installedClones.firstOrNull { it.clonePackage == selectedClonePackage }?.let { it.cloneLabel + " · " + it.clonePackage } ?: "Select an installed clone")
-                    }
-                    DropdownMenu(expanded = cloneMenuExpanded, onDismissRequest = { cloneMenuExpanded = false }) {
-                        installedClones.forEach { clone ->
-                            DropdownMenuItem(
-                                text = { Text(clone.cloneLabel + " · " + clone.clonePackage) },
-                                onClick = { selectedClonePackage = clone.clonePackage; cloneMenuExpanded = false }
-                            )
-                        }
-                    }
-                }
-                Box {
-                    OutlinedButton(onClick = { profileMenuExpanded = true }, modifier = Modifier.fillMaxWidth(), enabled = profiles.isNotEmpty()) {
-                        Text(profiles.firstOrNull { it.name == selectedProxyProfile }?.let { it.name + " · " + it.protocol + " " + it.host + ":" + it.port } ?: "Select a proxy profile")
-                    }
-                    DropdownMenu(expanded = profileMenuExpanded, onDismissRequest = { profileMenuExpanded = false }) {
-                        profiles.forEach { profile ->
-                            DropdownMenuItem(
-                                text = { Text(profile.name + " · " + profile.protocol + " " + profile.host + ":" + profile.port) },
-                                onClick = { selectedProxyProfile = profile.name; profileMenuExpanded = false }
-                            )
-                        }
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(enabled = installedClones.isNotEmpty() && profiles.isNotEmpty(), onClick = {
-                        val clone = installedClones.firstOrNull { it.clonePackage == selectedClonePackage }
-                        val profile = profiles.firstOrNull { it.name == selectedProxyProfile }
-                        if (clone == null || profile == null) {
-                            proxyRoutingMessage = "Select an installed clone and a saved proxy profile."
-                        } else if (network.vpn) {
-                            proxyRoutingMessage = "Another VPN is active. Stop it in Android settings or stop the current OpenClone route before starting this one."
-                        } else {
-                            runCatching {
-                                assignmentRepository.assign(clone.clonePackage, profile.name)
-                                proxyAssignments = assignmentRepository.getAll()
-                                val serviceIntent = Intent(context, ProxyVpnService::class.java).apply {
-                                    putExtra(ProxyVpnService.EXTRA_CLONE_PACKAGE, clone.clonePackage)
-                                    putExtra(ProxyVpnService.EXTRA_PROXY_HOST, profile.host)
-                                    putExtra(ProxyVpnService.EXTRA_PROXY_PORT, profile.port)
-                                    putExtra(ProxyVpnService.EXTRA_PROXY_PROTOCOL, profile.protocol)
-                                }
-                                val consent = VpnService.prepare(context)
-                                if (consent == null) {
-                                    context.startForegroundService(serviceIntent)
-                                    proxyRoutingMessage = "Starting route for " + clone.cloneLabel + "…"
-                                } else {
-                                    pendingProxyIntent = serviceIntent
-                                    vpnConsentLauncher.launch(consent)
-                                }
-                                ExtensionDiagnosticsLog(context).append("proxy", "clone_assignment_saved", "Saved a proxy profile assignment for one clone.")
-                            }.onFailure { proxyRoutingMessage = it.message ?: "Could not start per-clone routing." }
-                        }
-                    }) { Text("Start selected clone route") }
-                    TextButton(onClick = {
-                        context.startService(Intent(context, ProxyVpnService::class.java).setAction(ProxyVpnService.ACTION_STOP))
-                        proxyRoutingMessage = "Stop requested for the active clone VPN route."
-                        refreshNetwork()
-                    }) { Text("Stop route") }
-                }
-                proxyAssignments.forEach { assignment ->
-                    val assignedClone = installedClones.firstOrNull { it.clonePackage == assignment.clonePackage }
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(assignedClone?.cloneLabel ?: assignment.clonePackage, fontWeight = FontWeight.Medium)
-                            Text("Profile: " + assignment.profileName, style = MaterialTheme.typography.labelSmall)
-                        }
-                        TextButton(onClick = {
-                            assignmentRepository.removeClone(assignment.clonePackage)
-                            proxyAssignments = assignmentRepository.getAll()
-                        }) { Text("Remove") }
-                    }
-                }
-                Text(proxyRoutingMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
@@ -816,59 +541,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                 Text(appLockMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        Card {
-            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("🌍 WebView Manager", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Manage an isolated OpenClone-owned browser. Only exact HTTPS hosts you add are loaded; JavaScript, DOM storage, file/content access and mixed content are disabled. This does not control WebViews inside cloned apps.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedTextField(
-                    value = webViewHostInput,
-                    onValueChange = { webViewHostInput = it.take(253) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    label = { Text("Allowed host, e.g. docs.example.com") }
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        val candidate = webViewHostInput.trim().lowercase().removePrefix("https://")
-                            .substringBefore('/').substringBefore('?').substringBefore('#')
-                        val labels = candidate.split('.')
-                        val valid = labels.size >= 2 && labels.all { label ->
-                            label.isNotBlank() && label.length <= 63 &&
-                                label.first().isLetterOrDigit() && label.last().isLetterOrDigit() &&
-                                label.all { it.isLetterOrDigit() || it == '-' }
-                        } && ManagedWebViewPolicy(allowedHosts = setOf(candidate)).allows("https://$candidate/")
-                        if (!valid) {
-                            webViewMessage = "Enter a valid hostname without a path, port or credentials."
-                        } else {
-                            val updated = (webViewHosts + candidate).distinct().sorted()
-                            context.getSharedPreferences("openclone_managed_webview", Context.MODE_PRIVATE).edit()
-                                .putStringSet("allowed_hosts", updated.toSet()).apply()
-                            webViewHosts = updated
-                            webViewHostInput = ""
-                            webViewMessage = "Host added to the HTTPS allowlist."
-                        }
-                    }) { Text("Add host") }
-                    Button(
-                        enabled = webViewHosts.isNotEmpty(),
-                        onClick = { context.startActivity(Intent(context, ManagedWebViewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
-                    ) { Text("Open managed browser") }
-                }
-                webViewHosts.forEach { host ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Text(host, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                        TextButton(onClick = {
-                            val updated = webViewHosts - host
-                            context.getSharedPreferences("openclone_managed_webview", Context.MODE_PRIVATE).edit()
-                                .putStringSet("allowed_hosts", updated.toSet()).apply()
-                            webViewHosts = updated
-                        }) { Text("Remove") }
-                    }
-                }
-                Text(webViewMessage, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
         ExtensionStatusCard("🖥️ Remote Control", "HMAC request-authentication and time-window validation primitives are implemented and tested. No network listener or remote actions are enabled until secure pairing, replay protection and explicit local consent are complete.")
-        ExtensionStatusCard("🔄 Extension Updater", "Signed descriptor and package SHA-256/ECDSA verification primitives are implemented and tested. Updates remain disabled until a trusted publisher public key and signed catalogue are provisioned.")
     }
 
     if (showClearCache) {
