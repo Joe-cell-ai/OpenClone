@@ -121,8 +121,7 @@ data class StorageSnapshot(
 /** ZIP-based diagnostics only; does not claim to resolve the manifest's final resource-table reference. */
 data class IconResourceReport(
     val launcherImageCount: Int,
-    val adaptiveIconXmlCount: Int,
-    val vectorDrawableCount: Int,
+    val launcherXmlCandidateCount: Int,
     val densityBuckets: List<String>,
     val warnings: List<String>
 ) {
@@ -132,39 +131,28 @@ data class IconResourceReport(
             val names = java.util.zip.ZipFile(apk).use { zip ->
                 zip.entries().asSequence().map { it.name }.toList()
             }
-            val launcher = names.filter { name ->
+            fun looksLikeLauncher(name: String): Boolean {
+                val base = name.substringAfterLast('/').substringBeforeLast('.')
+                return base.contains("launcher", true) || base.contains("ic_app", true) || base.contains("icon", true)
+            }
+            val launcherImages = names.count { name ->
                 name.startsWith("res/") &&
                     (name.contains("mipmap") || name.contains("drawable")) &&
-                    name.substringAfterLast('/').substringBeforeLast('.').let {
-                        it.contains("launcher", true) || it.contains("ic_app", true) || it.contains("icon", true)
-                    } &&
+                    looksLikeLauncher(name) &&
                     name.substringAfterLast('.').lowercase() in setOf("png", "webp", "jpg", "jpeg")
             }
-            val xmlNames = names.filter { it.startsWith("res/") && it.endsWith(".xml") }
-            val adaptive = xmlNames.count { name ->
-                runCatching {
-                    java.util.zip.ZipFile(apk).use { zip ->
-                        zip.getInputStream(zip.getEntry(name)).bufferedReader().use { it.readText().contains("<adaptive-icon") }
-                    }
-                }.getOrDefault(false)
-            }
-            val vectors = xmlNames.count { name ->
-                runCatching {
-                    java.util.zip.ZipFile(apk).use { zip ->
-                        zip.getInputStream(zip.getEntry(name)).bufferedReader().use { it.readText().contains("<vector") }
-                    }
-                }.getOrDefault(false)
+            val launcherXml = names.count { name ->
+                name.startsWith("res/") && name.endsWith(".xml") && looksLikeLauncher(name)
             }
             val buckets = names.mapNotNull { name ->
                 Regex("res/(mipmap[^/]*|drawable[^/]*)/").find(name)?.groupValues?.get(1)
             }.distinct().sorted()
             val warnings = buildList {
-                if (launcher.isEmpty()) add("No obvious raster launcher icon was found by filename; resource-table inspection may be required.")
-                if (adaptive > 0) add("Adaptive icon XML resources are present; foreground/background layers may need separate replacement.")
-                if (vectors > 0) add("Vector drawable XML resources are present; raster icon replacement may not affect them.")
-                if (buckets.size > 1) add("Multiple density or resource-qualifier buckets are present.")
+                if (launcherImages == 0) add("No obvious raster launcher icon was found by filename; the manifest resource may use another name.")
+                if (launcherXml > 0) add("Compiled launcher XML resources were found. A resource-table-aware parser is needed to distinguish adaptive icons, vectors and layer lists reliably.")
+                if (buckets.size > 1) add("Multiple density or resource-qualifier buckets are present; all variants must be checked when replacing an icon.")
             }
-            return IconResourceReport(launcher.size, adaptive, vectors, buckets, warnings)
+            return IconResourceReport(launcherImages, launcherXml, buckets, warnings)
         }
     }
 }
