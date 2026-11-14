@@ -197,6 +197,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
     var buildHistory by remember { mutableStateOf(CloneBuildHistoryRepository(context).getAll()) }
     var selectedClone by remember { mutableStateOf<InstalledClone?>(null) }
     var cloneSelectionMode by remember { mutableStateOf(false) }
+    var cloneSortByName by remember { mutableStateOf(true) }
     var selectedClonePackages by remember { mutableStateOf<Set<String>>(emptySet()) }
     var bulkUninstallQueue by remember { mutableStateOf<List<String>>(emptyList()) }
     var bulkUninstallIndex by remember { mutableStateOf(0) }
@@ -760,13 +761,21 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                     val filteredClones = clones.filter {
                         it.cloneLabel.contains(query, true) || it.clonePackage.contains(query, true) ||
                             it.originalPackage.contains(query, true)
+                    }.let { matches ->
+                        if (cloneSortByName) matches.sortedBy { it.cloneLabel.lowercase() }
+                        else matches.sortedByDescending { it.updateAvailable }
                     }
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("${clones.size} installed · ${selectedClonePackages.size} selected", style = MaterialTheme.typography.titleSmall)
-                        TextButton(onClick = {
-                            cloneSelectionMode = !cloneSelectionMode
-                            if (!cloneSelectionMode) selectedClonePackages = emptySet()
-                        }) { Text(if (cloneSelectionMode) "Done" else "Select") }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TextButton(onClick = { cloneSortByName = !cloneSortByName }) {
+                                Text(if (cloneSortByName) "Sort: name" else "Sort: updates")
+                            }
+                            TextButton(onClick = {
+                                cloneSelectionMode = !cloneSelectionMode
+                                if (!cloneSelectionMode) selectedClonePackages = emptySet()
+                            }) { Text(if (cloneSelectionMode) "Done" else "Select") }
+                        }
                     }
                     if (cloneSelectionMode) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
