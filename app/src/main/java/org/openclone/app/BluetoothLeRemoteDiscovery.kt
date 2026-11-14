@@ -1,6 +1,7 @@
 package org.openclone.app
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
@@ -8,6 +9,8 @@ import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -39,6 +42,8 @@ data class DiscoveredBleRemote(
 )
 
 object BleDiscoveryPermissions {
+    const val MAX_RESULTS = 64
+    const val SCAN_DURATION_MS = 15_000L
     fun requiredForSdk(sdkInt: Int): Array<String> =
         if (sdkInt >= Build.VERSION_CODES.S) {
             arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
@@ -58,20 +63,33 @@ class BluetoothLeRemoteDiscovery(context: Context) {
         (context.applicationContext.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
     private val scanner get() = adapter?.bluetoothLeScanner
     private var callback: ScanCallback? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var stopTask: Runnable? = null
 
+    @SuppressLint("MissingPermission")
     fun start(onDevice: (DiscoveredBleRemote) -> Unit, onError: (String) -> Unit) {
         check(callback == null) { "Bluetooth scan is already running." }
         val bluetooth = adapter ?: error("This device does not provide Bluetooth LE.")
         if (!bluetooth.isEnabled) error("Turn on Bluetooth to scan for nearby devices.")
         val bleScanner = scanner ?: error("Bluetooth LE scanning is unavailable.")
         val active = object : ScanCallback() {
-            override fun onScanResult(callbackType: Int, result: ScanResult) = publish(result)
-            override fun onBatchScanResults(results: MutableList<ScanResult>) = results.forEach(::publish)
+            override fun onScanResult(callbackType: Int, result: ScanResult) {
+                mainHandler.post { runCatching { publish(result) }.onFailure { onError("Could not read BLE advertisement metadata.") } }
+            }
+            override fun onBatchScanResults(results: MutableList<ScanResult>) {
+                val batch = results.toList()
+                mainHandler.post { batch.forEach { result -> runCatching { publish(result) }.onFailure { onError("Could not read BLE advertisement metadata.") } } }
+            }
             override fun onScanFailed(errorCode: Int) {
-                callback = null
-                onError("Bluetooth scan failed (Android error $errorCode).")
+                mainHandler.post {
+                    stopTask?.let(mainHandler::removeCallbacks)
+                    stopTask = null
+                    callback = null
+                    onError("Bluetooth scan failed (Android error $errorCode).")
+                }
             }
             private fun publish(result: ScanResult) {
+                if (callback !== this) return
                 val record = result.scanRecord
                 val label = record?.deviceName?.takeIf { it.isNotBlank() } ?: "Unnamed BLE device"
                 val uuids = record?.serviceUuids.orEmpty().map { it.uuid.toString() }.take(16)
@@ -88,6 +106,12 @@ class BluetoothLeRemoteDiscovery(context: Context) {
         callback = active
         try {
             bleScanner.startScan(active)
+            val timeout = Runnable {
+                stop()
+                onError("Bluetooth scan stopped after 15 seconds.")
+            }
+            stopTask = timeout
+            mainHandler.postDelayed(timeout, BleDiscoveryPermissions.SCAN_DURATION_MS)
         } catch (error: SecurityException) {
             callback = null
             throw error
@@ -97,13 +121,18 @@ class BluetoothLeRemoteDiscovery(context: Context) {
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun stop() {
-        val active = callback ?: return
+        stopTask?.let(mainHandler::removeCallbacks)
+        stopTask = null
+        val active = callback
         callback = null
-        try {
-            scanner?.stopScan(active)
-        } catch (_: SecurityException) {
-            // Permission may have been revoked while scanning.
+        if (active != null) {
+            try {
+                scanner?.stopScan(active)
+            } catch (_: SecurityException) {
+                // Permission may have been revoked while scanning.
+            }
         }
     }
 }
@@ -128,7 +157,6 @@ fun UniversalRemoteBleDiscoveryCard() {
     DisposableEffect(discovery) {
         onDispose {
             discovery?.stop()
-            scanning = false
         }
     }
 
@@ -197,7 +225,7 @@ private fun startBleScan(
             onDevice = { found ->
                 val index = devices.indexOfFirst { it.id == found.id }
                 if (index >= 0) devices[index] = found
-                else if (devices.size < 64) devices.add(found)
+                else if (devices.size < BleDiscoveryPermissions.MAX_RESULTS) devices.add(found)
             },
             onError = {
                 setScanning(false)
