@@ -50,13 +50,11 @@ class ManagedWebViewActivity : ComponentActivity() {
                     webView.value?.let { view ->
                         runCatching {
                             view.stopLoading()
-                            view.loadUrl("about:blank")
                             view.clearHistory()
                             view.removeAllViews()
                             view.destroy()
                         }
                     }
-                    webView.value = null
                 }
             }
             MaterialTheme {
