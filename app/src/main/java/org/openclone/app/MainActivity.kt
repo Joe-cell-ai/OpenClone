@@ -64,6 +64,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -182,6 +184,7 @@ private fun OpenCloneTheme(mode: OpenCloneThemeMode, content: @Composable () -> 
 private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (OpenCloneThemeMode) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val listSearchFocusRequester = remember { FocusRequester() }
     var apps by remember { mutableStateOf<List<InstalledApp>>(emptyList()) }
     var query by remember { mutableStateOf("") }
     var includeSystem by remember { mutableStateOf(false) }
@@ -699,11 +702,20 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                     Text("OPENCLONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Text(currentTab, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 }
-                TextButton(
-                    onClick = { showSettings = true },
-                    modifier = Modifier.padding(top = 8.dp)
-                ) {
-                    Text("⚙️  Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                if (currentTab == "Home") {
+                    TextButton(
+                        onClick = { showSettings = true },
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Text("⚙️  Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
+                } else if (currentTab in setOf("Apps", "APKs", "Cloned apps", "Cloned APKs")) {
+                    TextButton(
+                        onClick = { runCatching { listSearchFocusRequester.requestFocus() } },
+                        modifier = Modifier.padding(top = 8.dp)
+                    ) {
+                        Text("⌕  Search", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    }
                 }
             }
             when (currentTab) {
@@ -748,7 +760,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                             Switch(checked = includeSystem, onCheckedChange = { includeSystem = it })
                         }
                     }
-                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Search apps or package ID") })
+                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().focusRequester(listSearchFocusRequester), singleLine = true, label = { Text("Search apps or package ID") })
                     when {
                         loading -> Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { CircularProgressIndicator(); Text("Loading apps…") }
                         visibleApps.isEmpty() -> Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("No matching apps found.") }
