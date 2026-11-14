@@ -1249,6 +1249,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     item { UniversalRemoteDiscoveryCard() }
                     item { UniversalRemoteBleDiscoveryCard() }
                     item { InfraredApplianceRemoteCard() }
+                    item { CommunityIrRemoteCatalogueCard() }
                     item { MiRemoteExperienceCard() }
                 }
                 else -> if (currentTab == "Store") ExtensionToolsScreen(
