@@ -10,6 +10,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Network
+import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.clickable
@@ -31,6 +33,16 @@ import androidx.work.WorkerParameters
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.openclone.app.data.ExtensionDiagnosticsLog
+import org.openclone.app.data.PrivacyAuditRepository
+import org.openclone.app.data.StorageSnapshot
+import org.openclone.app.data.InstalledAppRepository
+import org.openclone.app.data.InstalledCloneRepository
+import org.openclone.app.data.InstalledClone
+import java.io.BufferedReader
+import java.io.InputStreamReader
+import java.io.DataInputStream
+import java.io.File
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.InetSocketAddress
@@ -44,12 +56,13 @@ private const val APP_LOCK = "app_lock_enabled"
 private const val WORK_NAME = "openclone_daily_clone_update_check"
 internal const val UPDATE_CHANNEL = "openclone_clone_updates"
 
-data class ProxyProfile(val name: String, val host: String, val port: Int) {
+data class ProxyProfile(val name: String, val host: String, val port: Int, val protocol: String = "HTTP_CONNECT") {
     companion object {
-        fun validate(name: String, host: String, port: Int) {
+        fun validate(name: String, host: String, port: Int, protocol: String = "HTTP_CONNECT") {
             require(name.trim().isNotEmpty() && name.length <= 40) { "Profile name must contain 1–40 characters." }
             require(host.isNotBlank() && host.length <= 253 && host.none { it.isWhitespace() || it == '/' || it == '@' }) { "Enter a valid proxy host." }
             require(port in 1..65535) { "Port must be between 1 and 65535." }
+            require(protocol in setOf("HTTP_CONNECT", "SOCKS5")) { "Unsupported proxy protocol." }
         }
     }
 }
@@ -61,25 +74,84 @@ class ProxyProfileRepository(context: Context) {
         buildList {
             for (i in 0 until array.length()) {
                 val item = array.optJSONObject(i) ?: continue
-                val profile = ProxyProfile(item.optString("name"), item.optString("host"), item.optInt("port"))
-                runCatching { ProxyProfile.validate(profile.name, profile.host, profile.port) }.onSuccess { add(profile) }
+                val profile = ProxyProfile(item.optString("name"), item.optString("host"), item.optInt("port"), item.optString("protocol", "HTTP_CONNECT"))
+                runCatching { ProxyProfile.validate(profile.name, profile.host, profile.port, profile.protocol) }.onSuccess { add(profile) }
             }
         }
     }.getOrDefault(emptyList())
 
     @Synchronized fun save(profile: ProxyProfile) {
-        ProxyProfile.validate(profile.name, profile.host, profile.port)
+        ProxyProfile.validate(profile.name, profile.host, profile.port, profile.protocol)
         val updated = (getAll().filterNot { it.name.equals(profile.name, true) } + profile).sortedBy { it.name.lowercase() }
         require(updated.size <= 10) { "A maximum of 10 proxy profiles can be saved." }
         val array = JSONArray()
-        updated.forEach { p -> array.put(JSONObject().put("name", p.name.trim()).put("host", p.host.trim()).put("port", p.port)) }
+        updated.forEach { p -> array.put(JSONObject().put("name", p.name.trim()).put("host", p.host.trim()).put("port", p.port).put("protocol", p.protocol)) }
         check(prefs.edit().putString(PROFILES, array.toString()).commit()) { "Could not save proxy profile." }
+    }
+
+    @Synchronized fun replaceAll(profiles: List<ProxyProfile>) {
+        require(profiles.size <= 10) { "A maximum of 10 proxy profiles can be restored." }
+        profiles.forEach { ProxyProfile.validate(it.name, it.host, it.port, it.protocol) }
+        require(profiles.map { it.name.lowercase() }.distinct().size == profiles.size) { "Proxy profile names must be unique." }
+        val array = JSONArray()
+        profiles.sortedBy { it.name.lowercase() }.forEach { profile ->
+            array.put(JSONObject().put("name", profile.name.trim()).put("host", profile.host.trim())
+                .put("port", profile.port).put("protocol", profile.protocol))
+        }
+        check(prefs.edit().putString(PROFILES, array.toString()).commit()) { "Could not restore proxy profiles." }
     }
 
     @Synchronized fun delete(name: String) {
         val array = JSONArray()
-        getAll().filterNot { it.name == name }.forEach { p -> array.put(JSONObject().put("name", p.name).put("host", p.host).put("port", p.port)) }
+        getAll().filterNot { it.name == name }.forEach { p -> array.put(JSONObject().put("name", p.name).put("host", p.host).put("port", p.port).put("protocol", p.protocol)) }
         check(prefs.edit().putString(PROFILES, array.toString()).commit()) { "Could not remove proxy profile." }
+    }
+}
+
+object ProxyConnectivityTester {
+    /** Performs a real unauthenticated HTTP CONNECT or SOCKS5 handshake to example.com:443. */
+    fun test(profile: ProxyProfile, timeoutMillis: Int = 4000) {
+        ProxyProfile.validate(profile.name, profile.host, profile.port, profile.protocol)
+        java.net.Socket().use { socket ->
+            socket.soTimeout = timeoutMillis
+            socket.connect(InetSocketAddress(profile.host.trim(), profile.port), timeoutMillis)
+            val input = DataInputStream(socket.getInputStream())
+            val output = socket.getOutputStream()
+            when (profile.protocol) {
+                "HTTP_CONNECT" -> {
+                    output.write("CONNECT example.com:443 HTTP/1.1\r\nHost: example.com:443\r\nProxy-Connection: close\r\n\r\n".toByteArray(Charsets.US_ASCII))
+                    output.flush()
+                    val response = BufferedReader(InputStreamReader(input, Charsets.US_ASCII)).readLine().orEmpty()
+                    require(response.matches(Regex("HTTP/1\\.[01] 200(?: .*)?"))) {
+                        "HTTP proxy rejected CONNECT: " + response.take(120)
+                    }
+                }
+                "SOCKS5" -> {
+                    output.write(byteArrayOf(5, 1, 0))
+                    output.flush()
+                    val greeting = ByteArray(2)
+                    input.readFully(greeting)
+                    require(greeting[0].toInt() == 5 && greeting[1].toInt() == 0) {
+                        "SOCKS5 proxy requires authentication or rejected no-auth mode."
+                    }
+                    val host = "example.com".toByteArray(Charsets.US_ASCII)
+                    output.write(byteArrayOf(5, 1, 0, 3, host.size.toByte()) + host + byteArrayOf(1, 0xBB.toByte()))
+                    output.flush()
+                    val header = ByteArray(4)
+                    input.readFully(header)
+                    require(header[0].toInt() == 5 && header[1].toInt() == 0) {
+                        "SOCKS5 CONNECT request was rejected (code " + (header[1].toInt() and 0xff) + ")."
+                    }
+                    when (header[3].toInt() and 0xff) {
+                        1 -> input.skipBytes(4)
+                        3 -> input.skipBytes(input.readUnsignedByte())
+                        4 -> input.skipBytes(16)
+                        else -> error("SOCKS5 returned an unsupported address type.")
+                    }
+                    input.skipBytes(2)
+                }
+            }
+        }
     }
 }
 
@@ -125,14 +197,26 @@ object OpenCloneNotificationChannels {
 }
 
 object CloneUpdateAutomation {
+    private const val INTERVAL_HOURS = "update_check_interval_hours"
     fun isEnabled(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(AUTOMATION, false)
+    fun intervalHours(context: Context): Long = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .getLong(INTERVAL_HOURS, 24L).coerceIn(24L, 168L)
+
+    fun setIntervalHours(context: Context, hours: Long) {
+        require(hours in setOf(24L, 72L, 168L)) { "Choose a 1-day, 3-day or 7-day interval." }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(INTERVAL_HOURS, hours).apply()
+        if (isEnabled(context)) schedule(context)
+    }
+
     fun setEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(AUTOMATION, enabled).apply()
-        if (enabled) {
-            OpenCloneNotificationChannels.ensure(context)
-            val request = PeriodicWorkRequestBuilder<CloneUpdateCheckWorker>(24, TimeUnit.HOURS).build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
-        } else WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        if (enabled) schedule(context) else WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+    }
+
+    private fun schedule(context: Context) {
+        OpenCloneNotificationChannels.ensure(context)
+        val request = PeriodicWorkRequestBuilder<CloneUpdateCheckWorker>(intervalHours(context), TimeUnit.HOURS).build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 }
 
@@ -170,13 +254,43 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var name by remember { mutableStateOf("") }
     var host by remember { mutableStateOf("") }
     var port by remember { mutableStateOf("8080") }
+    var protocol by remember { mutableStateOf("HTTP_CONNECT") }
+    var privacyAudits by remember { mutableStateOf(PrivacyAuditRepository(context).getAll()) }
+    var storage by remember { mutableStateOf(StorageSnapshot(0L, 0L, 0L, 0)) }
+    var installedClones by remember { mutableStateOf<List<InstalledClone>>(emptyList()) }
+    var showClearCache by remember { mutableStateOf(false) }
+    var diagnostics by remember { mutableStateOf(ExtensionDiagnosticsLog(context).getAll()) }
     var message by remember { mutableStateOf("Saved profiles are not applied to cloned apps or device traffic.") }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
+    var automationInterval by remember { mutableStateOf(CloneUpdateAutomation.intervalHours(context)) }
     var appLockEnabled by remember { mutableStateOf(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(APP_LOCK, false)) }
     var appLockMessage by remember { mutableStateOf("Uses the Android device screen lock; OpenClone does not store a separate password.") }
 
-    LaunchedEffect(Unit) { OpenCloneNotificationChannels.ensure(context); network = NetworkSnapshot.read(context) }
+    val refreshNetwork = { network = NetworkSnapshot.read(context) }
+    LaunchedEffect(Unit) {
+        OpenCloneNotificationChannels.ensure(context)
+        refreshNetwork()
+        withContext(Dispatchers.IO) {
+            installedClones = runCatching {
+                val apps = InstalledAppRepository(context.packageManager).getInstalledApps(true)
+                InstalledCloneRepository(context.packageManager).findClones(apps)
+            }.getOrDefault(emptyList())
+            storage = StorageSnapshot.read(context)
+        }
+        privacyAudits = PrivacyAuditRepository(context).getAll()
+        diagnostics = ExtensionDiagnosticsLog(context).getAll()
+    }
+    DisposableEffect(context) {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) { refreshNetwork() }
+            override fun onCapabilitiesChanged(network: Network, networkCapabilities: NetworkCapabilities) { refreshNetwork() }
+            override fun onLost(network: Network) { refreshNetwork() }
+        }
+        runCatching { manager.registerDefaultNetworkCallback(callback) }
+        onDispose { runCatching { manager.unregisterNetworkCallback(callback) } }
+    }
 
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Extensions", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -184,25 +298,89 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
 
         ExtensionNavigationCard("🎨", "Icon & Name Studio", "Clone label, package ID, custom PNG and badge settings", onOpenApps)
         ExtensionNavigationCard("🧩", "Clone Profiles", "Save, apply, rename, duplicate and delete clone configurations", onOpenProfiles)
-        ExtensionNavigationCard("🗂️", "Multi-Clone Manager", "Search, sort, multi-select and system-confirmed uninstall", onOpenClones)
+        ExtensionNavigationCard("🗂️", "Multi-Clone Manager", "Group by original app, search, sort, multi-select and system-confirmed uninstall", onOpenClones)
         ExtensionNavigationCard("🎭", "Theme Studio", "System, Light, Dark, AMOLED and four accent palettes", onOpenSettings)
         ExtensionNavigationCard("🛡️", "Privacy Guard", "Review requested permissions and remove selected manifest declarations", onOpenApps)
         ExtensionNavigationCard("💾", "Storage Manager", "Installed clone APK/split footprint; private app data is OS-restricted", onOpenClones)
         ExtensionNavigationCard("📦", "Backup & Restore", "Versioned clone-profile backup and restore", onOpenSettings)
         ExtensionNavigationCard("🧰", "Developer Toolkit", "APK inspection, compatibility preflight and redacted build-history export", onOpenSettings)
 
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("🛡️ Privacy Guard · Audit history", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = { privacyAudits = PrivacyAuditRepository(context).getAll() }) { Text("Refresh") }
+                }
+                Text("Recorded clone-build permission decisions: ${privacyAudits.size}. These are manifest-removal choices, not runtime permission grants.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                privacyAudits.take(5).forEach { audit ->
+                    Text("${audit.clonePackage} · ${audit.removedPermissions.size} of ${audit.requestedPermissions.size} removed · ${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(audit.recordedAtMillis))}", style = MaterialTheme.typography.labelSmall)
+                }
+                if (privacyAudits.isEmpty()) Text("No audit entries yet. A record is created when a clone build completes.", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("💾 Storage Manager", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = {
+                        scope.launch { storage = withContext(Dispatchers.IO) { StorageSnapshot.read(context) } }
+                    }) { Text("Refresh") }
+                }
+                Text("OpenClone cache: ${formatBytes(storage.cacheBytes)}")
+                Text("OpenClone files: ${formatBytes(storage.filesBytes)}")
+                Text("Generated clone outputs: ${formatBytes(storage.buildOutputBytes)} · ${storage.buildOutputFiles} file(s)")
+                Text("Installed clones: ${installedClones.size}. APK footprint is shown per clone; Android does not expose another app's private data/cache size.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                installedClones.forEach { clone ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(clone.cloneLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = {
+                            context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                                .setData(Uri.parse("package:${clone.clonePackage}"))
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }) { Text("Android storage details") }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { showClearCache = true }) { Text("Clear OpenClone cache") }
+                    TextButton(onClick = { onOpenClones() }) { Text("View clone sizes") }
+                }
+            }
+        }
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("🧰 Developer Toolkit · Runtime diagnostics", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = { diagnostics = ExtensionDiagnosticsLog(context).getAll() }) { Text("Refresh") }
+                }
+                Text("${diagnostics.size} bounded diagnostic event(s). Export contains event codes and redacted summaries, not signing keys or local file paths.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = {
+                    val report = ExtensionDiagnosticsLog(context).exportJson()
+                    val share = Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_TEXT, report)
+                    context.startActivity(Intent.createChooser(share, "Share OpenClone diagnostics"))
+                }) { Text("Share runtime diagnostics") }
+            }
+        }
+
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🌐 Proxy Manager", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Save up to 10 named proxy endpoints and test TCP reachability. This does not route clone traffic or change Android's device-wide proxy.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Save up to 10 HTTP CONNECT or SOCKS5 endpoints and test an unauthenticated tunnel handshake to example.com:443. Profiles do not route clone traffic or change Android's device-wide proxy.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Profile name") })
                 OutlinedTextField(host, { host = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Proxy host") })
                 OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Port") })
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { protocol = "HTTP_CONNECT" }) { Text((if (protocol == "HTTP_CONNECT") "✓ " else "") + "HTTP CONNECT") }
+                    TextButton(onClick = { protocol = "SOCKS5" }) { Text((if (protocol == "SOCKS5") "✓ " else "") + "SOCKS5") }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(onClick = {
                         runCatching {
-                            repository.save(ProxyProfile(name, host, port.toInt()))
+                            repository.save(ProxyProfile(name, host, port.toInt(), protocol))
                             profiles = repository.getAll()
+                            ExtensionDiagnosticsLog(context).append("proxy", "profile_saved", "Saved a proxy profile.")
                             message = "Proxy profile saved."
                         }.onFailure { message = it.message ?: "Could not save profile." }
                     }) { Text("Save") }
@@ -213,11 +391,17 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                             message = "Testing TCP connection…"
                             scope.launch {
                                 val result = withContext(Dispatchers.IO) {
-                                    runCatching { Socket().use { it.connect(InetSocketAddress(host.trim(), targetPort!!), 4000) } }
+                                    runCatching { ProxyConnectivityTester.test(ProxyProfile(name.ifBlank { "Test" }, host, targetPort!!, protocol)) }
                                 }
                                 message = result.fold(
-                                    { "TCP connection succeeded; proxy authentication and clone routing are not tested." },
-                                    { "Connection failed: " + (it.message ?: "host unreachable") }
+                                    {
+                                        ExtensionDiagnosticsLog(context).append("proxy", "handshake_success", "Proxy tunnel handshake succeeded.")
+                                        "Proxy handshake succeeded. Authentication and cloned-app routing are not configured."
+                                    },
+                                    {
+                                        ExtensionDiagnosticsLog(context).append("proxy", "handshake_failed", "Proxy tunnel handshake failed.")
+                                        "Connection failed: " + (it.message ?: "host unreachable")
+                                    }
                                 )
                             }
                         }
@@ -228,9 +412,9 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
                             Text(p.name, fontWeight = FontWeight.Medium)
-                            Text(p.host + ":" + p.port, style = MaterialTheme.typography.labelSmall)
+                            Text(p.protocol + " · " + p.host + ":" + p.port, style = MaterialTheme.typography.labelSmall)
                         }
-                        TextButton(onClick = { name = p.name; host = p.host; port = p.port.toString() }) { Text("Edit") }
+                        TextButton(onClick = { name = p.name; host = p.host; port = p.port.toString(); protocol = p.protocol }) { Text("Edit") }
                         TextButton(onClick = { repository.delete(p.name); profiles = repository.getAll() }) { Text("Delete") }
                     }
                 }
@@ -257,17 +441,45 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                 Text("🔔 Notification Manager", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Manage OpenClone's own clone-update notification channel. Third-party clone notifications cannot be rewritten.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(onClick = { OpenCloneNotificationChannels.openSettings(context) }) { Text("Open notification settings") }
+                if (installedClones.isNotEmpty()) {
+                    Text("Per-clone Android notification settings", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    installedClones.forEach { clone ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(clone.cloneLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = {
+                                context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(Settings.EXTRA_APP_PACKAGE, clone.clonePackage)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }) { Text("Manage") }
+                        }
+                    }
+                }
             }
         }
 
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("⚙️ Automation Studio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Check daily for source-app updates used by installed clones. OpenClone only reports updates; it never installs or updates apps automatically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Check for source-app updates used by installed clones. OpenClone only reports updates; it never installs or updates apps automatically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Check interval", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(24L to "1 day", 72L to "3 days", 168L to "7 days").forEach { (hours, label) ->
+                        TextButton(onClick = {
+                            runCatching {
+                                CloneUpdateAutomation.setIntervalHours(context, hours)
+                                automationInterval = hours
+                            }.onFailure { message = it.message ?: "Could not update interval." }
+                        }) { Text((if (automationInterval == hours) "✓ " else "") + label) }
+                    }
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (automation) "Daily check enabled" else "Daily check disabled", modifier = Modifier.weight(1f))
                     Switch(checked = automation, onCheckedChange = { enabled ->
-                        runCatching { CloneUpdateAutomation.setEnabled(context, enabled); automation = enabled }
+                        runCatching {
+                            CloneUpdateAutomation.setEnabled(context, enabled)
+                            automation = enabled
+                            ExtensionDiagnosticsLog(context).append("automation", if (enabled) "enabled" else "disabled", "Source-app update check schedule changed.")
+                        }
                             .onFailure { message = it.message ?: "Could not change schedule." }
                     })
                 }
@@ -277,7 +489,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🔒 App Lock", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Protect OpenClone with the Android device PIN, pattern or password. No custom password is stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Protect OpenClone with Android biometrics or the device PIN, pattern or password. No custom password is stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (appLockEnabled) "App lock enabled" else "App lock disabled", modifier = Modifier.weight(1f))
                     Switch(checked = appLockEnabled, onCheckedChange = { enabled ->
@@ -295,10 +507,37 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                 Text(appLockMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        ExtensionStatusCard("🌍 WebView Manager", "Not applicable yet: OpenClone currently hosts no WebView. It cannot control WebViews inside cloned apps.")
-        ExtensionStatusCard("🖥️ Remote Control", "Disabled until secure authenticated pairing, encrypted IPC, explicit consent and revocation are implemented.")
-        ExtensionStatusCard("🔄 Extension Updater", "Disabled until a trusted publisher key and signed catalogue/package verification are provisioned. No downloaded code is executed.")
+        ExtensionStatusCard("🌍 WebView Manager", "OpenClone has no embedded WebView workflow today. A fail-closed HTTPS host policy is implemented for a future OpenClone-owned WebView; it cannot control cloned-app WebViews.")
+        ExtensionStatusCard("🖥️ Remote Control", "HMAC request-authentication and time-window validation primitives are implemented and tested. No network listener or remote actions are enabled until secure pairing, replay protection and explicit local consent are complete.")
+        ExtensionStatusCard("🔄 Extension Updater", "Signed descriptor and package SHA-256/ECDSA verification primitives are implemented and tested. Updates remain disabled until a trusted publisher public key and signed catalogue are provisioned.")
     }
+
+    if (showClearCache) {
+        AlertDialog(
+            onDismissRequest = { showClearCache = false },
+            title = { Text("Clear OpenClone cache?") },
+            text = { Text("Only OpenClone temporary cache files will be removed. Clone APK outputs, profiles, signing identities and cloned-app data are not touched.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showClearCache = false
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            context.cacheDir.listFiles()?.forEach { child -> runCatching { child.deleteRecursively() } }
+                        }
+                        ExtensionDiagnosticsLog(context).append("storage", "cache_cleared", "OpenClone temporary cache was cleared.")
+                        storage = withContext(Dispatchers.IO) { StorageSnapshot.read(context) }
+                    }
+                }) { Text("Clear cache") }
+            },
+            dismissButton = { TextButton(onClick = { showClearCache = false }) { Text("Cancel") } }
+        )
+    }
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L * 1024L -> "%.2f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
+    bytes >= 1024L * 1024L -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
+    else -> "${bytes / 1024L} KB"
 }
 
 @Composable
