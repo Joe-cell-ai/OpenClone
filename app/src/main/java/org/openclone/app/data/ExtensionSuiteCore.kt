@@ -322,9 +322,9 @@ data class ManagedWebViewPolicy(
     val allowedHosts: Set<String> = emptySet()
 ) {
     fun allows(url: String): Boolean {
-        val uri = runCatching { android.net.Uri.parse(url) }.getOrNull() ?: return false
+        val uri = runCatching { java.net.URI(url) }.getOrNull() ?: return false
         val host = uri.host?.lowercase() ?: return false
-        return uri.scheme == "https" && host in allowedHosts.map(String::lowercase).toSet()
+        return uri.scheme.equals("https", ignoreCase = true) && host in allowedHosts.map(String::lowercase).toSet()
     }
 
     fun applyTo(webView: android.webkit.WebView) {
