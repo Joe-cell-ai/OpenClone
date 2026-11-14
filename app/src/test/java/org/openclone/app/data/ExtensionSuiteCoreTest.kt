@@ -110,5 +110,7 @@ class ExtensionSuiteCoreTest {
         assertTrue(policy.allows("https://docs.example.com/help"))
         assertFalse(policy.allows("http://docs.example.com/help"))
         assertFalse(policy.allows("https://evil.example.com/"))
+        assertFalse(policy.allows("https://docs.example.com:8443/help"))
+        assertFalse(policy.allows("https://user:pass@docs.example.com/help"))
     }
 }
