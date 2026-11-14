@@ -10,7 +10,7 @@ OpenClone uses Android's `VpnService` allowlist and the pinned MIT-licensed tun2
 4. Android's VPN allowlist routes only that selected clone through the TUN interface. OpenClone and other apps are excluded from the allowlist and use the normal network.
 5. The tunnel sends IPv4/IPv6 traffic through the chosen proxy and uses tun2proxy's virtual DNS handling.
 
-The foreground notification stays visible while the route is active. Stop the route from Extensions or the notification.
+The foreground notification stays visible while the route is active. If the native packet engine exits unexpectedly while the service is alive, OpenClone keeps the VPN interface and notification active so selected-clone traffic remains blocked until the user stops the route. Stop the route from Extensions or the notification. Android can still revoke or kill a VPN service; OpenClone cannot guarantee fail-closed behavior after an OS-level revocation or process death.
 
 ## Android platform limit
 
