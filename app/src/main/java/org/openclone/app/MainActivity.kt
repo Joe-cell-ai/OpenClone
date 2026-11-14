@@ -127,41 +127,98 @@ private enum class OpenCloneAccent(val label: String, val primary: Color, val se
 }
 
 class MainActivity : ComponentActivity() {
+    private val appLocked = mutableStateOf(false)
+    private var appLockEnabled = false
+    private var credentialPromptActive = false
+    private var authenticateOnResume = false
+    private lateinit var credentialLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        credentialLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            credentialPromptActive = false
+            appLocked.value = result.resultCode != RESULT_OK
+        }
+        appLockEnabled = getSharedPreferences("openclone_extension_tools", MODE_PRIVATE)
+            .getBoolean("app_lock_enabled", false)
+        appLocked.value = appLockEnabled
+        authenticateOnResume = appLockEnabled
         setContent {
-            var themeMode by remember {
-                mutableStateOf(
-                    runCatching {
-                        OpenCloneThemeMode.valueOf(
-                            getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
-                                .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name)!!
-                        )
-                    }.getOrDefault(OpenCloneThemeMode.DARK)
-                )
-            }
-            var accent by remember {
-                mutableStateOf(
-                    runCatching {
-                        OpenCloneAccent.valueOf(
-                            getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
-                                .getString("accent_palette", OpenCloneAccent.VIOLET.name)!!
-                        )
-                    }.getOrDefault(OpenCloneAccent.VIOLET)
-                )
-            }
-            OpenCloneTheme(themeMode, accent) {
-                OpenCloneHome(themeMode, accent, onThemeModeChange = { selected ->
-                    themeMode = selected
-                    getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
-                        .putString(THEME_MODE_KEY, selected.name).apply()
-                }, onAccentChange = { selected ->
-                    accent = selected
-                    getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
-                        .putString("accent_palette", selected.name).apply()
-                })
+            if (appLockEnabled && appLocked.value) {
+                AppLockGate(onUnlock = { launchDeviceCredential() })
+            } else {
+                var themeMode by remember {
+                    mutableStateOf(
+                        runCatching {
+                            OpenCloneThemeMode.valueOf(
+                                getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                    .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name)!!
+                            )
+                        }.getOrDefault(OpenCloneThemeMode.DARK)
+                    )
+                }
+                var accent by remember {
+                    mutableStateOf(
+                        runCatching {
+                            OpenCloneAccent.valueOf(
+                                getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                    .getString("accent_palette", OpenCloneAccent.VIOLET.name)!!
+                            )
+                        }.getOrDefault(OpenCloneAccent.VIOLET)
+                    )
+                }
+                OpenCloneTheme(themeMode, accent) {
+                    OpenCloneHome(themeMode, accent, onThemeModeChange = { selected ->
+                        themeMode = selected
+                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                            .putString(THEME_MODE_KEY, selected.name).apply()
+                    }, onAccentChange = { selected ->
+                        accent = selected
+                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                            .putString("accent_palette", selected.name).apply()
+                    })
+                }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appLockEnabled = getSharedPreferences("openclone_extension_tools", MODE_PRIVATE)
+            .getBoolean("app_lock_enabled", false)
+        if (appLockEnabled && authenticateOnResume && !credentialPromptActive) {
+            authenticateOnResume = false
+            launchDeviceCredential()
+        }
+    }
+
+    override fun onPause() {
+        if (appLockEnabled && !credentialPromptActive) {
+            appLocked.value = true
+            authenticateOnResume = true
+        }
+        super.onPause()
+    }
+
+    private fun launchDeviceCredential() {
+        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+        if (!keyguard.isDeviceSecure) {
+            getSharedPreferences("openclone_extension_tools", MODE_PRIVATE).edit()
+                .putBoolean("app_lock_enabled", false).apply()
+            appLockEnabled = false
+            appLocked.value = false
+            return
+        }
+        val intent = keyguard.createConfirmDeviceCredentialIntent(
+            "Unlock OpenClone",
+            "Confirm your device screen lock to continue"
+        )
+        if (intent == null) {
+            appLocked.value = false
+            return
+        }
+        credentialPromptActive = true
+        credentialLauncher.launch(intent)
     }
 }
 
