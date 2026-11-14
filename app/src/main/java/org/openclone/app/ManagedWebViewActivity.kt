@@ -27,6 +27,7 @@ class ManagedWebViewActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         val preferences = getSharedPreferences("openclone_managed_webview", MODE_PRIVATE)
         val allowedHosts = preferences.getStringSet("allowed_hosts", emptySet()).orEmpty().toSet()
+        android.webkit.CookieManager.getInstance().setAcceptCookie(false)
         val policy = ManagedWebViewPolicy(
             javaScriptEnabled = false,
             domStorageEnabled = false,
@@ -43,6 +44,20 @@ class ManagedWebViewActivity : ComponentActivity() {
             val webView = remember { mutableStateOf<WebView?>(null) }
             BackHandler(enabled = webView.value != null) {
                 if (webView.value?.canGoBack() == true) webView.value?.goBack() else finish()
+            }
+            DisposableEffect(Unit) {
+                onDispose {
+                    webView.value?.let { view ->
+                        runCatching {
+                            view.stopLoading()
+                            view.loadUrl("about:blank")
+                            view.clearHistory()
+                            view.removeAllViews()
+                            view.destroy()
+                        }
+                    }
+                    webView.value = null
+                }
             }
             MaterialTheme {
                 Column(
