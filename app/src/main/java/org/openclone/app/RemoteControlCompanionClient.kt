@@ -93,14 +93,14 @@ object RemoteControlCompanionClient {
             val timestamp = System.currentTimeMillis().toString()
             val nonceBytes = ByteArray(18).also(SecureRandom()::nextBytes)
             val nonce = Base64.encodeToString(nonceBytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-            val canonical = "$method\\n$path\\n$timestamp\\n$nonce"
+            val canonical = "$method\n$path\n$timestamp\n$nonce"
             val mac = Mac.getInstance("HmacSHA256")
             mac.init(SecretKeySpec(pairing.secret, "HmacSHA256"))
             val signature = Base64.encodeToString(mac.doFinal(canonical.toByteArray(StandardCharsets.UTF_8)),
                 Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-            val request = "$method $path HTTP/1.1\\r\\nHost: ${pairing.host}:${pairing.port}\\r\\n" +
-                "X-OpenClone-Timestamp: $timestamp\\r\\nX-OpenClone-Nonce: $nonce\\r\\n" +
-                "X-OpenClone-Signature: $signature\\r\\nConnection: close\\r\\n\\r\\n"
+            val request = "$method $path HTTP/1.1\r\nHost: ${pairing.host}:${pairing.port}\r\n" +
+                "X-OpenClone-Timestamp: $timestamp\r\nX-OpenClone-Nonce: $nonce\r\n" +
+                "X-OpenClone-Signature: $signature\r\nConnection: close\r\n\r\n"
             socket.outputStream.write(request.toByteArray(StandardCharsets.US_ASCII))
             socket.outputStream.flush()
             val response = ByteArrayOutputStream()
@@ -112,9 +112,9 @@ object RemoteControlCompanionClient {
                 response.write(buffer, 0, count)
             }
             val text = response.toString("UTF-8")
-            val statusLine = text.substringBefore("\\r\\n")
-            require(statusLine.contains(" 200 ")) { "Remote request failed: $statusLine · ${text.substringAfter("\\r\\n\\r\\n").take(240)}" }
-            return text.substringAfter("\\r\\n\\r\\n", "").take(1000)
+            val statusLine = text.substringBefore("\r\n")
+            require(statusLine.contains(" 200 ")) { "Remote request failed: $statusLine · ${text.substringAfter("\r\n\r\n").take(240)}" }
+            return text.substringAfter("\r\n\r\n", "").take(1000)
         } finally {
             pairing.secret.fill(0)
             socket.close()
