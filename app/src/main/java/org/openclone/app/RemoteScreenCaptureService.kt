@@ -18,6 +18,8 @@ import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
 import android.os.Build
 import android.os.IBinder
+import android.os.Handler
+import android.os.HandlerThread
 import android.util.DisplayMetrics
 import android.view.WindowManager
 
@@ -26,6 +28,10 @@ class RemoteScreenCaptureService : Service() {
     private var projection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
+    private var encoderThread: HandlerThread? = null
+    private val mainHandler = Handler(mainLooper)
+    private val sessionExpiry = Runnable { stopCapture(); stopSelf() }
+    private var captureDensityDpi: Int = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -68,6 +74,9 @@ class RemoteScreenCaptureService : Service() {
                 ?: error("Android did not grant screen capture.")
             projection = activeProjection
             activeProjection.registerCallback(object : MediaProjection.Callback() {
+                override fun onCapturedContentResize(width: Int, height: Int) {
+                    resizeCapture(width, height)
+                }
                 override fun onStop() {
                     // Android has already stopped this projection; do not call stop() again.
                     projection = null
@@ -79,21 +88,25 @@ class RemoteScreenCaptureService : Service() {
             val metrics = DisplayMetrics()
             @Suppress("DEPRECATION")
             (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
+            captureDensityDpi = metrics.densityDpi
             val dimensions = ScreenCaptureBounds.fit(metrics.widthPixels, metrics.heightPixels)
             val reader = ImageReader.newInstance(dimensions.first, dimensions.second, PixelFormat.RGBA_8888, 2)
             imageReader = reader
+            encoderThread = HandlerThread("OpenCloneFrameEncoder").apply { start() }
             reader.setOnImageAvailableListener({ source ->
                 // Drain and release frames. Network streaming is intentionally not enabled in this stage.
                 source.acquireLatestImage()?.use { frame ->
                     runCatching { RemoteScreenFrameStore.publish(frame) }
                         .onFailure { android.util.Log.w("OpenCloneScreen", "Could not encode screen frame", it) }
                 }
-            }, android.os.Handler(mainLooper))
+            }, Handler(encoderThread!!.looper))
             virtualDisplay = activeProjection.createVirtualDisplay(
                 "OpenCloneRemoteScreen", dimensions.first, dimensions.second, metrics.densityDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, reader.surface, null, null
             ) ?: error("Android could not create the screen capture display.")
             getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE).edit().putBoolean(KEY_ACTIVE, true).apply()
+            mainHandler.removeCallbacks(sessionExpiry)
+            mainHandler.postDelayed(sessionExpiry, MAX_SESSION_MILLIS)
             START_NOT_STICKY
         } catch (error: Exception) {
             android.util.Log.e("OpenCloneScreen", "Could not start consented screen capture", error)
@@ -101,6 +114,28 @@ class RemoteScreenCaptureService : Service() {
             stopSelf()
             START_NOT_STICKY
         }
+    }
+
+    private fun resizeCapture(width: Int, height: Int) {
+        val reader = imageReader ?: return
+        val display = virtualDisplay ?: return
+        runCatching {
+            val size = ScreenCaptureBounds.fit(width, height)
+            reader.setOnImageAvailableListener(null, null)
+            reader.surface.let { reader.setOnImageAvailableListener({ source ->
+                source.acquireLatestImage()?.use { frame ->
+                    runCatching { RemoteScreenFrameStore.publish(frame) }
+                        .onFailure { android.util.Log.w("OpenCloneScreen", "Could not encode resized screen frame", it) }
+                }
+            }, encoderThread?.looper?.let(::Handler)) }
+            display.resize(size.first, size.second, captureDensityDpi)
+            reader.setOnImageAvailableListener({ source ->
+                source.acquireLatestImage()?.use { frame ->
+                    runCatching { RemoteScreenFrameStore.publish(frame) }
+                        .onFailure { android.util.Log.w("OpenCloneScreen", "Could not encode resized screen frame", it) }
+                }
+            }, encoderThread?.looper?.let(::Handler))
+        }.onFailure { android.util.Log.w("OpenCloneScreen", "Could not resize capture surface", it) }
     }
 
     private fun createNotificationChannel() {
@@ -118,6 +153,9 @@ class RemoteScreenCaptureService : Service() {
         imageReader?.setOnImageAvailableListener(null, null)
         imageReader?.close()
         imageReader = null
+        encoderThread?.quitSafely()
+        encoderThread = null
+        mainHandler.removeCallbacks(sessionExpiry)
         RemoteScreenFrameStore.clear()
         val active = projection
         projection = null
@@ -148,6 +186,7 @@ class RemoteScreenCaptureService : Service() {
         const val KEY_ACTIVE = "capture_active"
         private const val CHANNEL_ID = "openclone_remote_screen"
         private const val NOTIFICATION_ID = 38474
+        private const val MAX_SESSION_MILLIS = 15L * 60L * 1000L
     }
 }
 
