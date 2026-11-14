@@ -1310,6 +1310,9 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         InfraredApplianceRemoteCard()
                     }
                     item {
+                        MiRemoteExperienceCard()
+                    }
+                    item {
                         ExtensionPreviewCard("⚙️", "Automation Studio", "Consent-based workflows using supported Android actions", "Planned")
                     }
                     item {
