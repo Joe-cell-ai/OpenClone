@@ -49,6 +49,16 @@ class DexPackageStringRewriterTest {
     }
 
     @Test
+    fun doesNotReplacePackageWhenFollowedByIdentifierCharacter() {
+        assertEquals(
+            "com.example.app_extra;com.example.clone",
+            DexPackageStringRewriter.replacePackageToken(
+                "com.example.app_extra;com.example.app", "com.example.app", "com.example.clone"
+            )
+        )
+    }
+
+    @Test
     fun leavesUnrelatedStringsUnchanged() {
         val value = "https://example.com/help"
         assertEquals(value, DexPackageStringRewriter.replacePackageToken(value, "com.example.app", "com.example.clone"))

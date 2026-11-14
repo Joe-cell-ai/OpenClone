@@ -24,7 +24,7 @@ import org.jf.dexlib2.rewriter.Rewriters
 object DexPackageStringRewriter {
     data class Result(val replacements: Int)
 
-    fun rewrite(input: File, output: File, oldPackage: String, newPackage: String): Result {
+    fun rewrite(input: File, output: File, oldPackage: String, newPackage: String, ensureActive: () -> Unit = {}): Result {
         require(input.isFile && input.canRead()) { "DEX input is missing or unreadable." }
         require(oldPackage.isNotBlank() && newPackage.isNotBlank() && oldPackage != newPackage) {
             "A distinct source and target package ID is required for DEX rewriting."
@@ -35,6 +35,7 @@ object DexPackageStringRewriter {
                 val delegate = super.getInstructionRewriter(rewriters)
                 return object : Rewriter<Instruction> {
                     override fun rewrite(value: Instruction): Instruction {
+                        ensureActive()
                         val instruction = delegate.rewrite(value)
                         val reference = ((instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)?.reference) as? org.jf.dexlib2.iface.reference.StringReference
                         if (reference == null) return instruction
@@ -60,6 +61,7 @@ object DexPackageStringRewriter {
                 val delegate = super.getEncodedValueRewriter(rewriters)
                 return object : Rewriter<EncodedValue> {
                     override fun rewrite(value: EncodedValue): EncodedValue {
+                        ensureActive()
                         if (value is StringEncodedValue) {
                             val changed = replacePackageToken(value.value, oldPackage, newPackage)
                             if (changed != value.value) {
@@ -72,10 +74,13 @@ object DexPackageStringRewriter {
                 }
             }
         })
+        ensureActive()
         val dex = DexFileFactory.loadDexFile(input, Opcodes.getDefault())
         val rewritten = rewriter.dexFileRewriter.rewrite(dex)
         output.parentFile?.mkdirs()
+        ensureActive()
         DexFileFactory.writeDexFile(output.absolutePath, rewritten)
+        ensureActive()
         require(output.isFile && output.length() > 0L) { "DEX rewriting produced an empty output file." }
         DexFileFactory.loadDexFile(output, Opcodes.getDefault())
         return Result(replacements.get())

@@ -95,7 +95,7 @@ object ApkRebuilder {
                             zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyChecked(input, output, onStep) } }
                             onStep?.invoke()
                             val rewrite = DexPackageStringRewriter.rewrite(
-                                sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second
+                                sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {}
                             )
                             onStep?.invoke()
                             val selectedDex = if (rewrite.replacements > 0) rewrittenDex else sourceDex
