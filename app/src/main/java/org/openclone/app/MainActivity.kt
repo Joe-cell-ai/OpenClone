@@ -117,6 +117,13 @@ private enum class OpenCloneThemeMode(val label: String) {
     SYSTEM("System default"), LIGHT("Light"), DARK("Dark"), AMOLED("AMOLED")
 }
 
+private enum class OpenCloneAccent(val label: String, val primary: Color, val secondary: Color, val tertiary: Color, val container: Color, val onContainer: Color) {
+    VIOLET("Violet", Color(0xFF8B7CFF), Color(0xFFB18CFF), Color(0xFF55D8E8), Color(0xFF342B78), Color(0xFFE7E3FF)),
+    OCEAN("Ocean", Color(0xFF168AAD), Color(0xFF52B6C8), Color(0xFF55C7A5), Color(0xFF104B66), Color(0xFFDDF7FF)),
+    EMERALD("Emerald", Color(0xFF23856D), Color(0xFF55A88E), Color(0xFF83B85C), Color(0xFF174E40), Color(0xFFD9F7E9)),
+    SUNSET("Sunset", Color(0xFFC05A42), Color(0xFFE18B55), Color(0xFFB56A9F), Color(0xFF693326), Color(0xFFFFE8DF))
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -131,19 +138,33 @@ class MainActivity : ComponentActivity() {
                     }.getOrDefault(OpenCloneThemeMode.DARK)
                 )
             }
-            OpenCloneTheme(themeMode) {
-                OpenCloneHome(themeMode) { selected ->
+            var accent by remember {
+                mutableStateOf(
+                    runCatching {
+                        OpenCloneAccent.valueOf(
+                            getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                .getString("accent_palette", OpenCloneAccent.VIOLET.name)!!
+                        )
+                    }.getOrDefault(OpenCloneAccent.VIOLET)
+                )
+            }
+            OpenCloneTheme(themeMode, accent) {
+                OpenCloneHome(themeMode, accent, onThemeModeChange = { selected ->
                     themeMode = selected
                     getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
                         .putString(THEME_MODE_KEY, selected.name).apply()
-                }
+                }, onAccentChange = { selected ->
+                    accent = selected
+                    getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                        .putString("accent_palette", selected.name).apply()
+                })
             }
         }
     }
 }
 
 @Composable
-private fun OpenCloneTheme(mode: OpenCloneThemeMode, content: @Composable () -> Unit) {
+private fun OpenCloneTheme(mode: OpenCloneThemeMode, accent: OpenCloneAccent, content: @Composable () -> Unit) {
     val dark = when (mode) {
         OpenCloneThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
         OpenCloneThemeMode.LIGHT -> false
@@ -178,11 +199,18 @@ private fun OpenCloneTheme(mode: OpenCloneThemeMode, content: @Composable () -> 
             onSurfaceVariant = Color(0xFF55546A), outline = Color(0xFF77758A)
         )
     }
-    MaterialTheme(colorScheme = colors, typography = Typography(), content = content)
+    val accentedColors = colors.copy(
+        primary = accent.primary,
+        secondary = accent.secondary,
+        tertiary = accent.tertiary,
+        primaryContainer = accent.container,
+        onPrimaryContainer = accent.onContainer
+    )
+    MaterialTheme(colorScheme = accentedColors, typography = Typography(), content = content)
 }
 
 @Composable
-private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (OpenCloneThemeMode) -> Unit) {
+private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent, onThemeModeChange: (OpenCloneThemeMode) -> Unit, onAccentChange: (OpenCloneAccent) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listSearchFocusRequester = remember { FocusRequester() }
@@ -1554,6 +1582,22 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                                     Text("True-black surfaces for OLED displays", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
+                        }
+                    }
+                    Text("Accent palette", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text("Choose a saved color family. The preview updates immediately.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    OpenCloneAccent.values().forEach { option ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { onAccentChange(option) }.padding(vertical = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = accent == option, onClick = { onAccentChange(option) })
+                            Surface(
+                                modifier = Modifier.size(22.dp),
+                                shape = RoundedCornerShape(50),
+                                color = option.primary
+                            ) {}
+                            Text(option.label, modifier = Modifier.padding(start = 10.dp), fontWeight = FontWeight.Medium)
                         }
                     }
                     HorizontalDivider()
