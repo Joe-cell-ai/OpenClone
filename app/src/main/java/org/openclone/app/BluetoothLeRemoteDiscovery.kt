@@ -41,7 +41,7 @@ data class DiscoveredBleRemote(
 object BleDiscoveryPermissions {
     fun requiredForSdk(sdkInt: Int): Array<String> =
         if (sdkInt >= Build.VERSION_CODES.S) {
-            arrayOf(Manifest.permission.BLUETOOTH_SCAN)
+            arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
         } else {
             arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
         }
