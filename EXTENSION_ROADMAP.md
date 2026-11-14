@@ -26,12 +26,12 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 | P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Partial: installed clone APK/split footprint is shown; other apps' private data/cache sizes are not exposed to ordinary apps |
 | P1 | Backup & Restore | Export/import profiles and supported OpenClone metadata with integrity checks | Partial: version-1 JSON profile backup export/restore with size/count limits, schema validation and pre-validation before writes; APK-set ZIP and signing identity backups remain separate; settings bundle and cryptographic authenticity remain |
 | P1 | App Lock | Local OpenClone access gate using supported device authentication | Research: threat model and biometric/device-credential flow required |
-| P1 | Proxy Manager | Named proxy profiles and connection test; only supported routing scope | Research: per-clone routing is not generally available to an ordinary app without VPN/OS support |
-| P1 | Network Monitor | User-visible diagnostics for OpenClone's own traffic and supported VPN traffic | Research: cannot promise transparent per-app traffic capture |
+| P1 | Proxy Manager | Named proxy profiles and connection test; only supported routing scope | Partial: up to 10 local named profiles with validation and TCP endpoint reachability test; profiles do not route cloned-app traffic or change the device proxy |
+| P1 | Network Monitor | User-visible diagnostics for OpenClone's own traffic and supported VPN traffic | Partial: live-refresh connectivity, transport, validated-internet, metered and VPN state; no third-party traffic capture |
 | P1 | Developer Toolkit | Build/compatibility diagnostics, structured logs and redacted export | Partial: APK inspection, compatibility preflight, build history and redacted build-history JSON export; structured runtime logs remain |
 | P2 | WebView Manager | Safe settings for OpenClone-owned WebViews and isolated data | Research: does not control arbitrary WebViews embedded in cloned apps |
-| P2 | Notification Manager | Explain notification behavior and supported per-clone notification settings | Research: arbitrary notification rewriting requires privileged notification access and is not guaranteed |
-| P2 | Automation Studio | Explicit, user-approved workflows using supported Android intents/actions | Planned: no hidden interaction, credential capture or security bypass |
+| P2 | Notification Manager | Explain notification behavior and supported per-clone notification settings | Partial: creates and links to Android settings for OpenClone's own clone-update notification channel; cannot rewrite third-party clone notifications |
+| P2 | Automation Studio | Explicit, user-approved workflows using supported Android intents/actions | Partial: opt-in daily WorkManager check for updates to original apps used by installed clones; reports only and never auto-installs |
 | P2 | Remote Control | Authenticated, opt-in control of OpenClone actions over a secure local/remote channel | Research: threat model, pairing, encryption and revocation required |
 | P3 | Extension Updater | Verify catalogue metadata, publisher signatures, version and compatibility before update | Planned: depends on signed extension package and IPC architecture |
 
@@ -92,7 +92,7 @@ An extension is complete only when it has:
 
 ## Current implementation boundary
 
-Existing OpenClone functionality includes app browsing, APK inspection and rebuild, custom label/package ID, limited custom PNG icon replacement, optional manifest permission removal, clone discovery/launch/uninstall, APK ZIP export, signing identity backup, build history, System/Light/Dark/AMOLED themes and four saved accent palettes. Versioned clone-profile backup and redacted build-history export are also available; this does not back up clone-private data or signing identities. These existing features are not evidence that the broader extensions listed above are complete.
+Existing OpenClone functionality includes app browsing, APK inspection and rebuild, custom label/package ID, limited custom PNG icon replacement, optional manifest permission removal, clone discovery/launch/uninstall, APK ZIP export, signing identity backup, build history, System/Light/Dark/AMOLED themes and four saved accent palettes. Versioned clone-profile backup and redacted build-history export are also available; this does not back up clone-private data or signing identities. The current extension tools also provide saved proxy endpoint profiles with TCP reachability checks, Android connectivity diagnostics, OpenClone notification-channel settings and an opt-in daily clone-source update check. These tools do not provide per-clone proxy routing or third-party traffic/notification access. These existing features are not evidence that the broader extensions listed above are complete.
 
 ## Core UI workstream — Top Bar & Dashboard
 
