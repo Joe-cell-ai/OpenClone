@@ -15,6 +15,11 @@ class BleDiscoveryPermissionsTest {
         assertFalse(permissions.contains("android.permission.ACCESS_FINE_LOCATION"))
     }
 
+    @Test fun scanDurationAndResultCountAreBounded() {
+        assertTrue(BleDiscoveryPermissions.SCAN_DURATION_MS in 1_000L..30_000L)
+        assertTrue(BleDiscoveryPermissions.MAX_RESULTS in 1..128)
+    }
+
     @Test fun android11AndEarlierUseFineLocationForBleScanning() {
         val permissions = BleDiscoveryPermissions.requiredForSdk(30)
         assertArrayEquals(arrayOf("android.permission.ACCESS_FINE_LOCATION"), permissions)
