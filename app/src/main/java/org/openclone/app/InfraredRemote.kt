@@ -165,7 +165,7 @@ fun InfraredApplianceRemoteCard() {
                     label = { Text("Exact model") }
                 )
                 Text("Appliance category", style = MaterialTheme.typography.labelMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     listOf(
                         ApplianceCategory.TELEVISION,
                         ApplianceCategory.AIR_CONDITIONER,
@@ -174,9 +174,13 @@ fun InfraredApplianceRemoteCard() {
                         ApplianceCategory.PROJECTOR,
                         ApplianceCategory.AUDIO,
                         ApplianceCategory.OTHER
-                    ).forEach { category ->
-                        Button(onClick = { selectedCategory = category }) {
-                            Text(if (selectedCategory == category) "✓ ${category.displayName}" else category.displayName)
+                    ).chunked(4).forEach { categories ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            categories.forEach { category ->
+                                Button(onClick = { selectedCategory = category }) {
+                                    Text(if (selectedCategory == category) "✓ ${category.displayName}" else category.displayName)
+                                }
+                            }
                         }
                     }
                 }
@@ -250,7 +254,7 @@ fun InfraredApplianceRemoteCard() {
                 style = MaterialTheme.typography.labelMedium,
                 color = if (available) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 listOf(
                     ApplianceCategory.TELEVISION,
                     ApplianceCategory.AIR_CONDITIONER,
@@ -259,9 +263,13 @@ fun InfraredApplianceRemoteCard() {
                     ApplianceCategory.PROJECTOR,
                     ApplianceCategory.AUDIO,
                     ApplianceCategory.OTHER
-                ).forEach { category ->
-                    Button(onClick = { selectedCategory = category }) {
-                        Text(if (selectedCategory == category) "✓ ${category.displayName}" else category.displayName)
+                ).chunked(4).forEach { categories ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        categories.forEach { category ->
+                            Button(onClick = { selectedCategory = category }) {
+                                Text(if (selectedCategory == category) "✓ ${category.displayName}" else category.displayName)
+                            }
+                        }
                     }
                 }
             }
