@@ -305,7 +305,7 @@ class RemoteControlService : Service() {
     private fun respondBytes(socket: javax.net.ssl.SSLSocket, status: Int, bytes: ByteArray, contentType: String) {
         val reason = if (status == 200) "OK" else "Error"
         val writer = OutputStreamWriter(socket.outputStream, Charsets.US_ASCII)
-        writer.write("HTTP/1.1 $status $reason\\r\\nContent-Type: $contentType\\r\\nContent-Length: ${bytes.size}\\r\\nConnection: close\\r\\n\\r\\n")
+        writer.write("HTTP/1.1 $status $reason\r\nContent-Type: $contentType\\r\\nContent-Length: ${bytes.size}\\r\\nConnection: close\\r\\n\\r\\n")
         writer.flush()
         socket.outputStream.write(bytes)
         socket.outputStream.flush()
