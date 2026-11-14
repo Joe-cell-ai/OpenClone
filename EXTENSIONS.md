@@ -4,7 +4,7 @@
 
 The Extensions screen now links to built-in OpenClone capabilities and includes working proxy-profile storage with TCP reachability checks, Android connectivity diagnostics, OpenClone notification-channel settings and an opt-in daily clone-source update check. These are built-in tools, not third-party extension packages. Third-party extension download, installation, execution, update and removal are **not implemented**.
 
-The approved 16-extension delivery plan is tracked in [EXTENSION_ROADMAP.md](EXTENSION_ROADMAP.md). A status of Foundation or Partial does not mean the complete extension is available. In particular, saved proxy profiles do not route cloned-app traffic; the network monitor does not capture third-party traffic; notifications are limited to OpenClone's own channels; and automation only reports update availability without installing apps.
+The App Lock tool can use the Android device PIN, pattern or password and locks OpenClone when it leaves the foreground; biometric-specific support and device-level lifecycle verification remain outstanding. The approved 16-extension delivery plan is tracked in [EXTENSION_ROADMAP.md](EXTENSION_ROADMAP.md). A status of Foundation or Partial does not mean the complete extension is available. In particular, saved proxy profiles do not route cloned-app traffic; the network monitor does not capture third-party traffic; notifications are limited to OpenClone's own channels; and automation only reports update availability without installing apps.
 
 ## Architecture and trust requirements
 
