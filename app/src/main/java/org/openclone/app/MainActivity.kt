@@ -11,6 +11,8 @@ import android.os.Bundle
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -234,6 +236,58 @@ class MainActivity : ComponentActivity() {
             appLocked.value = false
             return
         }
+
+        val biometricManager = BiometricManager.from(this)
+        if (Build.VERSION.SDK_INT >= 30) {
+            val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            if (biometricManager.canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS) {
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Unlock OpenClone")
+                    .setSubtitle("Use biometrics or your device screen lock")
+                    .setAllowedAuthenticators(authenticators)
+                    .build()
+                showBiometricPrompt(promptInfo)
+                return
+            }
+        } else if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS) {
+            val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Unlock OpenClone")
+                .setSubtitle("Authenticate to continue")
+                .setNegativeButtonText("Use device PIN")
+                .build()
+            showBiometricPrompt(promptInfo)
+            return
+        }
+        launchKeyguardCredential(keyguard)
+    }
+
+    private fun showBiometricPrompt(promptInfo: BiometricPrompt.PromptInfo) {
+        val prompt = BiometricPrompt(
+            this,
+            ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    credentialPromptActive = false
+                    appLocked.value = false
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    credentialPromptActive = false
+                    if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+                        launchKeyguardCredential(keyguard)
+                    } else {
+                        appLocked.value = true
+                    }
+                }
+            }
+        )
+        credentialPromptActive = true
+        prompt.authenticate(promptInfo)
+    }
+
+    private fun launchKeyguardCredential(keyguard: android.app.KeyguardManager) {
         val intent = keyguard.createConfirmDeviceCredentialIntent(
             "Unlock OpenClone",
             "Confirm your device screen lock to continue"
