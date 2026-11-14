@@ -146,7 +146,7 @@ class CloneUpdateCheckWorker(context: Context, params: WorkerParameters) : Corou
                 if (allowed) {
                     val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(applicationContext, UPDATE_CHANNEL)
-                        else @Suppress("DEPRECATION") Notification.Builder(applicationContext)
+                        else Notification.Builder(applicationContext)
                     manager.notify(4201, builder.setSmallIcon(android.R.drawable.stat_notify_sync)
                         .setContentTitle("OpenClone updates available")
                         .setContentText(count.toString() + " cloned app(s) have an update available for their original app.")
