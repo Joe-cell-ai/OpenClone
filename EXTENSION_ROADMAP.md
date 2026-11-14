@@ -52,8 +52,8 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 - Extend the existing theme selector without breaking current saved preferences; four persistent accent palettes are now available alongside the four theme modes.
 
 ### M2 — Privacy and data lifecycle
-- Add a permission-impact review before building a clone; the current setup now lists requested permissions, offers per-permission removal selection and explains the manifest-only effect. Persistent audit history and richer rationale remain.
-- Extend Storage Manager with output APK sizes and app-owned cache visibility where Android exposes it; installed clone APK/split footprint is implemented.
+- Add a permission-impact review before building a clone; the setup lists requested permissions, offers per-permission removal selection, explains manifest-only effects and persists a bounded per-build audit history. Richer permission rationale remains.
+- Extend Storage Manager with output APK sizes and app-owned cache visibility where Android exposes it; installed clone APK/split footprint, OpenClone cache/files totals, safe cache cleanup and Android app-details links are implemented.
 - Add versioned JSON clone-profile backup export/restore with schema validation and bounded input; APK bytes, signing identities, credentials and clone-private app data remain excluded.
 - Add App Lock with AndroidX biometric prompt, device-credential fallback and no custom password storage; device lifecycle verification remains.
 
@@ -64,8 +64,8 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 - Monitor only traffic OpenClone is authorized and technically able to observe.
 
 ### M4 — Platform integrations
-- Add a separate OpenClone-owned managed WebView with an exact HTTPS host allowlist; cloned-app WebViews remain outside OpenClone's control.
-- Implement notification controls only where Android exposes supported per-app settings or the user grants the required access.
+- Add a separate OpenClone-owned managed WebView with exact HTTPS host allowlist, blocked non-allowlisted subresources and conservative WebView settings; cloned-app WebViews remain outside OpenClone's control.
+- Implement notification controls only where Android exposes supported per-app settings or the user grants the required access; OpenClone's channel and Android settings deep-links for detected clones are implemented.
 - Provide compatibility labels for unsupported devices and app configurations.
 
 ### M5 — Automation and remote management
@@ -74,7 +74,7 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 - Add remote pairing, strong authentication, encrypted transport, revocation and audit logs before remote actions are exposed.
 
 ### M6 — Extension ecosystem
-- Finalize a versioned descriptor and capability registry.
+- Add a versioned signed descriptor and package-digest verifier with API compatibility checks; a trusted publisher key and catalogue are still required.
 - Verify publisher identity, package signature, version and compatibility.
 - Use explicit Android IPC; verify caller identity on every privileged request.
 - Require per-capability consent and provide disable, revoke, update and uninstall.
