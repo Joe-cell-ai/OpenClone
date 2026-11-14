@@ -645,8 +645,11 @@ private fun OpenCloneHome() {
                     Text("OPENCLONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Text(currentTab, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 }
-                TextButton(onClick = { showSettings = true }) {
-                    Text("⚙  Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                TextButton(
+                    onClick = { showSettings = true },
+                    modifier = Modifier.padding(top = 8.dp)
+                ) {
+                    Text("⚙️  Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                 }
             }
             when (currentTab) {
@@ -676,16 +679,6 @@ private fun OpenCloneHome() {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 HomeActionTile("Cloned apps", "Manage installed clones", Modifier.weight(1f)) { currentTab = "Cloned apps" }
                                 HomeActionTile("Cloned APKs", "Manage generated APKs", Modifier.weight(1f)) { currentTab = "Cloned APKs" }
-                            }
-                        }
-                    }
-                    item { Text("Account & Tools", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-                    item {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            HomeActionTile("Backup / Profile", "Local presets and restore", Modifier.fillMaxWidth()) { showSettings = true }
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                                HomeActionTile("Settings", "Preferences", Modifier.weight(1f)) { showSettings = true }
-                                HomeActionTile("Extensions", "Add-ons and integrations", Modifier.weight(1f)) { currentTab = "Store" }
                             }
                         }
                     }
@@ -774,10 +767,15 @@ private fun OpenCloneHome() {
                             selected = currentTab == tab,
                             onClick = { currentTab = tab; query = "" },
                             icon = {
-                                Text(
-                                    when (tab) { "Home" -> "⌂"; "Apps" -> "▦"; "APKs" -> "▤"; "Cloned apps" -> "🧬"; "Cloned APKs" -> "⇩"; else -> "◇" },
-                                    style = MaterialTheme.typography.titleLarge
-                                )
+                                val (glyph, tint) = when (tab) {
+                                    "Home" -> "🏠" to Color(0xFF42C8FF)
+                                    "Apps" -> "🟩" to Color(0xFF42D7A5)
+                                    "APKs" -> "📦" to Color(0xFFFFA64D)
+                                    "Cloned apps" -> "🧬" to Color(0xFFB56BFF)
+                                    "Cloned APKs" -> "📥" to Color(0xFF55D88A)
+                                    else -> "🛍️" to Color(0xFFFF79C6)
+                                }
+                                Text(glyph, style = MaterialTheme.typography.headlineSmall)
                             },
                             label = { Text(tab, style = MaterialTheme.typography.labelMedium, maxLines = 1) },
                             alwaysShowLabel = true,
@@ -1045,6 +1043,30 @@ private fun OpenCloneHome() {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Manage OpenClone preferences and information.")
+                    Text("Account & Tools", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            showSettings = false
+                            currentTab = "Store"
+                        },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("Extensions", fontWeight = FontWeight.SemiBold)
+                            Text("Add-ons and integrations", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth().clickable {
+                            statusMessage = "Backup and profile tools are not available yet."
+                        },
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Column(Modifier.padding(14.dp)) {
+                            Text("Backup / Profile", fontWeight = FontWeight.SemiBold)
+                            Text("Local presets and restore · coming soon", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable {
                             val keys = SigningKeys.get(context)
