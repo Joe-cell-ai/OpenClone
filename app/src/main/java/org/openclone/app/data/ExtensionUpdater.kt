@@ -159,6 +159,21 @@ object ExtensionCatalogueVerifier {
         }.getOrNull()
 }
 
+/** Fetches a compact signed envelope and verifies it against the envelope's explicitly trusted publisher. */
+object ExtensionCatalogueClient {
+    fun fetchAndVerify(url: String, publishers: TrustedPublisherRepository, currentApi: Int): List<CatalogueExtension> {
+        val bytes = ExtensionPackageDownloader.download(url, maxBytes = 1024 * 1024)
+        val root = JSONObject(String(bytes, Charsets.UTF_8))
+        val envelope = SignedExtensionCatalogue(
+            publisherId = root.getString("publisherId"),
+            payloadBase64 = root.getString("payload"),
+            signatureBase64 = root.getString("signature")
+        )
+        return publishers.verifyCatalogue(envelope, currentApi)
+            ?: throw SecurityException("Catalogue signature is invalid or its publisher is not trusted.")
+    }
+}
+
 /** HTTPS-only bounded downloader; callers must verify the returned bytes before installation. */
 object ExtensionPackageDownloader {
     fun download(url: String, maxBytes: Int = 100 * 1024 * 1024): ByteArray {
