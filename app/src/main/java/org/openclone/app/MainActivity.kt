@@ -358,24 +358,38 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             output.toString(Charsets.UTF_8.name())
                         } ?: error("Could not read the selected backup.")
                         val root = JSONObject(raw)
-                        require(root.optInt("formatVersion", -1) == 1) { "Unsupported OpenClone backup format." }
+                        require(root.optString("format") == "openclone-profile-backup" && root.optInt("formatVersion", -1) == 1) {
+                            "Unsupported OpenClone backup format."
+                        }
                         val items = root.optJSONArray("profiles") ?: JSONArray()
                         require(items.length() <= 100) { "Backup contains too many profiles." }
+                        val validated = buildList {
+                            for (index in 0 until items.length()) {
+                                val item = items.optJSONObject(index) ?: error("Backup profile #${index + 1} is invalid.")
+                                val name = item.getString("name")
+                                val original = item.getString("originalPackage")
+                                val clone = item.getString("clonePackage")
+                                val label = item.getString("cloneLabel")
+                                val badge = item.optString("badgePosition", "BOTTOM_RIGHT")
+                                org.openclone.app.data.CloneProfile.validate(name, original, clone, label)
+                                require(badge in setOf("TOP_LEFT", "TOP_RIGHT", "BOTTOM_LEFT", "BOTTOM_RIGHT")) {
+                                    "Backup profile #${index + 1} has an invalid badge position."
+                                }
+                                add(Triple(item, name, badge))
+                            }
+                        }
                         val repository = CloneProfileRepository(context)
-                        var restored = 0
-                        for (index in 0 until items.length()) {
-                            val item = items.optJSONObject(index) ?: continue
+                        validated.forEach { (item, name, badge) ->
                             repository.save(
-                                name = item.getString("name"),
+                                name = name,
                                 originalPackage = item.getString("originalPackage"),
                                 clonePackage = item.getString("clonePackage"),
                                 cloneLabel = item.getString("cloneLabel"),
                                 markIcon = item.optBoolean("markIcon", true),
-                                badgePosition = item.optString("badgePosition", "BOTTOM_RIGHT")
+                                badgePosition = badge
                             )
-                            restored++
                         }
-                        restored
+                        validated.size
                     }
                 }
                 result.onSuccess { count ->
@@ -985,7 +999,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         ExtensionPreviewCard("🗂️", "Multi-Clone Manager", "Search, sort, multi-select and Android-confirmed bulk uninstall; grouping remains", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("🎭", "Theme Studio", "System, Light, Dark and AMOLED appearance modes", "Partial")
+                        ExtensionPreviewCard("🎭", "Theme Studio", "System, Light, Dark and AMOLED modes plus four persistent accent palettes", "Partial")
                     }
                     item {
                         ExtensionPreviewCard("🛡️", "Privacy Guard", "Permission removal exists; impact review and audit history remain", "Partial")
@@ -994,7 +1008,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         ExtensionPreviewCard("💾", "Storage Manager", "Installed clone APK/split footprint; private app data is restricted by Android", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("📦", "Backup & Restore", "APK-set export and signing identity backup; unified profile backup remains", "Partial")
+                        ExtensionPreviewCard("📦", "Backup & Restore", "Versioned clone-profile export/restore; APK sets and signing identity remain separate backups", "Partial")
                     }
                     item {
                         ExtensionPreviewCard("🔒", "App Lock", "Device-authentication gate for OpenClone", "Research")
@@ -1006,7 +1020,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         ExtensionPreviewCard("📡", "Network Monitor", "Diagnostics for traffic OpenClone can legitimately observe", "Research")
                     }
                     item {
-                        ExtensionPreviewCard("🧰", "Developer Toolkit", "APK inspection and compatibility preflight exist; structured logs/export remain", "Partial")
+                        ExtensionPreviewCard("🧰", "Developer Toolkit", "APK preflight plus redacted build-history diagnostics export", "Partial")
                     }
                     item {
                         ExtensionPreviewCard("🌍", "WebView Manager", "Controls limited to WebViews hosted by OpenClone", "Research")
