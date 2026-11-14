@@ -70,7 +70,17 @@ object RemoteControlCompanionClient {
     }
 
     private fun request(pairing: RemoteControlPairingEndpoint, method: String, path: String): String {
+        val response = requestRaw(pairing, method, path)
+        return response.toString(StandardCharsets.UTF_8)
+    }
+
+    /** Fetches a JPEG snapshot over the same pinned TLS + HMAC authenticated channel. */
+    fun screenFrame(pairing: RemoteControlPairingEndpoint): ByteArray =
+        requestRaw(pairing, "GET", "/v1/screen/frame")
+
+    private fun requestRaw(pairing: RemoteControlPairingEndpoint, method: String, path: String): ByteArray {
         val expected = pairing.fingerprint
+        val requestSecret = pairing.secret.copyOf()
         val trustManager = object : javax.net.ssl.X509TrustManager {
             override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = Unit
@@ -86,40 +96,53 @@ object RemoteControlCompanionClient {
         }
         val context = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trustManager), SecureRandom()) }
         val raw = Socket()
-        raw.connect(java.net.InetSocketAddress(pairing.host, pairing.port), 8000)
-        raw.soTimeout = 8000
-        val socket = context.socketFactory.createSocket(raw, pairing.host, pairing.port, true) as SSLSocket
         try {
-            socket.enabledProtocols = arrayOf("TLSv1.2")
-            socket.startHandshake()
-            val timestamp = System.currentTimeMillis().toString()
-            val nonceBytes = ByteArray(18).also(SecureRandom()::nextBytes)
-            val nonce = Base64.encodeToString(nonceBytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-            val canonical = "$method\n$path\n$timestamp\n$nonce"
-            val mac = Mac.getInstance("HmacSHA256")
-            mac.init(SecretKeySpec(pairing.secret, "HmacSHA256"))
-            val signature = Base64.encodeToString(mac.doFinal(canonical.toByteArray(StandardCharsets.UTF_8)),
-                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-            val request = "$method $path HTTP/1.1\r\nHost: ${pairing.host}:${pairing.port}\r\n" +
-                "X-OpenClone-Timestamp: $timestamp\r\nX-OpenClone-Nonce: $nonce\r\n" +
-                "X-OpenClone-Signature: $signature\r\nConnection: close\r\n\r\n"
-            socket.outputStream.write(request.toByteArray(StandardCharsets.US_ASCII))
-            socket.outputStream.flush()
-            val response = ByteArrayOutputStream()
-            val buffer = ByteArray(2048)
-            while (true) {
-                val count = socket.inputStream.read(buffer)
-                if (count < 0) break
-                require(response.size() + count <= 16 * 1024) { "Remote response exceeded the size limit." }
-                response.write(buffer, 0, count)
+            raw.connect(java.net.InetSocketAddress(pairing.host, pairing.port), 8000)
+            raw.soTimeout = 8000
+            val socket = context.socketFactory.createSocket(raw, pairing.host, pairing.port, true) as SSLSocket
+            try {
+                socket.enabledProtocols = arrayOf("TLSv1.2")
+                socket.startHandshake()
+                val timestamp = System.currentTimeMillis().toString()
+                val nonceBytes = ByteArray(18).also(SecureRandom()::nextBytes)
+                val nonce = Base64.encodeToString(nonceBytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+                val canonical = "$method\n$path\n$timestamp\n$nonce"
+                val mac = Mac.getInstance("HmacSHA256")
+                mac.init(SecretKeySpec(requestSecret, "HmacSHA256"))
+                val signature = Base64.encodeToString(mac.doFinal(canonical.toByteArray(StandardCharsets.UTF_8)),
+                    Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+                val request = "$method $path HTTP/1.1\r\nHost: \${pairing.host}:\${pairing.port}\r\n" +
+                    "X-OpenClone-Timestamp: $timestamp\r\nX-OpenClone-Nonce: $nonce\r\n" +
+                    "X-OpenClone-Signature: $signature\r\nConnection: close\r\n\r\n"
+                socket.outputStream.write(request.toByteArray(StandardCharsets.US_ASCII))
+                socket.outputStream.flush()
+                val response = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = socket.inputStream.read(buffer)
+                    if (count < 0) break
+                    require(response.size() + count <= 4 * 1024 * 1024 + 8192) { "Remote response exceeded the size limit." }
+                    response.write(buffer, 0, count)
+                }
+                val bytes = response.toByteArray()
+                val headerEnd = (0 until (bytes.size - 3).coerceAtLeast(0)).firstOrNull { index ->
+                    bytes[index] == 13.toByte() && bytes[index + 1] == 10.toByte() &&
+                        bytes[index + 2] == 13.toByte() && bytes[index + 3] == 10.toByte()
+                } ?: error("Remote response headers were incomplete.")
+                val header = String(bytes, 0, headerEnd, StandardCharsets.US_ASCII)
+                val statusLine = header.substringBefore("\r\n")
+                require(statusLine.contains(" 200 ")) {
+                    "Remote request failed: $statusLine · " +
+                        String(bytes, headerEnd + 4, bytes.size - headerEnd - 4, StandardCharsets.UTF_8).take(240)
+                }
+                return bytes.copyOfRange(headerEnd + 4, bytes.size)
+            } finally {
+                socket.close()
             }
-            val text = response.toString("UTF-8")
-            val statusLine = text.substringBefore("\r\n")
-            require(statusLine.contains(" 200 ")) { "Remote request failed: $statusLine · ${text.substringAfter("\r\n\r\n").take(240)}" }
-            return text.substringAfter("\r\n\r\n", "").take(1000)
         } finally {
+            requestSecret.fill(0)
             pairing.secret.fill(0)
-            socket.close()
+            raw.close()
         }
     }
 }
