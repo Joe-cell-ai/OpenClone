@@ -1,4 +1,7 @@
 import java.util.Base64
+import java.net.URL
+import java.security.MessageDigest
+import java.util.zip.ZipFile
 
 plugins {
     id("com.android.application")
@@ -55,16 +58,15 @@ val prepareTun2proxyAndroidLibs = tasks.register("prepareTun2proxyAndroidLibs") 
         val archive = tun2proxyArchive.get().asFile
         if (!archive.isFile) {
             archive.parentFile.mkdirs()
-            val connection = java.net.URL("https://github.com/tun2proxy/tun2proxy/releases/download/v0.8.7/tun2proxy-android-libs.zip")
-                .openConnection().apply {
-                    connectTimeout = 30_000
-                    readTimeout = 180_000
-                }
+            val connection = URL("https://github.com/tun2proxy/tun2proxy/releases/download/v0.8.7/tun2proxy-android-libs.zip")
+                .openConnection()
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 180_000
             connection.getInputStream().use { input ->
                 archive.outputStream().use { output -> input.copyTo(output) }
             }
         }
-        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val digest = MessageDigest.getInstance("SHA-256")
             .digest(archive.readBytes()).joinToString("") { "%02x".format(it) }
         check(digest == "e85d311ade195fe90d6b018585bb86f2f0d8c5ec61f52603b016a6a5d78c6cc4") {
             "tun2proxy v0.8.7 Android library archive failed SHA-256 verification."
@@ -72,7 +74,7 @@ val prepareTun2proxyAndroidLibs = tasks.register("prepareTun2proxyAndroidLibs") 
         val outputRoot = tun2proxyJniDir.get().asFile
         outputRoot.deleteRecursively()
         val abis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
-        java.util.zip.ZipFile(archive).use { zip ->
+        ZipFile(archive).use { zip ->
             abis.forEach { abi ->
                 val entry = zip.getEntry("tun2proxy-android-libs/$abi/libtun2proxy.so")
                     ?: error("Pinned tun2proxy archive is missing $abi/libtun2proxy.so")
