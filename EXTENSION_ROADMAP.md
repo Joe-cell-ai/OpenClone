@@ -55,12 +55,12 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 - Add a permission-impact review before building a clone; the current setup now lists requested permissions, offers per-permission removal selection and explains the manifest-only effect. Persistent audit history and richer rationale remain.
 - Extend Storage Manager with output APK sizes and app-owned cache visibility where Android exposes it; installed clone APK/split footprint is implemented.
 - Add versioned JSON clone-profile backup export/restore with schema validation and bounded input; APK bytes, signing identities, credentials and clone-private app data remain excluded.
-- Add App Lock with explicit device-credential gate and no custom password storage; biometric-specific flow and device lifecycle verification remain.
+- Add App Lock with AndroidX biometric prompt, device-credential fallback and no custom password storage; device lifecycle verification remains.
 
 ### M3 — Network and diagnostics
-- Implement named proxy profiles and test connectivity before enabling.
+- Implement named HTTP CONNECT/SOCKS5 proxy profiles and test an unauthenticated tunnel handshake; per-clone routing/authentication remains platform- and network-dependent.
 - Scope any VPN-based routing to an explicit, user-approved VPN session; disclose that Android VPN routing may affect the device or selected apps depending on platform support.
-- Add structured, redacted diagnostics and export; redacted build-history JSON export is now available, while runtime log capture remains.
+- Add structured, redacted diagnostics and export; bounded runtime event capture and JSON sharing are now available, while deeper engine instrumentation remains.
 - Monitor only traffic OpenClone is authorized and technically able to observe.
 
 ### M4 — Platform integrations
