@@ -279,6 +279,55 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
         ExtensionNavigationCard("📦", "Backup & Restore", "Versioned clone-profile backup and restore", onOpenSettings)
         ExtensionNavigationCard("🧰", "Developer Toolkit", "APK inspection, compatibility preflight and redacted build-history export", onOpenSettings)
 
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("🛡️ Privacy Guard · Audit history", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = { privacyAudits = PrivacyAuditRepository(context).getAll() }) { Text("Refresh") }
+                }
+                Text("Recorded clone-build permission decisions: ${privacyAudits.size}. These are manifest-removal choices, not runtime permission grants.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                privacyAudits.take(5).forEach { audit ->
+                    Text("${audit.clonePackage} · ${audit.removedPermissions.size} of ${audit.requestedPermissions.size} removed · ${java.text.DateFormat.getDateTimeInstance().format(java.util.Date(audit.recordedAtMillis))}", style = MaterialTheme.typography.labelSmall)
+                }
+                if (privacyAudits.isEmpty()) Text("No audit entries yet. A record is created when a clone build completes.", style = MaterialTheme.typography.labelSmall)
+            }
+        }
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("💾 Storage Manager", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = {
+                        scope.launch { storage = withContext(Dispatchers.IO) { StorageSnapshot.read(context) } }
+                    }) { Text("Refresh") }
+                }
+                Text("OpenClone cache: ${formatBytes(storage.cacheBytes)}")
+                Text("OpenClone files: ${formatBytes(storage.filesBytes)}")
+                Text("Generated clone outputs: ${formatBytes(storage.buildOutputBytes)} · ${storage.buildOutputFiles} file(s)")
+                Text("Installed clones: ${installedClones.size}. APK footprint is shown per clone; Android does not expose another app's private data/cache size.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { showClearCache = true }) { Text("Clear OpenClone cache") }
+                    TextButton(onClick = { onOpenClones() }) { Text("View clone sizes") }
+                }
+            }
+        }
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text("🧰 Developer Toolkit · Runtime diagnostics", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    TextButton(onClick = { diagnostics = ExtensionDiagnosticsLog(context).getAll() }) { Text("Refresh") }
+                }
+                Text("${diagnostics.size} bounded diagnostic event(s). Export contains event codes and redacted summaries, not signing keys or local file paths.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = {
+                    val report = ExtensionDiagnosticsLog(context).exportJson()
+                    val share = Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_TEXT, report)
+                    context.startActivity(Intent.createChooser(share, "Share OpenClone diagnostics"))
+                }) { Text("Share runtime diagnostics") }
+            }
+        }
+
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🌐 Proxy Manager", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -349,6 +398,19 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                 Text("🔔 Notification Manager", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Manage OpenClone's own clone-update notification channel. Third-party clone notifications cannot be rewritten.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Button(onClick = { OpenCloneNotificationChannels.openSettings(context) }) { Text("Open notification settings") }
+                if (installedClones.isNotEmpty()) {
+                    Text("Per-clone Android notification settings", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    installedClones.forEach { clone ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text(clone.cloneLabel, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            TextButton(onClick = {
+                                context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                                    .putExtra(Settings.EXTRA_APP_PACKAGE, clone.clonePackage)
+                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                            }) { Text("Manage") }
+                        }
+                    }
+                }
             }
         }
 
@@ -387,10 +449,32 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                 Text(appLockMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        ExtensionStatusCard("🌍 WebView Manager", "Not applicable yet: OpenClone currently hosts no WebView. It cannot control WebViews inside cloned apps.")
-        ExtensionStatusCard("🖥️ Remote Control", "Disabled until secure authenticated pairing, encrypted IPC, explicit consent and revocation are implemented.")
-        ExtensionStatusCard("🔄 Extension Updater", "Disabled until a trusted publisher key and signed catalogue/package verification are provisioned. No downloaded code is executed.")
+        ExtensionStatusCard("🌍 WebView Manager", "OpenClone has no embedded WebView workflow today. A fail-closed HTTPS host policy is implemented for a future OpenClone-owned WebView; it cannot control cloned-app WebViews.")
+        ExtensionStatusCard("🖥️ Remote Control", "HMAC request-authentication and time-window validation primitives are implemented and tested. No network listener or remote actions are enabled until secure pairing, replay protection and explicit local consent are complete.")
+        ExtensionStatusCard("🔄 Extension Updater", "Signed descriptor and package SHA-256/ECDSA verification primitives are implemented and tested. Updates remain disabled until a trusted publisher public key and signed catalogue are provisioned.")
     }
+
+    if (showClearCache) {
+        AlertDialog(
+            onDismissRequest = { showClearCache = false },
+            title = { Text("Clear OpenClone cache?") },
+            text = { Text("Only OpenClone temporary cache files will be removed. Clone APK outputs, profiles, signing identities and cloned-app data are not touched.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    context.cacheDir.listFiles()?.forEach { child -> runCatching { child.deleteRecursively() } }
+                    showClearCache = false
+                    scope.launch { storage = withContext(Dispatchers.IO) { StorageSnapshot.read(context) } }
+                }) { Text("Clear cache") }
+            },
+            dismissButton = { TextButton(onClick = { showClearCache = false }) { Text("Cancel") } }
+        )
+    }
+}
+
+private fun formatBytes(bytes: Long): String = when {
+    bytes >= 1024L * 1024L * 1024L -> "%.2f GB".format(bytes / (1024.0 * 1024.0 * 1024.0))
+    bytes >= 1024L * 1024L -> "%.1f MB".format(bytes / (1024.0 * 1024.0))
+    else -> "${bytes / 1024L} KB"
 }
 
 @Composable
