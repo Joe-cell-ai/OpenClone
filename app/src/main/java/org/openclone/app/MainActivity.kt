@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -887,19 +888,52 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         }
                     }
                     item {
-                        ExtensionPreviewCard("🎨", "Icon Studio", "Advanced launcher icon editing and adaptive icon previews", "Planned")
+                        ExtensionPreviewCard("🎨", "Icon & Name Studio", "Clone label/package editor, custom PNG selection, preview and badge positioning", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("🧩", "Clone Profiles", "Save reusable clone configurations and apply them to future builds", "Planned")
+                        ExtensionPreviewCard("🧩", "Clone Profiles", "Save, apply, rename, duplicate and delete non-secret clone settings", "Implemented")
                     }
                     item {
-                        ExtensionPreviewCard("🛡️", "Backup Tools", "Export and restore supported OpenClone settings and profiles", "Planned")
+                        ExtensionPreviewCard("🗂️", "Multi-Clone Manager", "Search, sort, multi-select and Android-confirmed bulk uninstall; grouping remains", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("🌐", "Network Profiles", "Manage supported per-clone network configuration", "Research")
+                        ExtensionPreviewCard("🎭", "Theme Studio", "System, Light, Dark and AMOLED appearance modes", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("🧰", "Developer Diagnostics", "Inspect build metadata, compatibility warnings and logs", "Planned")
+                        ExtensionPreviewCard("🛡️", "Privacy Guard", "Permission removal exists; impact review and audit history remain", "Partial")
+                    }
+                    item {
+                        ExtensionPreviewCard("💾", "Storage Manager", "Installed clone APK/split footprint; private app data is restricted by Android", "Partial")
+                    }
+                    item {
+                        ExtensionPreviewCard("📦", "Backup & Restore", "APK-set export and signing identity backup; unified profile backup remains", "Partial")
+                    }
+                    item {
+                        ExtensionPreviewCard("🔒", "App Lock", "Device-authentication gate for OpenClone", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("🌐", "Proxy Manager", "Named proxy profiles and connection checks; per-clone routing requires supported VPN/OS APIs", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("📡", "Network Monitor", "Diagnostics for traffic OpenClone can legitimately observe", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("🧰", "Developer Toolkit", "APK inspection and compatibility preflight exist; structured logs/export remain", "Partial")
+                    }
+                    item {
+                        ExtensionPreviewCard("🌍", "WebView Manager", "Controls limited to WebViews hosted by OpenClone", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("🔔", "Notification Manager", "Supported OpenClone notification controls only; cross-app rewriting is restricted", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("⚙️", "Automation Studio", "Consent-based workflows using supported Android actions", "Planned")
+                    }
+                    item {
+                        ExtensionPreviewCard("🖥️", "Remote Control", "Secure pairing, authenticated IPC and revocation", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("🔄", "Extension Updater", "Signed publisher/catalogue verification and safe IPC required", "Planned")
                     }
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
@@ -1016,10 +1050,54 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         singleLine = true,
                         label = { Text("Clone package ID") }
                     )
+                    HorizontalDivider()
+                    Text("Icon & Name Studio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("Preview the launcher label and icon treatment before building. Some apps use icon resources that cannot be safely replaced.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    val studioBitmap = remember(customIconPath) {
+                        customIconPath?.let { path -> runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
+                    }
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            if (studioBitmap != null) {
+                                Image(bitmap = studioBitmap, contentDescription = "Custom clone icon preview", modifier = Modifier.size(64.dp))
+                            } else {
+                                Surface(modifier = Modifier.size(64.dp), shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(sourceLabel.take(1).uppercase(), style = MaterialTheme.typography.headlineLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                    }
+                                }
+                            }
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(cloneName.ifBlank { "Clone name preview" }, fontWeight = FontWeight.SemiBold)
+                                Text(clonePackage.ifBlank { "package.id.preview" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(if (customIconPath == null) "Original app icon" else "Custom PNG icon selected", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            }
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { chooseCustomIcon.launch(arrayOf("image/png", "image/jpeg", "image/webp", "image/*")) }) { Text(if (customIconPath == null) "Choose icon" else "Replace icon") }
+                        TextButton(enabled = customIconPath != null, onClick = { customIconPath = null }) { Text("Use original") }
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = markCloneIcon, onCheckedChange = { markCloneIcon = it })
                         Text("Add clone badge to icon")
                     }
+                    if (markCloneIcon) {
+                        Text("Badge position", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            BadgePosition.values().forEach { position ->
+                                TextButton(onClick = { badgePosition = position }) {
+                                    Text((if (badgePosition == position) "✓ " else "") + when (position) {
+                                        BadgePosition.TOP_LEFT -> "Top left"
+                                        BadgePosition.TOP_RIGHT -> "Top right"
+                                        BadgePosition.BOTTOM_LEFT -> "Bottom left"
+                                        BadgePosition.BOTTOM_RIGHT -> "Bottom right"
+                                    })
+                                }
+                            }
+                        }
+                    }
+                    HorizontalDivider()
                     TextButton(onClick = {
                         profiles = CloneProfileRepository(context).getAll()
                         profileMessage = null
@@ -1062,6 +1140,42 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                             }
                         }, enabled = profileNameInput.isNotBlank()) {
                             Text(if (editingProfileId == null) "Save" else "Update")
+                        }
+                    }
+                    HorizontalDivider()
+                    Text("Privacy Guard · Manifest review", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Choose which requested permissions to remove from the clone manifest. This changes the rebuilt APK declaration only; it does not revoke permissions at runtime or guarantee that an app will work without them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text("${requestedPermissions.size} requested · ${removedPermissions.size} selected for removal", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    if (requestedPermissions.isEmpty()) {
+                        Text("No requested permissions were found in the source manifest.", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        requestedPermissions.forEach { permission ->
+                            val risk = when {
+                                permission.contains("CAMERA") -> "Camera access"
+                                permission.contains("LOCATION") -> "Location access"
+                                permission.contains("CONTACTS") -> "Contacts access"
+                                permission.contains("SMS") || permission.contains("CALL_LOG") || permission.contains("PHONE") -> "Messaging or phone access"
+                                permission.contains("MICROPHONE") || permission.contains("RECORD_AUDIO") -> "Microphone access"
+                                permission.contains("STORAGE") || permission.contains("MEDIA") -> "Files or media access"
+                                permission.contains("NOTIFICATION") -> "Notification access"
+                                else -> "Other manifest permission"
+                            }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = permission in removedPermissions,
+                                    onCheckedChange = { checked ->
+                                        removedPermissions = if (checked) removedPermissions + permission else removedPermissions - permission
+                                    }
+                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(permission.substringAfterLast('.'), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                    Text(risk, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
                         }
                     }
                     cloneError?.let {
