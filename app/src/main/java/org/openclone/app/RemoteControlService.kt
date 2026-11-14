@@ -345,6 +345,9 @@ class RemoteControlService : Service() {
         runCatching { serverSocket?.close() }
         serverSocket = null
         serverThread?.interrupt()
+        // Revoking the companion session also terminates any screen-capture stream.
+        stopService(Intent(this, RemoteScreenCaptureService::class.java))
+        RemoteScreenFrameStore.clear()
         RemoteControlPairingStore.revoke(this)
         ExtensionDiagnosticsLog(this).append("remote", "server_stopped", "Remote control server stopped and pairing credential revoked.")
         super.onDestroy()
