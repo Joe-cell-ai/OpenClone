@@ -10,7 +10,7 @@ class Tun2proxyNativeLibraryTest {
     @Test
     fun pinnedAndroidNativeLibraryLoadsAndExportsJniBridge() {
         val bridge = Class.forName("com.github.shadowsocks.bg.Tun2proxy")
-        assertNotNull(bridge.getDeclaredMethod("run", String::class.java, Char::class.javaPrimitiveType))
+        assertNotNull(bridge.getDeclaredMethod("run", String::class.java, Char::class.javaPrimitiveType!!))
         assertNotNull(bridge.getDeclaredMethod("stop"))
     }
 }
