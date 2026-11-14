@@ -11,9 +11,12 @@ import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Network
+import android.net.VpnService
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -46,6 +49,7 @@ import org.openclone.app.data.CatalogueExtension
 import org.openclone.app.data.ExtensionCatalogueClient
 import org.openclone.app.data.ExtensionPackageDownloader
 import org.openclone.app.data.ExtensionPackageInstaller
+import org.openclone.app.data.CloneProxyAssignmentRepository
 import org.openclone.app.RemoteControlPairingStore
 import org.openclone.app.RemotePairingInfo
 import org.openclone.app.RemoteControlService
@@ -289,6 +293,26 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var updaterBusy by remember { mutableStateOf(false) }
     var remotePairingInfo by remember { mutableStateOf<RemotePairingInfo?>(null) }
     var remoteMessage by remember { mutableStateOf("Remote control is off. Start it only when you need a trusted local-network session.") }
+    val assignmentRepository = remember { CloneProxyAssignmentRepository(context) }
+    var proxyAssignments by remember { mutableStateOf(assignmentRepository.getAll()) }
+    var selectedClonePackage by remember { mutableStateOf("") }
+    var selectedProxyProfile by remember { mutableStateOf("") }
+    var cloneMenuExpanded by remember { mutableStateOf(false) }
+    var profileMenuExpanded by remember { mutableStateOf(false) }
+    var pendingProxyIntent by remember { mutableStateOf<Intent?>(null) }
+    var proxyRoutingMessage by remember { mutableStateOf("Assign a saved proxy profile to one clone. Android permits one active VPN per user/profile.") }
+    val vpnConsentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val pending = pendingProxyIntent
+        if (result.resultCode == Activity.RESULT_OK && pending != null) {
+            runCatching {
+                context.startForegroundService(pending)
+                proxyRoutingMessage = "Android VPN consent granted. Starting the selected clone route…"
+            }.onFailure { proxyRoutingMessage = it.message ?: "Could not start the clone VPN." }
+        } else {
+            proxyRoutingMessage = "VPN permission was not granted; no clone traffic was routed."
+        }
+        pendingProxyIntent = null
+    }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
     var automationInterval by remember { mutableStateOf(CloneUpdateAutomation.intervalHours(context)) }
@@ -296,6 +320,14 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var appLockMessage by remember { mutableStateOf("Uses the Android device screen lock; OpenClone does not store a separate password.") }
 
     val refreshNetwork = { network = NetworkSnapshot.read(context) }
+    LaunchedEffect(installedClones, profiles) {
+        if (installedClones.none { it.clonePackage == selectedClonePackage }) {
+            selectedClonePackage = installedClones.firstOrNull()?.clonePackage.orEmpty()
+        }
+        if (profiles.none { it.name == selectedProxyProfile }) {
+            selectedProxyProfile = profiles.firstOrNull()?.name.orEmpty()
+        }
+    }
     LaunchedEffect(Unit) {
         OpenCloneNotificationChannels.ensure(context)
         refreshNetwork()
@@ -546,7 +578,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🌐 Proxy Manager", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Save up to 10 HTTP CONNECT or SOCKS5 endpoints and test an unauthenticated tunnel handshake to example.com:443. Profiles do not route clone traffic or change Android's device-wide proxy.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Save up to 10 unauthenticated HTTP CONNECT or SOCKS5 endpoints and test a tunnel handshake. Assign a profile to a clone in the Per-clone Routing section below.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 OutlinedTextField(name, { name = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Profile name") })
                 OutlinedTextField(host, { host = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Proxy host") })
                 OutlinedTextField(port, { port = it.filter(Char::isDigit).take(5) }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Port") })
@@ -594,9 +626,97 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                             Text(p.protocol + " · " + p.host + ":" + p.port, style = MaterialTheme.typography.labelSmall)
                         }
                         TextButton(onClick = { name = p.name; host = p.host; port = p.port.toString(); protocol = p.protocol }) { Text("Edit") }
-                        TextButton(onClick = { repository.delete(p.name); profiles = repository.getAll() }) { Text("Delete") }
+                        TextButton(onClick = {
+                            repository.delete(p.name)
+                            assignmentRepository.removeProfile(p.name)
+                            profiles = repository.getAll()
+                            proxyAssignments = assignmentRepository.getAll()
+                        }) { Text("Delete") }
                     }
                 }
+            }
+        }
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("🎯 Proxy Manager · Per-clone Routing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Choose a clone and proxy profile. Android's VpnService allowlist sends only that clone's traffic through the tunnel; OpenClone and other apps bypass it. Android permits one active VPN per user/profile, so only one clone can be routed at a time. Existing VPN sessions must be disconnected first.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Box {
+                    OutlinedButton(onClick = { cloneMenuExpanded = true }, modifier = Modifier.fillMaxWidth(), enabled = installedClones.isNotEmpty()) {
+                        Text(installedClones.firstOrNull { it.clonePackage == selectedClonePackage }?.let { it.cloneLabel + " · " + it.clonePackage } ?: "Select an installed clone")
+                    }
+                    DropdownMenu(expanded = cloneMenuExpanded, onDismissRequest = { cloneMenuExpanded = false }) {
+                        installedClones.forEach { clone ->
+                            DropdownMenuItem(
+                                text = { Text(clone.cloneLabel + " · " + clone.clonePackage) },
+                                onClick = { selectedClonePackage = clone.clonePackage; cloneMenuExpanded = false }
+                            )
+                        }
+                    }
+                }
+                Box {
+                    OutlinedButton(onClick = { profileMenuExpanded = true }, modifier = Modifier.fillMaxWidth(), enabled = profiles.isNotEmpty()) {
+                        Text(profiles.firstOrNull { it.name == selectedProxyProfile }?.let { it.name + " · " + it.protocol + " " + it.host + ":" + it.port } ?: "Select a proxy profile")
+                    }
+                    DropdownMenu(expanded = profileMenuExpanded, onDismissRequest = { profileMenuExpanded = false }) {
+                        profiles.forEach { profile ->
+                            DropdownMenuItem(
+                                text = { Text(profile.name + " · " + profile.protocol + " " + profile.host + ":" + profile.port) },
+                                onClick = { selectedProxyProfile = profile.name; profileMenuExpanded = false }
+                            )
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(enabled = installedClones.isNotEmpty() && profiles.isNotEmpty(), onClick = {
+                        val clone = installedClones.firstOrNull { it.clonePackage == selectedClonePackage }
+                        val profile = profiles.firstOrNull { it.name == selectedProxyProfile }
+                        if (clone == null || profile == null) {
+                            proxyRoutingMessage = "Select an installed clone and a saved proxy profile."
+                        } else if (network.vpn) {
+                            proxyRoutingMessage = "Another VPN is active. Stop it in Android settings or stop the current OpenClone route before starting this one."
+                        } else {
+                            runCatching {
+                                assignmentRepository.assign(clone.clonePackage, profile.name)
+                                proxyAssignments = assignmentRepository.getAll()
+                                val serviceIntent = Intent(context, ProxyVpnService::class.java).apply {
+                                    putExtra(ProxyVpnService.EXTRA_CLONE_PACKAGE, clone.clonePackage)
+                                    putExtra(ProxyVpnService.EXTRA_PROXY_HOST, profile.host)
+                                    putExtra(ProxyVpnService.EXTRA_PROXY_PORT, profile.port)
+                                    putExtra(ProxyVpnService.EXTRA_PROXY_PROTOCOL, profile.protocol)
+                                }
+                                val consent = VpnService.prepare(context)
+                                if (consent == null) {
+                                    context.startForegroundService(serviceIntent)
+                                    proxyRoutingMessage = "Starting route for " + clone.cloneLabel + "…"
+                                } else {
+                                    pendingProxyIntent = serviceIntent
+                                    vpnConsentLauncher.launch(consent)
+                                }
+                                ExtensionDiagnosticsLog(context).append("proxy", "clone_assignment_saved", "Saved a proxy profile assignment for one clone.")
+                            }.onFailure { proxyRoutingMessage = it.message ?: "Could not start per-clone routing." }
+                        }
+                    }) { Text("Start selected clone route") }
+                    TextButton(onClick = {
+                        context.startService(Intent(context, ProxyVpnService::class.java).setAction(ProxyVpnService.ACTION_STOP))
+                        proxyRoutingMessage = "Stop requested for the active clone VPN route."
+                        refreshNetwork()
+                    }) { Text("Stop route") }
+                }
+                proxyAssignments.forEach { assignment ->
+                    val assignedClone = installedClones.firstOrNull { it.clonePackage == assignment.clonePackage }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(assignedClone?.cloneLabel ?: assignment.clonePackage, fontWeight = FontWeight.Medium)
+                            Text("Profile: " + assignment.profileName, style = MaterialTheme.typography.labelSmall)
+                        }
+                        TextButton(onClick = {
+                            assignmentRepository.removeClone(assignment.clonePackage)
+                            proxyAssignments = assignmentRepository.getAll()
+                        }) { Text("Remove") }
+                    }
+                }
+                Text(proxyRoutingMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
 
