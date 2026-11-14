@@ -1,5 +1,11 @@
 package org.openclone.app
 
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.net.InetAddress
@@ -124,7 +130,6 @@ fun RemoteControlCompanionCard() {
     var message by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("Paste a pairing link received from a trusted OpenClone device.") }
     var busy by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
     androidx.compose.material3.Card {
         androidx.compose.foundation.layout.Column(
             androidx.compose.ui.Modifier.fillMaxWidth().padding(14.dp),
