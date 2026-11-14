@@ -2,6 +2,7 @@ package org.openclone.app
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -70,7 +71,17 @@ object RemoteControlCompanionClient {
     }
 
     private fun request(pairing: RemoteControlPairingEndpoint, method: String, path: String): String {
+        val response = requestRaw(pairing, method, path)
+        return String(response, StandardCharsets.UTF_8)
+    }
+
+    /** Fetches a JPEG snapshot over the same pinned TLS + HMAC authenticated channel. */
+    fun screenFrame(pairing: RemoteControlPairingEndpoint): ByteArray =
+        requestRaw(pairing, "GET", "/v1/screen/frame")
+
+    private fun requestRaw(pairing: RemoteControlPairingEndpoint, method: String, path: String): ByteArray {
         val expected = pairing.fingerprint
+        val requestSecret = pairing.secret.copyOf()
         val trustManager = object : javax.net.ssl.X509TrustManager {
             override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
             override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = Unit
@@ -86,40 +97,52 @@ object RemoteControlCompanionClient {
         }
         val context = SSLContext.getInstance("TLS").apply { init(null, arrayOf(trustManager), SecureRandom()) }
         val raw = Socket()
-        raw.connect(java.net.InetSocketAddress(pairing.host, pairing.port), 8000)
-        raw.soTimeout = 8000
-        val socket = context.socketFactory.createSocket(raw, pairing.host, pairing.port, true) as SSLSocket
         try {
-            socket.enabledProtocols = arrayOf("TLSv1.2")
-            socket.startHandshake()
-            val timestamp = System.currentTimeMillis().toString()
-            val nonceBytes = ByteArray(18).also(SecureRandom()::nextBytes)
-            val nonce = Base64.encodeToString(nonceBytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-            val canonical = "$method\n$path\n$timestamp\n$nonce"
-            val mac = Mac.getInstance("HmacSHA256")
-            mac.init(SecretKeySpec(pairing.secret, "HmacSHA256"))
-            val signature = Base64.encodeToString(mac.doFinal(canonical.toByteArray(StandardCharsets.UTF_8)),
-                Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
-            val request = "$method $path HTTP/1.1\r\nHost: ${pairing.host}:${pairing.port}\r\n" +
-                "X-OpenClone-Timestamp: $timestamp\r\nX-OpenClone-Nonce: $nonce\r\n" +
-                "X-OpenClone-Signature: $signature\r\nConnection: close\r\n\r\n"
-            socket.outputStream.write(request.toByteArray(StandardCharsets.US_ASCII))
-            socket.outputStream.flush()
-            val response = ByteArrayOutputStream()
-            val buffer = ByteArray(2048)
-            while (true) {
-                val count = socket.inputStream.read(buffer)
-                if (count < 0) break
-                require(response.size() + count <= 16 * 1024) { "Remote response exceeded the size limit." }
-                response.write(buffer, 0, count)
+            raw.connect(java.net.InetSocketAddress(pairing.host, pairing.port), 8000)
+            raw.soTimeout = 8000
+            val socket = context.socketFactory.createSocket(raw, pairing.host, pairing.port, true) as SSLSocket
+            try {
+                socket.enabledProtocols = arrayOf("TLSv1.2")
+                socket.startHandshake()
+                val timestamp = System.currentTimeMillis().toString()
+                val nonceBytes = ByteArray(18).also(SecureRandom()::nextBytes)
+                val nonce = Base64.encodeToString(nonceBytes, Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+                val canonical = "$method\n$path\n$timestamp\n$nonce"
+                val mac = Mac.getInstance("HmacSHA256")
+                mac.init(SecretKeySpec(requestSecret, "HmacSHA256"))
+                val signature = Base64.encodeToString(mac.doFinal(canonical.toByteArray(StandardCharsets.UTF_8)),
+                    Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING)
+                val request = "$method $path HTTP/1.1\r\nHost: ${pairing.host}:${pairing.port}\r\n" +
+                    "X-OpenClone-Timestamp: $timestamp\r\nX-OpenClone-Nonce: $nonce\r\n" +
+                    "X-OpenClone-Signature: $signature\r\nConnection: close\r\n\r\n"
+                socket.outputStream.write(request.toByteArray(StandardCharsets.US_ASCII))
+                socket.outputStream.flush()
+                val response = ByteArrayOutputStream()
+                val buffer = ByteArray(8192)
+                while (true) {
+                    val count = socket.inputStream.read(buffer)
+                    if (count < 0) break
+                    require(response.size() + count <= 4 * 1024 * 1024 + 8192) { "Remote response exceeded the size limit." }
+                    response.write(buffer, 0, count)
+                }
+                val bytes = response.toByteArray()
+                val headerEnd = (0 until (bytes.size - 3).coerceAtLeast(0)).firstOrNull { index ->
+                    bytes[index] == 13.toByte() && bytes[index + 1] == 10.toByte() &&
+                        bytes[index + 2] == 13.toByte() && bytes[index + 3] == 10.toByte()
+                } ?: error("Remote response headers were incomplete.")
+                val header = String(bytes, 0, headerEnd, StandardCharsets.US_ASCII)
+                val statusLine = header.substringBefore("\r\n")
+                require(statusLine.contains(" 200 ")) {
+                    "Remote request failed: $statusLine · " +
+                        String(bytes, headerEnd + 4, bytes.size - headerEnd - 4, StandardCharsets.UTF_8).take(240)
+                }
+                return bytes.copyOfRange(headerEnd + 4, bytes.size)
+            } finally {
+                socket.close()
             }
-            val text = response.toString("UTF-8")
-            val statusLine = text.substringBefore("\r\n")
-            require(statusLine.contains(" 200 ")) { "Remote request failed: $statusLine · ${text.substringAfter("\r\n\r\n").take(240)}" }
-            return text.substringAfter("\r\n\r\n", "").take(1000)
         } finally {
-            pairing.secret.fill(0)
-            socket.close()
+            requestSecret.fill(0)
+            raw.close()
         }
     }
 }
@@ -131,6 +154,7 @@ fun RemoteControlCompanionCard() {
     var packageName by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
     var message by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("Paste a pairing link received from a trusted OpenClone device.") }
     var busy by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var screenBitmap by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.graphics.Bitmap?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     androidx.compose.material3.Card {
         androidx.compose.foundation.layout.Column(
@@ -152,6 +176,33 @@ fun RemoteControlCompanionCard() {
                 modifier = androidx.compose.ui.Modifier.fillMaxWidth(), singleLine = true,
                 label = { androidx.compose.material3.Text("Clone package to launch") }
             )
+            androidx.compose.material3.Button(enabled = !busy && pairingUri.isNotBlank(), onClick = {
+                busy = true
+                scope.launch {
+                    val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching {
+                            val endpoint = RemoteControlPairingEndpoint.parse(pairingUri)
+                            val bytes = RemoteControlCompanionClient.screenFrame(endpoint)
+                            require(bytes.size in 1..(4 * 1024 * 1024)) { "Screen snapshot size is invalid." }
+                            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                ?: error("Remote device returned an invalid screen image.")
+                        }
+                    }
+                    result.fold(
+                        { bitmap -> screenBitmap = bitmap; message = "Authenticated screen snapshot received." },
+                        { error -> message = error.message ?: "Could not retrieve screen snapshot." }
+                    )
+                    busy = false
+                }
+            }) { androidx.compose.material3.Text("View screen snapshot") }
+            screenBitmap?.let { bitmap ->
+                androidx.compose.foundation.Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Consent-based remote phone screen snapshot",
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+            }
             androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
                 androidx.compose.material3.Button(enabled = !busy && pairingUri.isNotBlank(), onClick = {
                     busy = true
