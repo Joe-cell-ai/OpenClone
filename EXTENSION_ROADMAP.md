@@ -29,7 +29,7 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 | P1 | Proxy Manager | Named proxy profiles and connection test; only supported routing scope | Partial: up to 10 validated HTTP CONNECT/SOCKS5 profiles with real unauthenticated tunnel handshake tests; profiles do not route cloned-app traffic or change the device proxy |
 | P1 | Network Monitor | User-visible diagnostics for OpenClone's own traffic and supported VPN traffic | Partial: live connectivity callbacks for transport, internet validation, metered and VPN state; no third-party traffic capture |
 | P1 | Developer Toolkit | Build/compatibility diagnostics, structured logs and redacted export | Partial: APK inspection, compatibility preflight, build history, bounded redacted runtime event log and JSON share/export; deeper engine instrumentation remains |
-| P2 | WebView Manager | Safe settings for OpenClone-owned WebViews and isolated data | Research: fail-closed HTTPS host allowlist and safe WebView settings policy are implemented; OpenClone has no embedded WebView screen yet and cannot control cloned-app WebViews |
+| P2 | WebView Manager | Safe settings for OpenClone-owned WebViews and isolated data | Partial: isolated OpenClone-owned browser with exact HTTPS host allowlist, JavaScript/DOM/file access and mixed content disabled; cannot control cloned-app WebViews |
 | P2 | Notification Manager | Explain notification behavior and supported per-clone notification settings | Partial: manages OpenClone's own update channel and deep-links to Android notification settings for each detected clone; cannot rewrite third-party notification payloads |
 | P2 | Automation Studio | Explicit, user-approved workflows using supported Android intents/actions | Partial: opt-in WorkManager source-app update checks on a selectable 1-, 3- or 7-day cadence; reports only and never auto-installs |
 | P2 | Remote Control | Authenticated, opt-in control of OpenClone actions over a secure local/remote channel | Research: HMAC request signing, freshness checks and nonce replay guard primitives are implemented and tested; pairing UX, transport, action authorization and revocation are not active |
@@ -64,7 +64,7 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 - Monitor only traffic OpenClone is authorized and technically able to observe.
 
 ### M4 — Platform integrations
-- Add WebView settings only for WebViews owned by OpenClone.
+- Add a separate OpenClone-owned managed WebView with an exact HTTPS host allowlist; cloned-app WebViews remain outside OpenClone's control.
 - Implement notification controls only where Android exposes supported per-app settings or the user grants the required access.
 - Provide compatibility labels for unsupported devices and app configurations.
 
