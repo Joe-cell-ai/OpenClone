@@ -107,6 +107,8 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import org.json.JSONArray
+import org.json.JSONObject
 
 private const val THEME_PREFERENCES = "openclone_appearance"
 private const val THEME_MODE_KEY = "theme_mode"
@@ -270,6 +272,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var profileNameInput by remember { mutableStateOf("") }
     var editingProfileId by remember { mutableStateOf<String?>(null) }
     var profileMessage by remember { mutableStateOf<String?>(null) }
+    var pendingProfileBackup by remember { mutableStateOf("") }
 
     fun refreshApps() {
         loading = true
@@ -323,6 +326,63 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
             installPermissionLauncher.launch(settingsIntent)
         } else {
             commitInstall(result)
+        }
+    }
+
+    val exportProfileBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
+        if (uri != null) {
+            val result = runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { it.write(pendingProfileBackup.toByteArray(Charsets.UTF_8)) }
+                    ?: error("Could not open the selected backup destination.")
+            }
+            statusMessage = result.fold({ "Profile backup exported. Signing keys, APK bytes and app data are not included." }, { it.message ?: "Backup export failed." })
+        }
+    }
+
+    val importProfileBackup = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            scope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val raw = context.contentResolver.openInputStream(uri)?.use { input ->
+                            val output = ByteArrayOutputStream()
+                            val buffer = ByteArray(8192)
+                            var total = 0
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                total += count
+                                require(total <= 2 * 1024 * 1024) { "Backup file exceeds the 2 MB safety limit." }
+                                output.write(buffer, 0, count)
+                            }
+                            output.toString(Charsets.UTF_8.name())
+                        } ?: error("Could not read the selected backup.")
+                        val root = JSONObject(raw)
+                        require(root.optInt("formatVersion", -1) == 1) { "Unsupported OpenClone backup format." }
+                        val items = root.optJSONArray("profiles") ?: JSONArray()
+                        require(items.length() <= 100) { "Backup contains too many profiles." }
+                        val repository = CloneProfileRepository(context)
+                        var restored = 0
+                        for (index in 0 until items.length()) {
+                            val item = items.optJSONObject(index) ?: continue
+                            repository.save(
+                                name = item.getString("name"),
+                                originalPackage = item.getString("originalPackage"),
+                                clonePackage = item.getString("clonePackage"),
+                                cloneLabel = item.getString("cloneLabel"),
+                                markIcon = item.optBoolean("markIcon", true),
+                                badgePosition = item.optString("badgePosition", "BOTTOM_RIGHT")
+                            )
+                            restored++
+                        }
+                        restored
+                    }
+                }
+                result.onSuccess { count ->
+                    profiles = CloneProfileRepository(context).getAll()
+                    statusMessage = "Restored $count profile(s). Existing profiles were preserved; signing keys, APKs and app data are not restored."
+                }.onFailure { statusMessage = it.message ?: "Could not restore this backup." }
+            }
         }
     }
 
@@ -1614,15 +1674,33 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             Text("Add-ons and integrations", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    Card(
-                        modifier = Modifier.fillMaxWidth().clickable {
-                            statusMessage = "Backup and profile tools are not available yet."
-                        },
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                    ) {
-                        Column(Modifier.padding(14.dp)) {
-                            Text("Backup / Profile", fontWeight = FontWeight.SemiBold)
-                            Text("Local presets and restore · coming soon", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Backup & Restore", fontWeight = FontWeight.SemiBold)
+                            Text("Export or restore versioned clone profiles. APKs, signing identities, credentials and cloned-app private data are deliberately excluded.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                TextButton(onClick = {
+                                    val profileArray = JSONArray()
+                                    profiles.forEach { profile ->
+                                        profileArray.put(JSONObject().apply {
+                                            put("name", profile.name)
+                                            put("originalPackage", profile.originalPackage)
+                                            put("clonePackage", profile.clonePackage)
+                                            put("cloneLabel", profile.cloneLabel)
+                                            put("markIcon", profile.markIcon)
+                                            put("badgePosition", profile.badgePosition)
+                                        })
+                                    }
+                                    pendingProfileBackup = JSONObject().apply {
+                                        put("format", "openclone-profile-backup")
+                                        put("formatVersion", 1)
+                                        put("createdAtMillis", System.currentTimeMillis())
+                                        put("profiles", profileArray)
+                                    }.toString(2)
+                                    exportProfileBackup.launch("openclone-profiles-backup.json")
+                                }) { Text("Export") }
+                                TextButton(onClick = { importProfileBackup.launch(arrayOf("application/json", "text/json", "*/*")) }) { Text("Restore") }
+                            }
                         }
                     }
                     Card(
