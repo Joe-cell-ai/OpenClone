@@ -79,6 +79,12 @@ fun InfraredApplianceRemoteCard() {
     var timings by remember { mutableStateOf("") }
     var prontoHex by remember { mutableStateOf("") }
     var importedCommands by remember { mutableStateOf(emptyList<NamedInfraredCommand>()) }
+    var message by remember {
+        mutableStateOf(
+            if (available) "IR blaster detected. Enter a command's raw timing sequence to transmit it."
+            else "No built-in IR blaster detected. Use a compatible external IR accessory or another IR-equipped phone."
+        )
+    }
     val importRemoteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
