@@ -19,6 +19,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -887,19 +888,52 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         }
                     }
                     item {
-                        ExtensionPreviewCard("🎨", "Icon Studio", "Advanced launcher icon editing and adaptive icon previews", "Planned")
+                        ExtensionPreviewCard("🎨", "Icon & Name Studio", "Clone label/package editor, custom PNG selection, preview and badge positioning", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("🧩", "Clone Profiles", "Save reusable clone configurations and apply them to future builds", "Planned")
+                        ExtensionPreviewCard("🧩", "Clone Profiles", "Save, apply, rename, duplicate and delete non-secret clone settings", "Implemented")
                     }
                     item {
-                        ExtensionPreviewCard("🛡️", "Backup Tools", "Export and restore supported OpenClone settings and profiles", "Planned")
+                        ExtensionPreviewCard("🗂️", "Multi-Clone Manager", "Search, sort, multi-select and Android-confirmed bulk uninstall; grouping remains", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("🌐", "Network Profiles", "Manage supported per-clone network configuration", "Research")
+                        ExtensionPreviewCard("🎭", "Theme Studio", "System, Light, Dark and AMOLED appearance modes", "Partial")
                     }
                     item {
-                        ExtensionPreviewCard("🧰", "Developer Diagnostics", "Inspect build metadata, compatibility warnings and logs", "Planned")
+                        ExtensionPreviewCard("🛡️", "Privacy Guard", "Permission removal exists; impact review and audit history remain", "Partial")
+                    }
+                    item {
+                        ExtensionPreviewCard("💾", "Storage Manager", "Installed clone APK/split footprint; private app data is restricted by Android", "Partial")
+                    }
+                    item {
+                        ExtensionPreviewCard("📦", "Backup & Restore", "APK-set export and signing identity backup; unified profile backup remains", "Partial")
+                    }
+                    item {
+                        ExtensionPreviewCard("🔒", "App Lock", "Device-authentication gate for OpenClone", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("🌐", "Proxy Manager", "Named proxy profiles and connection checks; per-clone routing requires supported VPN/OS APIs", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("📡", "Network Monitor", "Diagnostics for traffic OpenClone can legitimately observe", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("🧰", "Developer Toolkit", "APK inspection and compatibility preflight exist; structured logs/export remain", "Partial")
+                    }
+                    item {
+                        ExtensionPreviewCard("🌍", "WebView Manager", "Controls limited to WebViews hosted by OpenClone", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("🔔", "Notification Manager", "Supported OpenClone notification controls only; cross-app rewriting is restricted", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("⚙️", "Automation Studio", "Consent-based workflows using supported Android actions", "Planned")
+                    }
+                    item {
+                        ExtensionPreviewCard("🖥️", "Remote Control", "Secure pairing, authenticated IPC and revocation", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("🔄", "Extension Updater", "Signed publisher/catalogue verification and safe IPC required", "Planned")
                     }
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
