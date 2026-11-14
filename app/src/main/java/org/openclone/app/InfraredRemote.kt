@@ -2,6 +2,8 @@ package org.openclone.app
 
 import android.content.Context
 import android.hardware.ConsumerIrManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +18,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import java.io.ByteArrayOutputStream
 
 /** Validated raw IR command. Android's ConsumerIr API transmits but cannot learn/receive IR codes. */
 data class InfraredCommand(val carrierHz: Int, val timingsMicros: IntArray) {
@@ -75,6 +78,35 @@ fun InfraredApplianceRemoteCard() {
     var carrier by remember { mutableStateOf("38000") }
     var timings by remember { mutableStateOf("") }
     var prontoHex by remember { mutableStateOf("") }
+    var importedCommands by remember { mutableStateOf(emptyList<NamedInfraredCommand>()) }
+    val importRemoteLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                val input = context.contentResolver.openInputStream(uri)
+                    ?: error("Could not open the selected IR file.")
+                val bytes = input.use { stream ->
+                    val output = ByteArrayOutputStream()
+                    val buffer = ByteArray(4096)
+                    var total = 0
+                    while (true) {
+                        val count = stream.read(buffer)
+                        if (count < 0) break
+                        total += count
+                        require(total <= 64 * 1024) { "IR file exceeds the 64 KB import limit." }
+                        output.write(buffer, 0, count)
+                    }
+                    output.toByteArray()
+                }
+                FlipperIrFileParser.parse(bytes.toString(Charsets.UTF_8))
+            }.onSuccess { commands ->
+                importedCommands = commands
+                message = "Imported ${commands.size} raw commands. Test each button with the appliance in sight."
+            }.onFailure { error ->
+                importedCommands = emptyList()
+                message = error.message ?: "Could not import IR remote file."
+            }
+        }
+    }
     var message by remember {
         mutableStateOf(
             if (available) "IR blaster detected. Enter a command's raw timing sequence to transmit it."
@@ -87,6 +119,23 @@ fun InfraredApplianceRemoteCard() {
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Text("📺 Appliance Remote · Infrared", style = MaterialTheme.typography.titleMedium)
+            Button(onClick = { importRemoteLauncher.launch(arrayOf("text/plain", "application/octet-stream", "*/*")) }) {
+                Text("Import Flipper .ir remote file")
+            }
+            if (importedCommands.isNotEmpty()) {
+                Text("Imported remote buttons", style = MaterialTheme.typography.titleSmall)
+                importedCommands.forEach { item ->
+                    Button(
+                        enabled = available,
+                        onClick = {
+                            runCatching {
+                                InfraredRemote.transmit(context, item.command)
+                                message = "${item.name} command transmitted. Check whether the appliance responded."
+                            }.onFailure { message = it.message ?: "Could not transmit imported command." }
+                        }
+                    ) { Text(item.name.replace('_', ' ')) }
+                }
+            }
             Text(
                 "Control compatible TVs, air conditioners and set-top boxes using this phone's IR blaster. Select an appliance category, then enter a code timing sequence supplied for that exact model.",
                 style = MaterialTheme.typography.bodySmall,
