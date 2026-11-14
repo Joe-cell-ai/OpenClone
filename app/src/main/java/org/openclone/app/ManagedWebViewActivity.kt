@@ -7,7 +7,6 @@ import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,8 +41,8 @@ class ManagedWebViewActivity : ComponentActivity() {
                 mutableStateOf(if (allowedHosts.isEmpty()) "Add an HTTPS host in Extensions before opening a page." else "Only explicitly allowlisted HTTPS hosts and their subresources are loaded.")
             }
             val webView = remember { mutableStateOf<WebView?>(null) }
-            BackHandler(enabled = webView.value?.canGoBack() == true) {
-                webView.value?.goBack()
+            BackHandler(enabled = webView.value != null) {
+                if (webView.value?.canGoBack() == true) webView.value?.goBack() else finish()
             }
             MaterialTheme {
                 Column(
