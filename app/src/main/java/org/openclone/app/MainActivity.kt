@@ -10,7 +10,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Build
 import android.provider.Settings
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.activity.compose.setContent
@@ -142,7 +142,7 @@ private data class RestoredProfileBackup(
     val proxyProfiles: List<ProxyProfile>?
 )
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     private val appLocked = mutableStateOf(false)
     private var appLockEnabled = false
     private var credentialPromptActive = false
@@ -155,7 +155,7 @@ class MainActivity : ComponentActivity() {
             credentialPromptActive = false
             appLocked.value = result.resultCode != RESULT_OK
         }
-        appLockEnabled = getSharedPreferences("openclone_extension_tools", MODE_PRIVATE)
+        appLockEnabled = getSharedPreferences("openclone_extension_tools", Context.MODE_PRIVATE)
             .getBoolean("app_lock_enabled", false)
         appLocked.value = appLockEnabled
         authenticateOnResume = appLockEnabled
@@ -167,7 +167,7 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(
                         runCatching {
                             OpenCloneThemeMode.valueOf(
-                                getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
                                     .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name)!!
                             )
                         }.getOrDefault(OpenCloneThemeMode.DARK)
@@ -177,7 +177,7 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(
                         runCatching {
                             OpenCloneAccent.valueOf(
-                                getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
                                     .getString("accent_palette", OpenCloneAccent.VIOLET.name)!!
                             )
                         }.getOrDefault(OpenCloneAccent.VIOLET)
@@ -185,24 +185,24 @@ class MainActivity : ComponentActivity() {
                 }
                 var customAccentArgb by remember {
                     mutableStateOf(
-                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                        getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
                             .getInt("custom_accent_argb", 0).takeIf { it != 0 }
                     )
                 }
                 OpenCloneTheme(themeMode, accent, customAccentArgb?.let { Color(it) }) {
                     OpenCloneHome(themeMode, accent, customAccentArgb, onThemeModeChange = { selected ->
                         themeMode = selected
-                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                        getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE).edit()
                             .putString(THEME_MODE_KEY, selected.name).apply()
                     }, onAccentChange = { selected ->
                         accent = selected
                         customAccentArgb = null
-                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                        getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE).edit()
                             .putString("accent_palette", selected.name)
                             .remove("custom_accent_argb").apply()
                     }, onCustomAccentChange = { selected ->
                         customAccentArgb = selected
-                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                        getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE).edit()
                             .putInt("custom_accent_argb", selected ?: 0).apply()
                     })
                 }
@@ -212,7 +212,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        appLockEnabled = getSharedPreferences("openclone_extension_tools", MODE_PRIVATE)
+        appLockEnabled = getSharedPreferences("openclone_extension_tools", Context.MODE_PRIVATE)
             .getBoolean("app_lock_enabled", false)
         if (appLockEnabled && authenticateOnResume && !credentialPromptActive) {
             authenticateOnResume = false
@@ -231,7 +231,7 @@ class MainActivity : ComponentActivity() {
     private fun launchDeviceCredential() {
         val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
         if (!keyguard.isDeviceSecure) {
-            getSharedPreferences("openclone_extension_tools", MODE_PRIVATE).edit()
+            getSharedPreferences("openclone_extension_tools", Context.MODE_PRIVATE).edit()
                 .putBoolean("app_lock_enabled", false).apply()
             appLockEnabled = false
             appLocked.value = false
@@ -585,7 +585,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             )
                         }
                         if (settings != null) {
-                            val appearance = context.getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                            val appearance = context.getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE).edit()
                             restoredTheme?.let { appearance.putString(THEME_MODE_KEY, it.name) }
                             restoredAccent?.let { appearance.putString("accent_palette", it.name) }
                             if (hasCustomAccent) appearance.putInt("custom_accent_argb", restoredCustomAccent ?: 0)
@@ -2055,7 +2055,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                         put("createdAtMillis", System.currentTimeMillis())
                                         put("profiles", profileArray)
                                         put("settings", JSONObject().apply {
-                                            val appearance = context.getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                            val appearance = context.getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
                                             put("themeMode", appearance.getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name))
                                             put("accentPalette", appearance.getString("accent_palette", OpenCloneAccent.VIOLET.name))
                                             put("customAccentArgb", appearance.getInt("custom_accent_argb", 0))
