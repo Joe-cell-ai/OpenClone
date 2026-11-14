@@ -791,9 +791,47 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                         }
                     }
                 }
-                else -> Column(Modifier.weight(1f).fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                    Text("OpenClone Extensions", style = MaterialTheme.typography.titleLarge)
-                    Text("Extension store and add-on integrations are planned; no extensions are available yet.", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                else -> LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("Extensions Store", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text(
+                                "Optional tools that add capabilities without bloating the core app. The catalogue preview is available now; secure extension installation is still under development.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    item {
+                        ExtensionPreviewCard("🎨", "Icon Studio", "Advanced launcher icon editing and adaptive icon previews", "Planned")
+                    }
+                    item {
+                        ExtensionPreviewCard("🧩", "Clone Profiles", "Save reusable clone configurations and apply them to future builds", "Planned")
+                    }
+                    item {
+                        ExtensionPreviewCard("🛡️", "Backup Tools", "Export and restore supported OpenClone settings and profiles", "Planned")
+                    }
+                    item {
+                        ExtensionPreviewCard("🌐", "Network Profiles", "Manage supported per-clone network configuration", "Research")
+                    }
+                    item {
+                        ExtensionPreviewCard("🧰", "Developer Diagnostics", "Inspect build metadata, compatibility warnings and logs", "Planned")
+                    }
+                    item {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Text("Secure extension platform", fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    "Before downloads are enabled, OpenClone needs a signed extension format, publisher verification, explicit capability permissions, compatibility checks, and safe install/update/removal flows. Extensions will not receive unrestricted access to cloned apps or private files.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
                 }
             }
             statusMessage?.let { message -> TextButton(onClick = { statusMessage = null }, modifier = Modifier.fillMaxWidth()) { Text(message) } }
@@ -1418,5 +1456,23 @@ private fun DetailLine(label: String, value: String) {
     Column {
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
         Text(value, style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+@Composable
+private fun ExtensionPreviewCard(icon: String, title: String, description: String, status: String) {
+    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
+        Row(
+            Modifier.fillMaxWidth().padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(icon, style = MaterialTheme.typography.headlineMedium)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text(status, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
     }
 }
