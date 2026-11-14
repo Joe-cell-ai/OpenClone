@@ -58,7 +58,7 @@ class RemoteScreenCaptureService : Service() {
         val notification = Notification.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_view)
             .setContentTitle("OpenClone screen capture is active")
-            .setContentText("Your screen is being captured. Tap Stop to end immediately.")
+            .setContentText("Your screen is shared to a paired device for up to 15 minutes. Tap Stop to end immediately.")
             .setOngoing(true)
             .addAction(Notification.Action.Builder(
                 android.R.drawable.ic_menu_close_clear_cancel, "Stop sharing", stopIntent
@@ -94,7 +94,7 @@ class RemoteScreenCaptureService : Service() {
             imageReader = reader
             encoderThread = HandlerThread("OpenCloneFrameEncoder").apply { start() }
             reader.setOnImageAvailableListener({ source ->
-                // Drain and release frames. Network streaming is intentionally not enabled in this stage.
+                // Encode only the newest frame; older queued frames are discarded to limit latency.
                 source.acquireLatestImage()?.use { frame ->
                     runCatching { RemoteScreenFrameStore.publish(frame) }
                         .onFailure { android.util.Log.w("OpenCloneScreen", "Could not encode screen frame", it) }
