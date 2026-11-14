@@ -461,9 +461,13 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
             text = { Text("Only OpenClone temporary cache files will be removed. Clone APK outputs, profiles, signing identities and cloned-app data are not touched.") },
             confirmButton = {
                 TextButton(onClick = {
-                    context.cacheDir.listFiles()?.forEach { child -> runCatching { child.deleteRecursively() } }
                     showClearCache = false
-                    scope.launch { storage = withContext(Dispatchers.IO) { StorageSnapshot.read(context) } }
+                    scope.launch {
+                        withContext(Dispatchers.IO) {
+                            context.cacheDir.listFiles()?.forEach { child -> runCatching { child.deleteRecursively() } }
+                        }
+                        storage = withContext(Dispatchers.IO) { StorageSnapshot.read(context) }
+                    }
                 }) { Text("Clear cache") }
             },
             dismissButton = { TextButton(onClick = { showClearCache = false }) { Text("Cancel") } }
