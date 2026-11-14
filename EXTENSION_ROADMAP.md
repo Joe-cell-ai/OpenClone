@@ -25,7 +25,7 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 | P1 | Privacy Guard | Per-clone permission review, explain manifest changes and privacy checklist | Partial: clone setup lists requested manifest permissions, lets users select removals and explains manifest-only impact; persistent audit history and deeper permission rationale remain |
 | P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Partial: installed clone APK/split footprint is shown; other apps' private data/cache sizes are not exposed to ordinary apps |
 | P1 | Backup & Restore | Export/import profiles and supported OpenClone metadata with integrity checks | Partial: version-1 JSON profile backup export/restore with size/count limits, schema validation and pre-validation before writes; APK-set ZIP and signing identity backups remain separate; settings bundle and cryptographic authenticity remain |
-| P1 | App Lock | Local OpenClone access gate using supported device authentication | Research: threat model and biometric/device-credential flow required |
+| P1 | App Lock | Local OpenClone access gate using supported device authentication | Partial: Android device PIN/pattern/password gate with lock-on-background and explicit unlock flow; biometric-specific flow and device-level lifecycle tests remain |
 | P1 | Proxy Manager | Named proxy profiles and connection test; only supported routing scope | Partial: up to 10 local named profiles with validation and TCP endpoint reachability test; profiles do not route cloned-app traffic or change the device proxy |
 | P1 | Network Monitor | User-visible diagnostics for OpenClone's own traffic and supported VPN traffic | Partial: live-refresh connectivity, transport, validated-internet, metered and VPN state; no third-party traffic capture |
 | P1 | Developer Toolkit | Build/compatibility diagnostics, structured logs and redacted export | Partial: APK inspection, compatibility preflight, build history and redacted build-history JSON export; structured runtime logs remain |
@@ -55,7 +55,7 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 - Add a permission-impact review before building a clone; the current setup now lists requested permissions, offers per-permission removal selection and explains the manifest-only effect. Persistent audit history and richer rationale remain.
 - Extend Storage Manager with output APK sizes and app-owned cache visibility where Android exposes it; installed clone APK/split footprint is implemented.
 - Add versioned JSON clone-profile backup export/restore with schema validation and bounded input; APK bytes, signing identities, credentials and clone-private app data remain excluded.
-- Add App Lock with explicit device-authentication fallback and no custom password storage.
+- Add App Lock with explicit device-credential gate and no custom password storage; biometric-specific flow and device lifecycle verification remain.
 
 ### M3 — Network and diagnostics
 - Implement named proxy profiles and test connectivity before enabling.
