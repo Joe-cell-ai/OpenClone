@@ -96,3 +96,20 @@ CI APKs signed with the configured key can update in place.
 ## Extension roadmap
 
 OpenClone's approved extension plan and implementation status are tracked in [EXTENSION_ROADMAP.md](EXTENSION_ROADMAP.md). The Extensions Store is currently a catalogue preview; planned extensions are not active features until their user-facing flows and tests are delivered.
+
+
+## Universal Remote Centre
+
+OpenClone includes an IR-focused remote centre with:
+
+- Built-in Android `ConsumerIrManager` transmission on phones that have a compatible IR emitter.
+- Import and validation of raw Flipper `.ir` and supported Pronto Hex commands, with offline profile storage.
+- TV/media and AC-style layouts that enable only commands present in the selected profile.
+- Favorites, room labels and locally saved command scenes.
+- Local-network DNS-SD and BLE advertisement discovery for supported service types.
+
+The community IR catalogue browser is delivered in the Universal Remote catalogue change. It browses category, brand and model folders from the MIT-licensed [flipperdevices/IRDB](https://github.com/flipperdevices/IRDB) project and validates each downloaded raw `.ir` file before saving it. Community profiles are not manufacturer-certified; verify every command against the exact appliance model.
+
+**Hardware and protocol boundaries:** Android's built-in IR API transmits but does not receive or learn IR. Phones without an IR emitter need an external transmitter adapter supported by a future integration. BLE scanning and Matter/Cast/AirPlay advertisement discovery do not provide device control by themselves. BLE GATT control, Matter commissioning/controller operations, Cast/AirPlay commands, RF 315/433 MHz bridges, USB IR adapters and manufacturer cloud integrations require separate protocol-specific adapters and device testing; they are not advertised as implemented. Refrigerators, fans, washers and other appliances are controllable only when the exact model exposes a compatible remote interface or supported smart bridge. Never bypass appliance safety interlocks.
+
+See [UNIVERSAL_REMOTE_TEST_GUIDE.md](UNIVERSAL_REMOTE_TEST_GUIDE.md) for the supported flows, device limitations and release test checklist.
