@@ -18,17 +18,17 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 
 | Priority | Extension | First deliverable | Status |
 |---|---|---|---|
-| P0 | Icon & Name Studio | Unified per-clone icon/label editor, preview and format diagnostics | Partial existing clone-build controls; studio workflow planned |
-| P0 | Clone Profiles | Save, list, apply and delete reusable non-secret clone configurations | Foundation: private profile persistence and validation added; UI/apply flow planned |
-| P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: installed clone discovery, search by clone/original package, multi-select and sequential system-confirmed bulk uninstall UI; grouping/sorting remain planned |
-| P0 | Theme Studio | More theme presets and user-selectable accent/surface options | Partial: System, Light, Dark and AMOLED themes already exist |
+| P0 | Icon & Name Studio | Unified per-clone icon/label editor, preview and format diagnostics | Partial: clone name/package editor, custom PNG chooser/preview, original-icon reset and four badge positions; adaptive/vector resource diagnostics remain |
+| P0 | Clone Profiles | Save, list, apply and delete reusable non-secret clone configurations | Implemented: save/update, apply, rename, duplicate and delete; profile intentionally excludes APK bytes, signing keys, credentials and app data |
+| P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: discovery, search, name/update sorting, multi-select and sequential system-confirmed bulk uninstall; grouping remains planned |
+| P0 | Theme Studio | More theme presets and user-selectable accent/surface options | Partial: System, Light, Dark and AMOLED modes persist; custom accent/surface controls and live theme preview remain |
 | P1 | Privacy Guard | Per-clone permission review, explain manifest changes and privacy checklist | Partial: clone manifest permission removal exists; dedicated guard UI and audit trail planned |
 | P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Partial: installed clone APK/split footprint is shown; other apps' private data/cache sizes are not exposed to ordinary apps |
-| P1 | Backup & Restore | Export/import profiles and supported OpenClone metadata with integrity checks | Partial: signing identity PKCS#12 export/import and APK ZIP export exist; unified backup is planned |
+| P1 | Backup & Restore | Export/import profiles and supported OpenClone metadata with integrity checks | Partial: signing identity PKCS#12 export/import and APK-set ZIP export exist; unified versioned profile/settings backup remains |
 | P1 | App Lock | Local OpenClone access gate using supported device authentication | Research: threat model and biometric/device-credential flow required |
 | P1 | Proxy Manager | Named proxy profiles and connection test; only supported routing scope | Research: per-clone routing is not generally available to an ordinary app without VPN/OS support |
 | P1 | Network Monitor | User-visible diagnostics for OpenClone's own traffic and supported VPN traffic | Research: cannot promise transparent per-app traffic capture |
-| P1 | Developer Toolkit | Build/compatibility diagnostics, structured logs and redacted export | Partial: APK inspection and compatibility preflight exist |
+| P1 | Developer Toolkit | Build/compatibility diagnostics, structured logs and redacted export | Partial: APK inspection, compatibility preflight and build history exist; structured diagnostics/log export remains |
 | P2 | WebView Manager | Safe settings for OpenClone-owned WebViews and isolated data | Research: does not control arbitrary WebViews embedded in cloned apps |
 | P2 | Notification Manager | Explain notification behavior and supported per-clone notification settings | Research: arbitrary notification rewriting requires privileged notification access and is not guaranteed |
 | P2 | Automation Studio | Explicit, user-approved workflows using supported Android intents/actions | Planned: no hidden interaction, credential capture or security bypass |
@@ -37,7 +37,7 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 
 ## Milestones
 
-### M0 — Foundation and truthful status (current)
+### M0 — Foundation and truthful status (completed)
 - Publish this roadmap and align extension documentation with actual code.
 - Add non-secret clone profile persistence with strict input validation.
 - Add unit tests for profile validation.
@@ -117,8 +117,8 @@ This is a core application experience, not a seventeenth extension. It is tracke
 |---|---|
 | Existing destination/taskbar navigation | Partial — current navigation exists; visual consistency and final polish remain |
 | Screen-aware top app bar actions | Partial — Home shows Settings; Apps and Cloned apps expose a Search action that focuses the screen search field; Settings/back navigation polish remains |
-| Premium gradient dashboard header | Planned — design direction approved; not yet confirmed in the app |
-| Live installed-app and clone counts | Planned — must be data-backed, not hard-coded |
+| Premium gradient dashboard header | Implemented — rounded blue/purple/teal gradient header is present |
+| Live installed-app and clone counts | Implemented — header reads installed-app and discovered-clone counts from current app state |
 | Account & Tools placement in Settings | Existing direction — verify final navigation and remove duplicate entry points if any |
 
 ### Definition of done
