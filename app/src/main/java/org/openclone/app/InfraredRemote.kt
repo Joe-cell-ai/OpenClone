@@ -76,7 +76,13 @@ object InfraredRemote {
 fun InfraredApplianceRemoteCard() {
     val context = LocalContext.current
     val available = remember(context) { InfraredRemote.isAvailable(context) }
-    var appliance by remember { mutableStateOf("TV") }
+    var selectedCategory by remember { mutableStateOf(ApplianceCategory.TELEVISION) }
+    var remoteName by remember { mutableStateOf("My remote") }
+    var brand by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var profileSearch by remember { mutableStateOf("") }
+    var expandedProfileId by remember { mutableStateOf<String?>(null) }
+    var savedProfiles by remember(context) { mutableStateOf(InfraredProfileStore.load(context)) }
     var carrier by remember { mutableStateOf("38000") }
     var timings by remember { mutableStateOf("") }
     var prontoHex by remember { mutableStateOf("") }
@@ -143,6 +149,105 @@ fun InfraredApplianceRemoteCard() {
                         }
                     ) { Text(item.name.replace('_', ' ')) }
                 }
+                Text("Save this remote for offline use", style = MaterialTheme.typography.titleSmall)
+                OutlinedTextField(
+                    value = remoteName, onValueChange = { remoteName = it.take(80) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text("Remote name") }
+                )
+                OutlinedTextField(
+                    value = brand, onValueChange = { brand = it.take(80) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text("Brand") }
+                )
+                OutlinedTextField(
+                    value = model, onValueChange = { model = it.take(100) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text("Exact model") }
+                )
+                Text("Appliance category", style = MaterialTheme.typography.labelMedium)
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(
+                        ApplianceCategory.TELEVISION,
+                        ApplianceCategory.AIR_CONDITIONER,
+                        ApplianceCategory.SET_TOP_BOX,
+                        ApplianceCategory.FAN,
+                        ApplianceCategory.PROJECTOR,
+                        ApplianceCategory.AUDIO,
+                        ApplianceCategory.OTHER
+                    ).chunked(4).forEach { categories ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            categories.forEach { category ->
+                                Button(onClick = { selectedCategory = category }) {
+                                    Text(if (selectedCategory == category) "✓ ${category.displayName}" else category.displayName)
+                                }
+                            }
+                        }
+                    }
+                }
+                Button(
+                    enabled = remoteName.isNotBlank() && brand.isNotBlank() && model.isNotBlank(),
+                    onClick = {
+                        runCatching {
+                            val profile = InfraredProfileCodec.newProfile(
+                                remoteName, brand, model, selectedCategory, importedCommands
+                            )
+                            savedProfiles = InfraredProfileStore.save(context, profile)
+                            message = "Saved offline remote. This is a user-imported profile, not a manufacturer-verified code set."
+                        }.onFailure { message = it.message ?: "Could not save this remote profile." }
+                    }
+                ) { Text("Save offline remote") }
+                Text(
+                    "Saved profiles retain the imported timings on this phone. They are not manufacturer-verified; test each button with the exact appliance model.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (savedProfiles.isNotEmpty()) {
+                Text("Saved offline remotes", style = MaterialTheme.typography.titleSmall)
+                OutlinedTextField(
+                    value = profileSearch, onValueChange = { profileSearch = it.take(120) },
+                    modifier = Modifier.fillMaxWidth(), singleLine = true,
+                    label = { Text("Search saved brand or model") }
+                )
+                val visibleProfiles = savedProfiles.filter { profile ->
+                    val query = profileSearch.trim()
+                    query.isEmpty() || listOf(profile.name, profile.brand, profile.model, profile.category.displayName)
+                        .any { it.contains(query, ignoreCase = true) }
+                }
+                visibleProfiles.forEach { profile ->
+                    Button(onClick = {
+                        expandedProfileId = if (expandedProfileId == profile.id) null else profile.id
+                    }) {
+                        Text("${profile.brand} · ${profile.model} · ${profile.category.displayName} (${profile.commands.size} buttons)")
+                    }
+                    Text("${profile.name} · User imported · Not manufacturer verified",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (expandedProfileId == profile.id) {
+                        profile.commands.forEach { item ->
+                            Button(
+                                enabled = available,
+                                onClick = {
+                                    runCatching {
+                                        InfraredRemote.transmit(context, item.command)
+                                        message = "${item.name} transmitted for ${profile.brand} ${profile.model}. Check the appliance."
+                                    }.onFailure { message = it.message ?: "Could not transmit saved IR command." }
+                                }
+                            ) { Text(item.name.replace('_', ' ')) }
+                        }
+                    }
+                    Button(onClick = {
+                        runCatching {
+                            savedProfiles = InfraredProfileStore.delete(context, profile.id)
+                            if (expandedProfileId == profile.id) expandedProfileId = null
+                            message = "Deleted ${profile.name}."
+                        }.onFailure { message = it.message ?: "Could not delete profile." }
+                    }) { Text("Delete ${profile.name}") }
+                }
+                if (visibleProfiles.isEmpty()) {
+                    Text("No saved remote matches that search.", style = MaterialTheme.typography.bodySmall)
+                }
             }
             Text(
                 "Control compatible TVs, air conditioners and set-top boxes using this phone's IR blaster. Select an appliance category, then enter a code timing sequence supplied for that exact model.",
@@ -154,9 +259,23 @@ fun InfraredApplianceRemoteCard() {
                 style = MaterialTheme.typography.labelMedium,
                 color = if (available) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                listOf("TV", "AC", "Set-top box", "Other").forEach { item ->
-                    Button(onClick = { appliance = item }) { Text(if (appliance == item) "✓ $item" else item) }
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                listOf(
+                    ApplianceCategory.TELEVISION,
+                    ApplianceCategory.AIR_CONDITIONER,
+                    ApplianceCategory.SET_TOP_BOX,
+                    ApplianceCategory.FAN,
+                    ApplianceCategory.PROJECTOR,
+                    ApplianceCategory.AUDIO,
+                    ApplianceCategory.OTHER
+                ).chunked(4).forEach { categories ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        categories.forEach { category ->
+                            Button(onClick = { selectedCategory = category }) {
+                                Text(if (selectedCategory == category) "✓ ${category.displayName}" else category.displayName)
+                            }
+                        }
+                    }
                 }
             }
             OutlinedTextField(
@@ -180,7 +299,7 @@ fun InfraredApplianceRemoteCard() {
                     runCatching {
                         val command = InfraredCommand.parse(carrier, timings, InfraredRemote.supportedCarrierRanges(context))
                         InfraredRemote.transmit(context, command)
-                        message = "$appliance IR command transmitted. Check whether the appliance responded."
+                        message = "${selectedCategory.displayName} IR command transmitted. Check whether the appliance responded."
                     }.onFailure { message = it.message ?: "Could not transmit the IR command." }
                 }
             ) { Text("Transmit IR command") }
@@ -204,7 +323,7 @@ fun InfraredApplianceRemoteCard() {
                             }
                         }
                         InfraredRemote.transmit(context, command)
-                        message = "$appliance Pronto Hex command transmitted. Check whether the appliance responded."
+                        message = "${selectedCategory.displayName} Pronto Hex command transmitted. Check whether the appliance responded."
                     }.onFailure { message = it.message ?: "Could not transmit Pronto Hex command." }
                 }
             ) { Text("Transmit Pronto Hex") }
