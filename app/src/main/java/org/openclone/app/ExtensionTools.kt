@@ -478,7 +478,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🔒 App Lock", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Protect OpenClone with the Android device PIN, pattern or password. No custom password is stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Protect OpenClone with Android biometrics or the device PIN, pattern or password. No custom password is stored.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (appLockEnabled) "App lock enabled" else "App lock disabled", modifier = Modifier.weight(1f))
                     Switch(checked = appLockEnabled, onCheckedChange = { enabled ->
