@@ -33,12 +33,7 @@ class PrivacyAuditRepository(context: Context) {
         removedPermissions: Collection<String>,
         atMillis: Long = System.currentTimeMillis()
     ): PrivacyAuditEntry {
-        require(PACKAGE_PATTERN.matches(originalPackage)) { "Invalid original package ID." }
-        require(PACKAGE_PATTERN.matches(clonePackage)) { "Invalid clone package ID." }
-        val requested = requestedPermissions.map(String::trim).filter(String::isNotEmpty).distinct().sorted()
-        val removed = removedPermissions.map(String::trim).filter(String::isNotEmpty).distinct().sorted()
-        require(requested.size <= MAX_PERMISSIONS && removed.size <= MAX_PERMISSIONS) { "Permission audit exceeds the supported limit." }
-        require(removed.all { it in requested }) { "Removed permissions must be present in the requested manifest list." }
+        val (requested, removed) = validate(originalPackage, clonePackage, requestedPermissions, removedPermissions)
         val entry = PrivacyAuditEntry(originalPackage, clonePackage, requested, removed, atMillis)
         val updated = (listOf(entry) + getAll()).take(MAX_ENTRIES)
         val array = JSONArray()
@@ -53,6 +48,27 @@ class PrivacyAuditRepository(context: Context) {
         }
         check(prefs.edit().putString(KEY_ENTRIES, array.toString()).commit()) { "Could not save the privacy audit." }
         return entry
+    }
+
+    companion object {
+        fun validate(
+            originalPackage: String,
+            clonePackage: String,
+            requestedPermissions: Collection<String>,
+            removedPermissions: Collection<String>
+        ): Pair<List<String>, List<String>> {
+            require(PACKAGE_PATTERN.matches(originalPackage)) { "Invalid original package ID." }
+            require(PACKAGE_PATTERN.matches(clonePackage)) { "Invalid clone package ID." }
+            val requested = requestedPermissions.map { it.trim() }.filter { it.isNotEmpty() }.distinct().sorted()
+            val removed = removedPermissions.map { it.trim() }.filter { it.isNotEmpty() }.distinct().sorted()
+            require(requested.size <= MAX_PERMISSIONS && removed.size <= MAX_PERMISSIONS) { "Permission audit exceeds the supported limit." }
+            require(removed.all { it in requested }) { "Removed permissions must be present in the requested manifest list." }
+            return requested to removed
+        }
+        private const val KEY_ENTRIES = "entries"
+        private const val MAX_ENTRIES = 100
+        private const val MAX_PERMISSIONS = 256
+        private val PACKAGE_PATTERN = Regex("[A-Za-z][A-Za-z0-9_]*(\\\\.[A-Za-z][A-Za-z0-9_]*)+")
     }
 
     @Synchronized
@@ -77,13 +93,7 @@ class PrivacyAuditRepository(context: Context) {
     private fun JSONArray?.toStringList(): List<String> =
         this?.let { array -> (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) } }.orEmpty()
 
-    private companion object {
-        const val KEY_ENTRIES = "entries"
-        const val MAX_ENTRIES = 100
-        const val MAX_PERMISSIONS = 256
-        val PACKAGE_PATTERN = Regex("[A-Za-z][A-Za-z0-9_]*(\\\\.[A-Za-z][A-Za-z0-9_]*)+")
-    }
-}
+
 
 data class StorageSnapshot(
     val cacheBytes: Long,
@@ -169,7 +179,7 @@ class ExtensionDiagnosticsLog(context: Context) {
     fun append(area: String, code: String, summary: String) {
         require(area.matches(Regex("[A-Za-z0-9_-]{1,32}")))
         require(code.matches(Regex("[A-Za-z0-9_-]{1,48}")))
-        val safeSummary = summary.replace(Regex("(?i)(password|token|secret|authorization)\\\\s*[:=]\\\\s*[^ ,;]+"), "$1=[redacted]")
+        val safeSummary = summary.replace(Regex("(?i)(password|token|secret|authorization)\\s*[:=]\\s*[^ ,;]+"), "$1=[redacted]")
             .replace(Regex("(/data/user/[^ ,;]+|/data/data/[^ ,;]+)"), "[private-path]")
             .take(240)
         val updated = (getAll() + ExtensionLogEvent(System.currentTimeMillis(), area, code, safeSummary)).takeLast(MAX_EVENTS)
@@ -261,7 +271,7 @@ object RemoteControlAuthenticator {
 
     fun sign(secret: ByteArray, method: String, path: String, timestampMillis: Long, nonce: String): String {
         require(secret.size >= 32 && method.matches(Regex("[A-Z]{3,10}")))
-        require(path.startsWith("/") && path.length <= 512 && !path.contains("\\\\n"))
+        require(path.startsWith("/") && path.length <= 512 && !path.contains("\n"))
         require(nonce.matches(Regex("[A-Za-z0-9_-]{16,80}")))
         val payload = "$method\\n$path\\n$timestampMillis\\n$nonce".toByteArray(Charsets.UTF_8)
         val mac = Mac.getInstance("HmacSHA256")
