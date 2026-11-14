@@ -24,7 +24,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,6 +42,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Surface
@@ -142,6 +147,8 @@ private fun OpenCloneHome() {
     var externalSource by remember { mutableStateOf<ExternalApkSet?>(null) }
     var inspection by remember { mutableStateOf<ApkInspection?>(null) }
     var statusMessage by remember { mutableStateOf<String?>(null) }
+    var installInProgress by remember { mutableStateOf(false) }
+    var installMessage by remember { mutableStateOf<String?>(null) }
     var showClones by remember { mutableStateOf(false) }
     var clones by remember { mutableStateOf<List<InstalledClone>>(emptyList()) }
     var buildHistory by remember { mutableStateOf(CloneBuildHistoryRepository(context).getAll()) }
@@ -191,12 +198,18 @@ private fun OpenCloneHome() {
     }
 
     fun commitInstall(result: CloneBuildResult) {
+        installInProgress = true
+        installMessage = null
         scope.launch {
             val outcome = withContext(Dispatchers.IO) {
                 runCatching { CloneInstaller.install(context, result) }
             }
+            outcome.onFailure {
+                installInProgress = false
+                installMessage = it.message ?: "Could not start the Android installer."
+            }
             statusMessage = outcome.fold(
-                onSuccess = { "Installation request sent for ${result.clonePackage}. Confirm the Android installer prompt." },
+                onSuccess = { "Installation started. Complete the Android system confirmation." },
                 onFailure = { it.message ?: "Could not start the Android installer." }
             )
         }
@@ -422,10 +435,15 @@ private fun OpenCloneHome() {
                 val operation = intent.getStringExtra(CloneInstaller.EXTRA_OPERATION).orEmpty()
                 val status = intent.getIntExtra(CloneInstaller.EXTRA_STATUS, -1)
                 val detail = intent.getStringExtra(CloneInstaller.EXTRA_STATUS_MESSAGE).orEmpty()
-                statusMessage = if (status == android.content.pm.PackageInstaller.STATUS_SUCCESS) {
+                val message = if (status == android.content.pm.PackageInstaller.STATUS_SUCCESS) {
                     if (operation == "uninstall") "Clone uninstalled: $packageName" else "Clone installed successfully: $packageName"
                 } else {
                     "${if (operation == "uninstall") "Uninstall" else "Installation"} failed for $packageName${if (detail.isBlank()) "" else ": $detail"}"
+                }
+                statusMessage = message
+                if (operation == "install") {
+                    installInProgress = false
+                    installMessage = message
                 }
                 refreshApps()
             }
@@ -627,7 +645,9 @@ private fun OpenCloneHome() {
                     Text("OPENCLONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     Text(currentTab, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 }
-                TextButton(onClick = { showSettings = true }) { Text("⚙") }
+                TextButton(onClick = { showSettings = true }) {
+                    Text("⚙  Settings", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                }
             }
             when (currentTab) {
                 "Home" -> LazyColumn(
@@ -744,13 +764,25 @@ private fun OpenCloneHome() {
                 }
             }
             statusMessage?.let { message -> TextButton(onClick = { statusMessage = null }, modifier = Modifier.fillMaxWidth()) { Text(message) } }
-            Row(
-                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface).padding(horizontal = 4.dp, vertical = 6.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                listOf("Home", "Apps", "APKs", "Cloned apps", "Cloned APKs", "Store").forEach { tab ->
-                    TextButton(onClick = { currentTab = tab; query = "" }, modifier = Modifier.weight(1f)) {
-                        Text(when(tab) { "Home" -> "⌂"; "Apps" -> "▦"; "APKs" -> "▤"; "Cloned apps" -> "🧬"; "Cloned APKs" -> "⇩"; else -> "◇" } + "\n" + tab, style = MaterialTheme.typography.labelSmall, maxLines = 2)
+            NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    listOf("Home", "Apps", "APKs", "Cloned apps", "Cloned APKs", "Store").forEach { tab ->
+                        NavigationBarItem(
+                            selected = currentTab == tab,
+                            onClick = { currentTab = tab; query = "" },
+                            icon = {
+                                Text(
+                                    when (tab) { "Home" -> "⌂"; "Apps" -> "▦"; "APKs" -> "▤"; "Cloned apps" -> "🧬"; "Cloned APKs" -> "⇩"; else -> "◇" },
+                                    style = MaterialTheme.typography.titleLarge
+                                )
+                            },
+                            label = { Text(tab, style = MaterialTheme.typography.labelMedium, maxLines = 1) },
+                            alwaysShowLabel = true,
+                            modifier = Modifier.widthIn(min = 76.dp)
+                        )
                     }
                 }
             }
@@ -873,6 +905,30 @@ private fun OpenCloneHome() {
                     }
                 }) { Text("Cancel build") }
             }
+        )
+    }
+
+    if (installInProgress) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Installing clone") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    Text("Preparing the APK package and waiting for Android's installer confirmation.")
+                    Text("Approve the installation in the Android system dialog to finish.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            },
+            confirmButton = { TextButton(onClick = { }) { Text("Waiting…") } }
+        )
+    }
+
+    installMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { installMessage = null },
+            title = { Text(if (message.startsWith("Clone installed successfully")) "Installation complete" else "Installation result") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { installMessage = null }) { Text("OK") } }
         )
     }
 
