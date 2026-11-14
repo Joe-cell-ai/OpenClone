@@ -141,7 +141,6 @@ object RemoteControlCompanionClient {
             }
         } finally {
             requestSecret.fill(0)
-            pairing.secret.fill(0)
             raw.close()
         }
     }
@@ -154,6 +153,7 @@ fun RemoteControlCompanionCard() {
     var packageName by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
     var message by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("Paste a pairing link received from a trusted OpenClone device.") }
     var busy by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var screenBitmap by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.graphics.Bitmap?>(null) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     androidx.compose.material3.Card {
         androidx.compose.foundation.layout.Column(
@@ -175,6 +175,33 @@ fun RemoteControlCompanionCard() {
                 modifier = androidx.compose.ui.Modifier.fillMaxWidth(), singleLine = true,
                 label = { androidx.compose.material3.Text("Clone package to launch") }
             )
+            androidx.compose.material3.Button(enabled = !busy && pairingUri.isNotBlank(), onClick = {
+                busy = true
+                scope.launch {
+                    val result = withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        runCatching {
+                            val endpoint = RemoteControlPairingEndpoint.parse(pairingUri)
+                            val bytes = RemoteControlCompanionClient.screenFrame(endpoint)
+                            require(bytes.size in 1..(4 * 1024 * 1024)) { "Screen snapshot size is invalid." }
+                            android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+                                ?: error("Remote device returned an invalid screen image.")
+                        }
+                    }
+                    result.fold(
+                        { bitmap -> screenBitmap = bitmap; message = "Authenticated screen snapshot received." },
+                        { error -> message = error.message ?: "Could not retrieve screen snapshot." }
+                    )
+                    busy = false
+                }
+            }) { androidx.compose.material3.Text("View screen snapshot") }
+            screenBitmap?.let { bitmap ->
+                androidx.compose.foundation.Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "Consent-based remote phone screen snapshot",
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth().heightIn(max = 480.dp),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+            }
             androidx.compose.foundation.layout.Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(8.dp)) {
                 androidx.compose.material3.Button(enabled = !busy && pairingUri.isNotBlank(), onClick = {
                     busy = true
