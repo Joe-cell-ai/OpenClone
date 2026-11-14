@@ -91,3 +91,8 @@ cannot be updated with the new persistent key. Android requires uninstalling tha
 before installing the first APK signed with the persistent key. Back up anything important
 first; uninstalling may erase OpenClone's local data. After this one-time switch, subsequent
 CI APKs signed with the configured key can update in place.
+
+
+## Extension roadmap
+
+OpenClone's approved extension plan and implementation status are tracked in [EXTENSION_ROADMAP.md](EXTENSION_ROADMAP.md). The Extensions Store is currently a catalogue preview; planned extensions are not active features until their user-facing flows and tests are delivered.
