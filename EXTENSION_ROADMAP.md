@@ -81,6 +81,14 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 - Require per-capability consent and provide disable, revoke, update and uninstall.
 - Start with a read-only diagnostics sample extension; expand capabilities only after security review.
 
+
+
+### Community IR catalogue milestone (implementation in review)
+- Added an in-app category → brand → model browser backed by the public `flipperdevices/IRDB` MIT-licensed catalogue.
+- Downloads are HTTPS-only and restricted to the fixed GitHub API/raw hosts; directory and file sizes are bounded, paths are validated, and only `.ir` files are accepted.
+- Every downloaded file is parsed by the existing bounded raw-signal parser before commands can be saved. Saved profiles remain explicitly community-submitted and unverified; imported commands can be used offline after saving.
+- This is an infrared catalogue milestone, not a complete universal appliance-control implementation. Parsed Flipper protocols, IR learning, BLE GATT control, Matter commissioning, Cast/AirPlay control, RF hubs and manufacturer integrations remain separate work.
+
 ## Definition of done
 
 An extension is complete only when it has:
