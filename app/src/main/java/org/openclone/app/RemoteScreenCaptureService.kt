@@ -128,7 +128,7 @@ class RemoteScreenCaptureService : Service() {
         runCatching {
             val size = ScreenCaptureBounds.fit(width, height)
             val previous = imageReader
-            if (previous?.width == size.first && previous.height == size.second) return
+            if (previous != null && previous.width == size.first && previous.height == size.second) return
             val replacement = createFrameReader(size.first, size.second)
             try {
                 // Surface itself has no setDefaultBufferSize API; recreate the reader
