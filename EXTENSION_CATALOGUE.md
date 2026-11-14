@@ -21,8 +21,8 @@ Keep the matching private key offline or in a restricted secret store. Never com
 
 1. Create a compact UTF-8 payload with `formatVersion: 1` and an `extensions` array.
 2. For every package, sign the descriptor canonical bytes: six UTF-8 lines containing extension id, semantic version, publisher, minimum OpenClone API, maximum OpenClone API and lowercase APK SHA-256, with LF separators and no trailing LF. The resulting ECDSA/SHA-256 signature is the entry's `signature`.
-3. Each entry must include an HTTPS `downloadUrl`, package digest, API range and descriptor signature.
-4. Run `tools/sign_extension_catalogue.sh payload.json private-key.pem catalogue.json`.
+3. Generate the entry's digest and descriptor signature with `bash tools/sign_extension_package_descriptor.sh <id> <version> <publisher> <min-api> <max-api> <apk> <https-download-url> private-key.pem`. Add its JSON output to the payload's `extensions` array.
+4. Run `bash tools/sign_extension_catalogue.sh payload.json private-key.pem catalogue.json`.
 5. Review the generated envelope, then commit the updated `extension-catalogue/catalogue.json` to main.
 
 The script signs the exact payload bytes. Do not reformat or edit the payload after signing. The app verifies the catalogue envelope and each downloaded package descriptor independently.
