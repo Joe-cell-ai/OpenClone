@@ -74,6 +74,16 @@ class TrustedPublisherRepository(context: Context) {
         KeyFactory.getInstance("EC").generatePublic(X509EncodedKeySpec(Base64.getDecoder().decode(it.publicKeyBase64)))
     }
 
+    fun verifyCatalogue(envelope: SignedExtensionCatalogue, currentApi: Int): List<CatalogueExtension>? {
+        val key = publicKey(envelope.publisherId) ?: return null
+        return ExtensionCatalogueVerifier.verify(envelope, key, currentApi)
+    }
+
+    fun verifyPackage(entry: CatalogueExtension, packageBytes: ByteArray, currentApi: Int): Boolean {
+        val key = publicKey(entry.publisherId) ?: return false
+        return ExtensionPackageVerifier.verify(entry.descriptor(), packageBytes, key, currentApi)
+    }
+
     companion object {
         private const val KEY = "publishers"
         private const val MAX_PUBLISHERS = 32
@@ -109,7 +119,8 @@ data class CatalogueExtension(
     val maximumOpenCloneApi: Int,
     val sha256: String,
     val downloadUrl: String,
-    val signatureBase64: String
+    val signatureBase64: String,
+    val publisherId: String
 ) {
     fun descriptor() = SignedExtensionDescriptor(id, version, publisher, minimumOpenCloneApi,
         maximumOpenCloneApi, sha256, signatureBase64)
@@ -134,7 +145,8 @@ object ExtensionCatalogueVerifier {
                     val entry = CatalogueExtension(
                         item.getString("id"), item.getString("version"), item.getString("publisher"),
                         item.getInt("minimumOpenCloneApi"), item.getInt("maximumOpenCloneApi"),
-                        item.getString("sha256"), item.getString("downloadUrl"), item.getString("signature")
+                        item.getString("sha256"), item.getString("downloadUrl"), item.getString("signature"),
+                        envelope.publisherId
                     )
                     entry.descriptor().canonicalPayload()
                     val uri = java.net.URI(entry.downloadUrl)
