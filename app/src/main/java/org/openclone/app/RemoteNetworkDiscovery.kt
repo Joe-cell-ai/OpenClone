@@ -43,7 +43,8 @@ object RemoteServiceTypes {
     val supported = listOf(GOOGLE_CAST, AIRPLAY, MATTER_OPERATIONAL, MATTER_COMMISSIONABLE)
 
     fun transportFor(serviceType: String): RemoteTransport? = when (serviceType.lowercase()) {
-        GOOGLE_CAST, AIRPLAY, MATTER_OPERATIONAL, MATTER_COMMISSIONABLE -> RemoteTransport.WIFI_LAN
+        GOOGLE_CAST, AIRPLAY -> RemoteTransport.WIFI_LAN
+        MATTER_OPERATIONAL, MATTER_COMMISSIONABLE -> RemoteTransport.MATTER
         else -> null
     }
 
