@@ -90,16 +90,9 @@ class RemoteScreenCaptureService : Service() {
             (getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
             captureDensityDpi = metrics.densityDpi
             val dimensions = ScreenCaptureBounds.fit(metrics.widthPixels, metrics.heightPixels)
-            val reader = ImageReader.newInstance(dimensions.first, dimensions.second, PixelFormat.RGBA_8888, 2)
-            imageReader = reader
             encoderThread = HandlerThread("OpenCloneFrameEncoder").apply { start() }
-            reader.setOnImageAvailableListener({ source ->
-                // Encode only the newest frame; older queued frames are discarded to limit latency.
-                source.acquireLatestImage()?.use { frame ->
-                    runCatching { RemoteScreenFrameStore.publish(frame) }
-                        .onFailure { android.util.Log.w("OpenCloneScreen", "Could not encode screen frame", it) }
-                }
-            }, Handler(encoderThread!!.looper))
+            val reader = createFrameReader(dimensions.first, dimensions.second)
+            imageReader = reader
             virtualDisplay = activeProjection.createVirtualDisplay(
                 "OpenCloneRemoteScreen", dimensions.first, dimensions.second, metrics.densityDpi,
                 DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, reader.surface, null, null
@@ -116,13 +109,33 @@ class RemoteScreenCaptureService : Service() {
         }
     }
 
+    private fun createFrameReader(width: Int, height: Int): ImageReader {
+        val reader = ImageReader.newInstance(width, height, PixelFormat.RGBA_8888, 2)
+        val handler = encoderThread?.let { Handler(it.looper) }
+            ?: error("Frame encoder thread is not running.")
+        reader.setOnImageAvailableListener({ source ->
+            // Encode only the newest frame; older queued frames are discarded to limit latency.
+            source.acquireLatestImage()?.use { frame ->
+                runCatching { RemoteScreenFrameStore.publish(frame) }
+                    .onFailure { android.util.Log.w("OpenCloneScreen", "Could not encode screen frame", it) }
+            }
+        }, handler)
+        return reader
+    }
+
     private fun resizeCapture(width: Int, height: Int) {
-        val reader = imageReader ?: return
         val display = virtualDisplay ?: return
         runCatching {
             val size = ScreenCaptureBounds.fit(width, height)
-            reader.surface.setDefaultBufferSize(size.first, size.second)
+            val replacement = createFrameReader(size.first, size.second)
+            val previous = imageReader
+            // Switch the virtual display to a correctly sized Surface. Surface itself has
+            // no setDefaultBufferSize API; ImageReader must be recreated for new dimensions.
             display.resize(size.first, size.second, captureDensityDpi)
+            display.setSurface(replacement.surface)
+            imageReader = replacement
+            previous?.setOnImageAvailableListener(null, null)
+            previous?.close()
         }.onFailure { android.util.Log.w("OpenCloneScreen", "Could not resize capture surface", it) }
     }
 
