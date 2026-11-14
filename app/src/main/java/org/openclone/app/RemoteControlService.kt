@@ -273,6 +273,11 @@ class RemoteControlService : Service() {
                     ExtensionDiagnosticsLog(this).append("remote", "status_read", "Authenticated remote status request.")
                     respond(socket, 200, "{\"ok\":true,\"service\":\"OpenClone\",\"api\":1}", "application/json")
                 }
+                method == "GET" && path == "/v1/screen/frame" -> {
+                    val frame = RemoteScreenFrameStore.latest()
+                        ?: return respond(socket, 409, "No consented screen frame is currently available.")
+                    try { respondBytes(socket, 200, frame, "image/jpeg") } finally { frame.fill(0) }
+                }
                 method == "POST" && path.startsWith("/v1/launch/") -> {
                     val packageName = path.removePrefix("/v1/launch/")
                     val clones = runCatching {
@@ -295,6 +300,15 @@ class RemoteControlService : Service() {
         } finally {
             secret.fill(0)
         }
+    }
+
+    private fun respondBytes(socket: javax.net.ssl.SSLSocket, status: Int, bytes: ByteArray, contentType: String) {
+        val reason = if (status == 200) "OK" else "Error"
+        val writer = OutputStreamWriter(socket.outputStream, Charsets.US_ASCII)
+        writer.write("HTTP/1.1 $status $reason\\r\\nContent-Type: $contentType\\r\\nContent-Length: ${bytes.size}\\r\\nConnection: close\\r\\n\\r\\n")
+        writer.flush()
+        socket.outputStream.write(bytes)
+        socket.outputStream.flush()
     }
 
     private fun readBoundedLine(reader: BufferedReader, maxChars: Int): String? {
