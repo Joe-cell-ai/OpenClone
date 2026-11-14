@@ -2,6 +2,7 @@ package org.openclone.app
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -198,7 +199,7 @@ fun RemoteControlCompanionCard() {
                 androidx.compose.foundation.Image(
                     bitmap = bitmap.asImageBitmap(),
                     contentDescription = "Consent-based remote phone screen snapshot",
-                    modifier = androidx.compose.ui.Modifier.fillMaxWidth().heightIn(max = 480.dp),
+                    modifier = androidx.compose.ui.Modifier.fillMaxWidth(),
                     contentScale = androidx.compose.ui.layout.ContentScale.Fit
                 )
             }
