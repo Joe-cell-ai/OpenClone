@@ -28,5 +28,12 @@
         <receiver
             android:name=".clone.CloneInstallReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".data.ExtensionInstallStatusReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.openclone.app.EXTENSION_INSTALL_STATUS" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>
