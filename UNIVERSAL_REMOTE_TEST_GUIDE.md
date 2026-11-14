@@ -49,3 +49,13 @@ Refrigerators, washing machines, smart plugs, lights, curtains and air purifiers
 7. Favorite and room metadata and scenes are stored locally. Removing an IR profile can leave a scene reference; the scene runner reports an incomplete scene rather than transmitting a different command.
 
 **Important:** These are Mi Remote-style layouts, not a ready-made manufacturer code database. A phone without an IR emitter needs a compatible external IR transmitter. Android's ConsumerIrManager cannot learn IR signals. A model-specific verified code catalogue, BLE GATT control, Matter commissioning and Cast/AirPlay control are still separate deliverables.
+
+
+## Community IR catalogue validation
+
+1. Open Remote → Community IR catalogue and confirm appliance categories load from the fixed `flipperdevices/IRDB` source.
+2. Browse category → brand → model and download a `.ir` profile. Confirm the app shows the parsed command count and saves the profile for offline use.
+3. Expand the saved profile in the Infrared card and verify the imported commands appear. Transmission must remain disabled when the device has no built-in IR emitter.
+4. Confirm every catalogue profile is labelled community supplied / not manufacturer verified. Test only against the exact appliance model and stop if a command produces an unexpected result.
+5. Exercise empty directories, missing files, GitHub rate limiting, network loss, malformed `.ir`, non-raw commands, files over 64 KB, and directory responses over the configured cap. A failed download must never create a saved profile.
+6. Remember: the catalogue supplies IR codes only. It does not add IR receive/learning hardware, BLE GATT control, Matter commissioning, Wi-Fi appliance adapters or RF transmission.
