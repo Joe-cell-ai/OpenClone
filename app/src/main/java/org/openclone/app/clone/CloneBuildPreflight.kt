@@ -27,7 +27,7 @@ object CloneBuildPreflight {
         maxHeapBytes: Long = Runtime.getRuntime().maxMemory(),
         allocatedHeapBytes: Long = Runtime.getRuntime().totalMemory(),
         freeAllocatedHeapBytes: Long = Runtime.getRuntime().freeMemory(),
-        rewriteDexPackageStrings: Boolean = false
+        rewriteDexPackageStrings: Boolean = true
     ): CloneBuildPreflightReport {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) {

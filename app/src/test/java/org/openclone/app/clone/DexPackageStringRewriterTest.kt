@@ -5,6 +5,42 @@ import org.junit.Test
 
 class DexPackageStringRewriterTest {
     @Test
+    fun rewritesExactPackageIdentityWithoutRenamingClassNames() {
+        assertEquals(
+            "com.example.clone",
+            DexPackageStringRewriter.replacePackageIdentityToken(
+                "com.example.app", "com.example.app", "com.example.clone"
+            )
+        )
+        assertEquals(
+            "com.example.app.registration.RegisterPhone",
+            DexPackageStringRewriter.replacePackageIdentityToken(
+                "com.example.app.registration.RegisterPhone", "com.example.app", "com.example.clone"
+            )
+        )
+    }
+
+    @Test
+    fun rewritesFlattenedRelativeComponentAndExpandsItsClassName() {
+        assertEquals(
+            "com.example.clone/com.example.app.registration.RegisterPhone",
+            DexPackageStringRewriter.replacePackageIdentityToken(
+                "com.example.app/.registration.RegisterPhone", "com.example.app", "com.example.clone"
+            )
+        )
+    }
+
+    @Test
+    fun preservesUnrelatedComponentPackages() {
+        assertEquals(
+            "com.other.app/.MainActivity",
+            DexPackageStringRewriter.replacePackageIdentityToken(
+                "com.other.app/.MainActivity", "com.example.app", "com.example.clone"
+            )
+        )
+    }
+
+    @Test
     fun replacesExactDottedPackageTokens() {
         assertEquals(
             "content://com.example.clone/provider",

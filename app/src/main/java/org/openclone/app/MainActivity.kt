@@ -393,7 +393,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var cloneWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
-    var rewriteDexPackageStrings by remember { mutableStateOf(false) }
+    var rewriteDexPackageStrings by remember { mutableStateOf(true) }
     var customIconPath by rememberSaveable { mutableStateOf<String?>(null) }
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var requestedPermissions by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -697,7 +697,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         cloneError = null
                         cloneUpdateMode = false
                         markCloneIcon = true
-                        rewriteDexPackageStrings = false
+                        rewriteDexPackageStrings = true
                         customIconPath = null
                         badgePosition = BadgePosition.BOTTOM_RIGHT
                         statusMessage = "Imported ${source.apkFiles.size} APK component(s) and ${source.obbFiles.size} OBB file(s) from ${source.archiveName}."
@@ -1379,7 +1379,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     versionCodeOverride = ""
                     cloneError = null
                     markCloneIcon = true
-                    rewriteDexPackageStrings = false
+                    rewriteDexPackageStrings = true
                     customIconPath = null
                     badgePosition = BadgePosition.BOTTOM_RIGHT
                     cloneUpdateMode = false
@@ -1421,6 +1421,20 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         singleLine = true,
                         label = { Text("Clone package ID") }
                     )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(
+                            checked = rewriteDexPackageStrings,
+                            onCheckedChange = { rewriteDexPackageStrings = it }
+                        )
+                        Column(Modifier.weight(1f)) {
+                            Text("Keep internal launches inside this clone", style = MaterialTheme.typography.bodyMedium)
+                            Text(
+                                "Rewrites package identity strings used by explicit component references. Class names remain unchanged. Some apps that verify their original package identity may still need app-specific compatibility work.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     HorizontalDivider()
                     val iconDiagnosticPath = cloneSource?.applicationInfo?.sourceDir
                         ?: externalSource?.apkFiles?.firstOrNull()?.absolutePath

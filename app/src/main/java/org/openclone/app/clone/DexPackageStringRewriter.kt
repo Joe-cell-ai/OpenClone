@@ -39,7 +39,7 @@ object DexPackageStringRewriter {
                         val instruction = delegate.rewrite(value)
                         val reference = ((instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)?.reference) as? org.jf.dexlib2.iface.reference.StringReference
                         if (reference == null) return instruction
-                        val changed = replacePackageToken(reference.string, oldPackage, newPackage)
+                        val changed = replacePackageIdentityToken(reference.string, oldPackage, newPackage)
                         if (changed == reference.string) return instruction
                         replacements.incrementAndGet()
                         return when (instruction) {
@@ -63,7 +63,7 @@ object DexPackageStringRewriter {
                     override fun rewrite(value: EncodedValue): EncodedValue {
                         ensureActive()
                         if (value is StringEncodedValue) {
-                            val changed = replacePackageToken(value.value, oldPackage, newPackage)
+                            val changed = replacePackageIdentityToken(value.value, oldPackage, newPackage)
                             if (changed != value.value) {
                                 replacements.incrementAndGet()
                                 return ImmutableStringEncodedValue(changed)
@@ -84,6 +84,22 @@ object DexPackageStringRewriter {
         require(output.isFile && output.length() > 0L) { "DEX rewriting produced an empty output file." }
         DexFileFactory.loadDexFile(output, Opcodes.getDefault())
         return Result(replacements.get())
+    }
+
+    /**
+     * Rewrites only an app-package identity, not a Java/Kotlin class name that merely starts
+     * with the same package prefix. A flattened component such as
+     * "com.example.app/.RegistrationActivity" is expanded to retain the original DEX class
+     * name while moving the component package to the installed clone package.
+     */
+    internal fun replacePackageIdentityToken(value: String, oldPackage: String, newPackage: String): String {
+        if (value == oldPackage) return newPackage
+        val marker = "$oldPackage/"
+        val index = value.indexOf(marker)
+        if (index < 0) return value
+        val classPart = value.substring(index + marker.length)
+        val qualifiedClass = if (classPart.startsWith(".")) "$oldPackage$classPart" else classPart
+        return value.substring(0, index) + newPackage + "/" + qualifiedClass
     }
 
     internal fun replacePackageToken(value: String, oldPackage: String, newPackage: String): String {
