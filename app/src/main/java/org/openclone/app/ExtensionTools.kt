@@ -303,14 +303,14 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
         Text("Extensions", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Built-in tools and supported Android integrations. Restricted capabilities are clearly marked instead of shown as working.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-        ExtensionNavigationCard("🎨", "Icon & Name Studio", "Clone label, package ID, custom PNG and badge settings", onOpenApps)
+        ExtensionNavigationCard("🎨", "Icon & Name Studio", "Clone label, package ID, custom PNG, badge settings and source icon diagnostics", onOpenApps)
         ExtensionNavigationCard("🧩", "Clone Profiles", "Save, apply, rename, duplicate and delete clone configurations", onOpenProfiles)
         ExtensionNavigationCard("🗂️", "Multi-Clone Manager", "Group by original app, search, sort, multi-select and system-confirmed uninstall", onOpenClones)
-        ExtensionNavigationCard("🎭", "Theme Studio", "System, Light, Dark, AMOLED and four accent palettes", onOpenSettings)
-        ExtensionNavigationCard("🛡️", "Privacy Guard", "Review requested permissions and remove selected manifest declarations", onOpenApps)
-        ExtensionNavigationCard("💾", "Storage Manager", "Installed clone APK/split footprint; private app data is OS-restricted", onOpenClones)
-        ExtensionNavigationCard("📦", "Backup & Restore", "Versioned clone-profile backup and restore", onOpenSettings)
-        ExtensionNavigationCard("🧰", "Developer Toolkit", "APK inspection, compatibility preflight and redacted build-history export", onOpenSettings)
+        ExtensionNavigationCard("🎭", "Theme Studio", "System, Light, Dark, AMOLED, four presets and custom hex accent", onOpenSettings)
+        ExtensionNavigationCard("🛡️", "Privacy Guard", "Review requested permissions, remove manifest declarations and view build audit history", onOpenApps)
+        ExtensionNavigationCard("💾", "Storage Manager", "OpenClone cache cleanup, generated output totals and Android clone storage details", onOpenClones)
+        ExtensionNavigationCard("📦", "Backup & Restore", "Clone profiles, appearance, proxy settings and automation cadence backup", onOpenSettings)
+        ExtensionNavigationCard("🧰", "Developer Toolkit", "APK diagnostics, compatibility preflight and redacted runtime log export", onOpenSettings)
 
 
         Card {
