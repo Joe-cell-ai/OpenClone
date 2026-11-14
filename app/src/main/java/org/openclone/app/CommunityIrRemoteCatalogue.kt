@@ -30,7 +30,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-private data class IrdbEntry(val name: String, val path: String, val directory: Boolean)
+internal data class IrdbEntry(val name: String, val path: String, val directory: Boolean)
 
 /**
  * Read-only client for the public flipperdevices IRDB. All URLs are constructed
