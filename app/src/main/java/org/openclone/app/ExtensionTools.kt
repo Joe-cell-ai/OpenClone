@@ -298,7 +298,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
 
         ExtensionNavigationCard("🎨", "Icon & Name Studio", "Clone label, package ID, custom PNG and badge settings", onOpenApps)
         ExtensionNavigationCard("🧩", "Clone Profiles", "Save, apply, rename, duplicate and delete clone configurations", onOpenProfiles)
-        ExtensionNavigationCard("🗂️", "Multi-Clone Manager", "Search, sort, multi-select and system-confirmed uninstall", onOpenClones)
+        ExtensionNavigationCard("🗂️", "Multi-Clone Manager", "Group by original app, search, sort, multi-select and system-confirmed uninstall", onOpenClones)
         ExtensionNavigationCard("🎭", "Theme Studio", "System, Light, Dark, AMOLED and four accent palettes", onOpenSettings)
         ExtensionNavigationCard("🛡️", "Privacy Guard", "Review requested permissions and remove selected manifest declarations", onOpenApps)
         ExtensionNavigationCard("💾", "Storage Manager", "Installed clone APK/split footprint; private app data is OS-restricted", onOpenClones)
