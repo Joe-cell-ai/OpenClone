@@ -196,14 +196,26 @@ object OpenCloneNotificationChannels {
 }
 
 object CloneUpdateAutomation {
+    private const val INTERVAL_HOURS = "update_check_interval_hours"
     fun isEnabled(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(AUTOMATION, false)
+    fun intervalHours(context: Context): Long = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        .getLong(INTERVAL_HOURS, 24L).coerceIn(24L, 168L)
+
+    fun setIntervalHours(context: Context, hours: Long) {
+        require(hours in setOf(24L, 72L, 168L)) { "Choose a 1-day, 3-day or 7-day interval." }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putLong(INTERVAL_HOURS, hours).apply()
+        if (isEnabled(context)) schedule(context)
+    }
+
     fun setEnabled(context: Context, enabled: Boolean) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(AUTOMATION, enabled).apply()
-        if (enabled) {
-            OpenCloneNotificationChannels.ensure(context)
-            val request = PeriodicWorkRequestBuilder<CloneUpdateCheckWorker>(24, TimeUnit.HOURS).build()
-            WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
-        } else WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        if (enabled) schedule(context) else WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+    }
+
+    private fun schedule(context: Context) {
+        OpenCloneNotificationChannels.ensure(context)
+        val request = PeriodicWorkRequestBuilder<CloneUpdateCheckWorker>(intervalHours(context), TimeUnit.HOURS).build()
+        WorkManager.getInstance(context).enqueueUniquePeriodicWork(WORK_NAME, ExistingPeriodicWorkPolicy.UPDATE, request)
     }
 }
 
@@ -250,7 +262,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var message by remember { mutableStateOf("Saved profiles are not applied to cloned apps or device traffic.") }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
-    var appLockEnabled by remember { mutableStateOf(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(APP_LOCK, false)) }
+    var automationInterval by remember { mutableStateOf(CloneUpdateAutomation.intervalHours(context)) }\n    var appLockEnabled by remember { mutableStateOf(context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(APP_LOCK, false)) }
     var appLockMessage by remember { mutableStateOf("Uses the Android device screen lock; OpenClone does not store a separate password.") }
 
     val refreshNetwork = { network = NetworkSnapshot.read(context) }
@@ -429,7 +441,18 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("⚙️ Automation Studio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("Check daily for source-app updates used by installed clones. OpenClone only reports updates; it never installs or updates apps automatically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Check for source-app updates used by installed clones. OpenClone only reports updates; it never installs or updates apps automatically.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("Check interval", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(24L to "1 day", 72L to "3 days", 168L to "7 days").forEach { (hours, label) ->
+                        TextButton(onClick = {
+                            runCatching {
+                                CloneUpdateAutomation.setIntervalHours(context, hours)
+                                automationInterval = hours
+                            }.onFailure { message = it.message ?: "Could not update interval." }
+                        }) { Text((if (automationInterval == hours) "✓ " else "") + label) }
+                    }
+                }
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (automation) "Daily check enabled" else "Daily check disabled", modifier = Modifier.weight(1f))
                     Switch(checked = automation, onCheckedChange = { enabled ->
