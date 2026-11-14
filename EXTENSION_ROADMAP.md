@@ -14,7 +14,7 @@ This roadmap covers the 16 extensions approved for OpenClone. Status is delibera
 
 ## Priorities and status
 
-Status values: **Foundation** = reusable groundwork exists, but the complete extension UI/workflow is not available; **Planned** = not implemented; **Research** = feasibility/security work required before implementation.
+Status values: **Implemented** = user flow, persistence and required tests are present; **Partial** = a useful bounded workflow is present but the full extension is not; **Foundation** = reusable groundwork only; **Planned** = not implemented; **Research** = feasibility/security work required before implementation.
 
 | Priority | Extension | First deliverable | Status |
 |---|---|---|---|
