@@ -290,7 +290,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var selectedClone by remember { mutableStateOf<InstalledClone?>(null) }
     var cloneSelectionMode by remember { mutableStateOf(false) }
     var cloneSortByName by remember { mutableStateOf(true) }
-    var groupClonesByOriginal by rememberSaveable { mutableStateOf(false) }
+    var groupClonesByOriginal by remember { mutableStateOf(context.getSharedPreferences("openclone_clone_manager", Context.MODE_PRIVATE).getBoolean("group_by_original", false)) }
     var selectedClonePackages by remember { mutableStateOf<Set<String>>(emptySet()) }
     var bulkUninstallQueue by remember { mutableStateOf<List<String>>(emptyList()) }
     var bulkUninstallIndex by remember { mutableStateOf(0) }
@@ -944,7 +944,11 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("${clones.size} installed · ${selectedClonePackages.size} selected", style = MaterialTheme.typography.titleSmall)
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            TextButton(onClick = { groupClonesByOriginal = !groupClonesByOriginal }) {
+                            TextButton(onClick = {
+                                groupClonesByOriginal = !groupClonesByOriginal
+                                context.getSharedPreferences("openclone_clone_manager", Context.MODE_PRIVATE).edit()
+                                    .putBoolean("group_by_original", groupClonesByOriginal).apply()
+                            }) {
                                 Text(if (groupClonesByOriginal) "Grouped" else "Group")
                             }
                             TextButton(onClick = { cloneSortByName = !cloneSortByName }) {
