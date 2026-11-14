@@ -116,7 +116,7 @@ This is a core application experience, not a seventeenth extension. It is tracke
 | Item | Status |
 |---|---|
 | Existing destination/taskbar navigation | Partial — current navigation exists; visual consistency and final polish remain |
-| Screen-aware top app bar actions | Planned — verify and implement title, Settings, Search and back behavior across every screen |
+| Screen-aware top app bar actions | Partial — Home shows Settings; Apps and Cloned apps expose a Search action that focuses the screen search field; Settings/back navigation polish remains |
 | Premium gradient dashboard header | Planned — design direction approved; not yet confirmed in the app |
 | Live installed-app and clone counts | Planned — must be data-backed, not hard-coded |
 | Account & Tools placement in Settings | Existing direction — verify final navigation and remove duplicate entry points if any |
