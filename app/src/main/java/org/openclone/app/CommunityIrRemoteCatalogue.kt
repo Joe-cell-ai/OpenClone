@@ -90,6 +90,7 @@ internal object CommunityIrdbRepository {
             connectTimeout = 10_000
             readTimeout = 15_000
             requestMethod = "GET"
+            instanceFollowRedirects = false
             setRequestProperty("Accept", "application/vnd.github+json")
             setRequestProperty("User-Agent", "OpenClone-UniversalRemote")
             setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
@@ -170,7 +171,7 @@ fun CommunityIrRemoteCatalogueCard() {
             )
             if (loading) CircularProgressIndicator()
             Text("1 · Appliance category", style = MaterialTheme.typography.labelLarge)
-            categories.filter { it.name.contains(search, true) || search.isBlank() }.forEach { entry ->
+            categories.filter { it.directory && (it.name.contains(search, true) || search.isBlank()) }.forEach { entry ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(entry.name.replace('_', ' '), modifier = Modifier.weight(1f))
                     Button(onClick = {
