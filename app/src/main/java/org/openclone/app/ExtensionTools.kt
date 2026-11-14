@@ -380,6 +380,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                         runCatching {
                             repository.save(ProxyProfile(name, host, port.toInt(), protocol))
                             profiles = repository.getAll()
+                            ExtensionDiagnosticsLog(context).append("proxy", "profile_saved", "Saved a proxy profile.")
                             message = "Proxy profile saved."
                         }.onFailure { message = it.message ?: "Could not save profile." }
                     }) { Text("Save") }
@@ -393,8 +394,14 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                                     runCatching { ProxyConnectivityTester.test(ProxyProfile(name.ifBlank { "Test" }, host, targetPort!!, protocol)) }
                                 }
                                 message = result.fold(
-                                    { "Proxy handshake succeeded. Authentication and cloned-app routing are not configured." },
-                                    { "Connection failed: " + (it.message ?: "host unreachable") }
+                                    {
+                                        ExtensionDiagnosticsLog(context).append("proxy", "handshake_success", "Proxy tunnel handshake succeeded.")
+                                        "Proxy handshake succeeded. Authentication and cloned-app routing are not configured."
+                                    },
+                                    {
+                                        ExtensionDiagnosticsLog(context).append("proxy", "handshake_failed", "Proxy tunnel handshake failed.")
+                                        "Connection failed: " + (it.message ?: "host unreachable")
+                                    }
                                 )
                             }
                         }
@@ -468,7 +475,11 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (automation) "Daily check enabled" else "Daily check disabled", modifier = Modifier.weight(1f))
                     Switch(checked = automation, onCheckedChange = { enabled ->
-                        runCatching { CloneUpdateAutomation.setEnabled(context, enabled); automation = enabled }
+                        runCatching {
+                            CloneUpdateAutomation.setEnabled(context, enabled)
+                            automation = enabled
+                            ExtensionDiagnosticsLog(context).append("automation", if (enabled) "enabled" else "disabled", "Source-app update check schedule changed.")
+                        }
                             .onFailure { message = it.message ?: "Could not change schedule." }
                     })
                 }
@@ -513,6 +524,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                         withContext(Dispatchers.IO) {
                             context.cacheDir.listFiles()?.forEach { child -> runCatching { child.deleteRecursively() } }
                         }
+                        ExtensionDiagnosticsLog(context).append("storage", "cache_cleared", "OpenClone temporary cache was cleared.")
                         storage = withContext(Dispatchers.IO) { StorageSnapshot.read(context) }
                     }
                 }) { Text("Clear cache") }
