@@ -130,6 +130,15 @@ private enum class OpenCloneAccent(val label: String, val primary: Color, val se
     SUNSET("Sunset", Color(0xFFC05A42), Color(0xFFE18B55), Color(0xFFB56A9F), Color(0xFF693326), Color(0xFFFFE8DF))
 }
 
+private data class RestoredProfileBackup(
+    val profileCount: Int,
+    val themeMode: OpenCloneThemeMode?,
+    val accent: OpenCloneAccent?,
+    val customAccentArgb: Int?,
+    val customAccentSpecified: Boolean,
+    val proxyProfiles: List<ProxyProfile>?
+)
+
 class MainActivity : ComponentActivity() {
     private val appLocked = mutableStateOf(false)
     private var appLockEnabled = false
@@ -470,6 +479,38 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                 add(Triple(item, name, badge))
                             }
                         }
+                        val settings = root.optJSONObject("settings")
+                        val restoredTheme = settings?.optString("themeMode")?.takeIf { it.isNotBlank() }?.let { value ->
+                            OpenCloneThemeMode.values().firstOrNull { it.name == value }
+                                ?: error("Backup contains an unsupported theme mode.")
+                        }
+                        val restoredAccent = settings?.optString("accentPalette")?.takeIf { it.isNotBlank() }?.let { value ->
+                            OpenCloneAccent.values().firstOrNull { it.name == value }
+                                ?: error("Backup contains an unsupported accent palette.")
+                        }
+                        val hasCustomAccent = settings?.has("customAccentArgb") == true
+                        val restoredCustomAccent = if (hasCustomAccent) settings?.optInt("customAccentArgb", 0)?.takeIf { it != 0 } else null
+                        if (restoredCustomAccent != null) require((restoredCustomAccent ushr 24) == 0xFF) { "Backup custom accent color is invalid." }
+                        val restoredProxyProfiles = settings?.optJSONArray("proxyProfiles")?.let { array ->
+                            require(array.length() <= 10) { "Backup contains too many proxy profiles." }
+                            buildList {
+                                for (index in 0 until array.length()) {
+                                    val item = array.optJSONObject(index) ?: error("Proxy profile #${index + 1} is invalid.")
+                                    val profile = ProxyProfile(
+                                        item.getString("name"),
+                                        item.getString("host"),
+                                        item.getInt("port"),
+                                        item.optString("protocol", "HTTP_CONNECT")
+                                    )
+                                    ProxyProfile.validate(profile.name, profile.host, profile.port, profile.protocol)
+                                    add(profile)
+                                }
+                            }.also { profiles ->
+                                require(profiles.map { it.name.lowercase() }.distinct().size == profiles.size) {
+                                    "Backup proxy profile names must be unique."
+                                }
+                            }
+                        }
                         val repository = CloneProfileRepository(context)
                         validated.forEach { (item, name, badge) ->
                             repository.save(
@@ -481,12 +522,30 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                 badgePosition = badge
                             )
                         }
-                        validated.size
+                        if (settings != null) {
+                            val appearance = context.getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                            restoredTheme?.let { appearance.putString(THEME_MODE_KEY, it.name) }
+                            restoredAccent?.let { appearance.putString("accent_palette", it.name) }
+                            if (hasCustomAccent) appearance.putInt("custom_accent_argb", restoredCustomAccent ?: 0)
+                            check(appearance.commit()) { "Could not restore appearance settings." }
+                            restoredProxyProfiles?.let { ProxyProfileRepository(context).replaceAll(it) }
+                        }
+                        RestoredProfileBackup(
+                            profileCount = validated.size,
+                            themeMode = restoredTheme,
+                            accent = restoredAccent,
+                            customAccentArgb = restoredCustomAccent,
+                            customAccentSpecified = hasCustomAccent,
+                            proxyProfiles = restoredProxyProfiles
+                        )
                     }
                 }
-                result.onSuccess { count ->
+                result.onSuccess { restored ->
                     profiles = CloneProfileRepository(context).getAll()
-                    statusMessage = "Restored $count profile(s). Existing profiles were preserved; signing keys, APKs and app data are not restored."
+                    restored.themeMode?.let(onThemeModeChange)
+                    restored.accent?.let(onAccentChange)
+                    if (restored.customAccentSpecified) onCustomAccentChange(restored.customAccentArgb)
+                    statusMessage = "Restored ${restored.profileCount} profile(s), appearance settings and ${restored.proxyProfiles?.size ?: 0} proxy profile(s). Signing keys, APKs, credentials and app data are not restored."
                 }.onFailure { statusMessage = it.message ?: "Could not restore this backup." }
             }
         }
@@ -1913,6 +1972,18 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                         put("formatVersion", 1)
                                         put("createdAtMillis", System.currentTimeMillis())
                                         put("profiles", profileArray)
+                                        put("settings", JSONObject().apply {
+                                            val appearance = context.getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                            put("themeMode", appearance.getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name))
+                                            put("accentPalette", appearance.getString("accent_palette", OpenCloneAccent.VIOLET.name))
+                                            put("customAccentArgb", appearance.getInt("custom_accent_argb", 0))
+                                            val proxyArray = JSONArray()
+                                            ProxyProfileRepository(context).getAll().forEach { proxy ->
+                                                proxyArray.put(JSONObject().put("name", proxy.name).put("host", proxy.host)
+                                                    .put("port", proxy.port).put("protocol", proxy.protocol))
+                                            }
+                                            put("proxyProfiles", proxyArray)
+                                        })
                                     }.toString(2)
                                     exportProfileBackup.launch("openclone-profiles-backup.json")
                                 }) { Text("Export") }
