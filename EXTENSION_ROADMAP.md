@@ -20,7 +20,7 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 |---|---|---|---|
 | P0 | Icon & Name Studio | Unified per-clone icon/label editor, preview and format diagnostics | Partial existing clone-build controls; studio workflow planned |
 | P0 | Clone Profiles | Save, list, apply and delete reusable non-secret clone configurations | Foundation: private profile persistence and validation added; UI/apply flow planned |
-| P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: installed clone discovery and launch/uninstall exist; management workspace planned |
+| P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: installed clone discovery, search by clone/original package, multi-select and sequential system-confirmed bulk uninstall UI; grouping/sorting remain planned |
 | P0 | Theme Studio | More theme presets and user-selectable accent/surface options | Partial: System, Light, Dark and AMOLED themes already exist |
 | P1 | Privacy Guard | Per-clone permission review, explain manifest changes and privacy checklist | Partial: clone manifest permission removal exists; dedicated guard UI and audit trail planned |
 | P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Planned |
@@ -48,7 +48,7 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 - Apply profiles to the existing clone setup form without silently changing a previously selected app.
 - Consolidate icon, label, package ID and badge settings into Icon & Name Studio.
 - Expand icon replacement diagnostics for unsupported adaptive/vector/layer-list resources.
-- Add clone grouping, filtering and multi-select management.
+- Add clone grouping and sorting; filtering, multi-select and sequential system-confirmed bulk uninstall are implemented in the current delivery branch.
 - Extend the existing theme selector without breaking current saved preferences.
 
 ### M2 — Privacy and data lifecycle
