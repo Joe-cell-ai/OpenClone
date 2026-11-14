@@ -229,7 +229,7 @@ data class SignedExtensionDescriptor(
         require(publisher.isNotBlank() && publisher.length <= 120)
         require(minimumOpenCloneApi > 0 && maximumOpenCloneApi >= minimumOpenCloneApi)
         require(sha256.matches(Regex("[A-Fa-f0-9]{64}")))
-        return listOf(extensionId, version, publisher, minimumOpenCloneApi, maximumOpenCloneApi, sha256.lowercase()).joinToString("\\n").toByteArray(Charsets.UTF_8)
+        return listOf(extensionId, version, publisher, minimumOpenCloneApi, maximumOpenCloneApi, sha256.lowercase()).joinToString("\n").toByteArray(Charsets.UTF_8)
     }
 }
 
@@ -261,7 +261,7 @@ object RemoteControlAuthenticator {
         require(secret.size >= 32 && method.matches(Regex("[A-Z]{3,10}")))
         require(path.startsWith("/") && path.length <= 512 && !path.contains("\n"))
         require(nonce.matches(Regex("[A-Za-z0-9_-]{16,80}")))
-        val payload = listOf(method, path, timestampMillis.toString(), nonce).joinToString("\\n").toByteArray(Charsets.UTF_8)
+        val payload = listOf(method, path, timestampMillis.toString(), nonce).joinToString("\n").toByteArray(Charsets.UTF_8)
         val mac = Mac.getInstance("HmacSHA256")
         mac.init(SecretKeySpec(secret, "HmacSHA256"))
         return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(payload))
