@@ -538,7 +538,8 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
             .putString(CloneBuildWorker.KEY_VERSION_NAME_OVERRIDE, versionNameOverride.trim().takeIf { it.isNotEmpty() })
             .putInt(CloneBuildWorker.KEY_VERSION_CODE_OVERRIDE, versionCode?.toInt() ?: 0)
             .putBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, cloneUpdateMode)
-            .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)            .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
+            .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)
+            .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
             .putStringArray(CloneBuildWorker.KEY_OBB_FILES, importedSource?.obbFiles?.map { it.absolutePath }?.toTypedArray() ?: emptyArray())
             .putString(CloneBuildWorker.KEY_BADGE_POSITION, badgePosition.name)
             .build()
@@ -1075,7 +1076,8 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                                     ?: runCatching {
                                         InstalledAppRepository(context.packageManager)
                                             .getInstalledApps(includeSystemApps = true)
-                                            .firstOrNull { it.packageName == clone.originalPackage }                                    }.getOrNull()
+                                            .firstOrNull { it.packageName == clone.originalPackage }
+                                    }.getOrNull()
                             }
                             if (original == null) {
                                 statusMessage = "The original app must be installed before this clone can be updated."
