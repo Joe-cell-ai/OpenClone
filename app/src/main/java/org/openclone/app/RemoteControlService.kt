@@ -211,7 +211,8 @@ class RemoteControlService : Service() {
             serverSocket = socket
             while (running) {
                 try {
-                    socket.accept().use { client ->
+                    val accepted = socket.accept() as javax.net.ssl.SSLSocket
+                    accepted.use { client ->
                         client.soTimeout = 5000
                         client.startHandshake()
                         handleRequest(client)
