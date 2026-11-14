@@ -18,22 +18,22 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 
 | Priority | Extension | First deliverable | Status |
 |---|---|---|---|
-| P0 | Icon & Name Studio | Unified per-clone icon/label editor, preview and format diagnostics | Partial: clone name/package editor, custom PNG chooser/preview, original-icon reset and four badge positions; adaptive/vector resource diagnostics remain |
+| P0 | Icon & Name Studio | Unified per-clone icon/label editor, preview and format diagnostics | Partial: clone name/package editor, custom PNG chooser/preview, original-icon reset, four badge positions and ZIP-based raster/XML resource diagnostics; compiled XML resource-table resolution remains |
 | P0 | Clone Profiles | Save, list, apply and delete reusable non-secret clone configurations | Implemented: save/update, apply, rename, duplicate and delete; profile intentionally excludes APK bytes, signing keys, credentials and app data |
-| P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: discovery, search, persistent grouping by original package, name/update sorting, multi-select and sequential system-confirmed bulk uninstall; friendly original-app labels and group actions remain |
-| P0 | Theme Studio | More theme presets and user-selectable accent/surface options | Partial: System, Light, Dark and AMOLED modes plus four persistent accent palettes (Violet, Ocean, Emerald, Sunset); custom color picker and dedicated live preview remain |
-| P1 | Privacy Guard | Per-clone permission review, explain manifest changes and privacy checklist | Partial: clone setup lists requested manifest permissions, lets users select removals and explains manifest-only impact; persistent audit history and deeper permission rationale remain |
-| P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Partial: installed clone APK/split footprint is shown; other apps' private data/cache sizes are not exposed to ordinary apps |
-| P1 | Backup & Restore | Export/import profiles and supported OpenClone metadata with integrity checks | Partial: version-1 JSON profile backup export/restore with size/count limits, schema validation and pre-validation before writes; APK-set ZIP and signing identity backups remain separate; settings bundle and cryptographic authenticity remain |
-| P1 | App Lock | Local OpenClone access gate using supported device authentication | Partial: Android device PIN/pattern/password gate with lock-on-background and explicit unlock flow; biometric-specific flow and device-level lifecycle tests remain |
-| P1 | Proxy Manager | Named proxy profiles and connection test; only supported routing scope | Partial: up to 10 local named profiles with validation and TCP endpoint reachability test; profiles do not route cloned-app traffic or change the device proxy |
-| P1 | Network Monitor | User-visible diagnostics for OpenClone's own traffic and supported VPN traffic | Partial: live-refresh connectivity, transport, validated-internet, metered and VPN state; no third-party traffic capture |
-| P1 | Developer Toolkit | Build/compatibility diagnostics, structured logs and redacted export | Partial: APK inspection, compatibility preflight, build history and redacted build-history JSON export; structured runtime logs remain |
-| P2 | WebView Manager | Safe settings for OpenClone-owned WebViews and isolated data | Research: does not control arbitrary WebViews embedded in cloned apps |
-| P2 | Notification Manager | Explain notification behavior and supported per-clone notification settings | Partial: creates and links to Android settings for OpenClone's own clone-update notification channel; cannot rewrite third-party clone notifications |
-| P2 | Automation Studio | Explicit, user-approved workflows using supported Android intents/actions | Partial: opt-in daily WorkManager check for updates to original apps used by installed clones; reports only and never auto-installs |
-| P2 | Remote Control | Authenticated, opt-in control of OpenClone actions over a secure local/remote channel | Research: threat model, pairing, encryption and revocation required |
-| P3 | Extension Updater | Verify catalogue metadata, publisher signatures, version and compatibility before update | Planned: depends on signed extension package and IPC architecture |
+| P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: group by original app, search, name/update sorting, multi-select and sequential system-confirmed bulk uninstall; richer group actions remain |
+| P0 | Theme Studio | More theme presets and user-selectable accent/surface options | Partial: System, Light, Dark and AMOLED modes, four persistent accent palettes and a persistent custom six-digit hex accent color; dedicated full-screen preview and custom surface palette remain |
+| P1 | Privacy Guard | Per-clone permission review, explain manifest changes and privacy checklist | Partial: per-build persistent audit history records requested and removed manifest permissions; runtime grants are not revoked and deeper permission rationale remains |
+| P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Partial: installed clone APK/split footprint, OpenClone cache/files/build-output totals, safe OpenClone-cache cleanup and links to Android app storage details; other apps' private data/cache sizes remain OS-restricted |
+| P1 | Backup & Restore | Export/import profiles and supported OpenClone metadata with integrity checks | Partial: bounded version-1 JSON backup includes clone profiles, appearance mode/accent, proxy profiles and automation cadence with schema validation; APK-set ZIP and signing identity backups remain separate; cryptographic authenticity remains |
+| P1 | App Lock | Local OpenClone access gate using supported device authentication | Partial: AndroidX biometric prompt with device PIN/pattern/password fallback and lock-on-background; device-level lifecycle tests remain |
+| P1 | Proxy Manager | Named proxy profiles and connection test; only supported routing scope | Partial: up to 10 validated HTTP CONNECT/SOCKS5 profiles with real unauthenticated tunnel handshake tests; profiles do not route cloned-app traffic or change the device proxy |
+| P1 | Network Monitor | User-visible diagnostics for OpenClone's own traffic and supported VPN traffic | Partial: live connectivity callbacks for transport, internet validation, metered and VPN state; no third-party traffic capture |
+| P1 | Developer Toolkit | Build/compatibility diagnostics, structured logs and redacted export | Partial: APK inspection, compatibility preflight, build history, bounded redacted runtime event log and JSON share/export; deeper engine instrumentation remains |
+| P2 | WebView Manager | Safe settings for OpenClone-owned WebViews and isolated data | Research: fail-closed HTTPS host allowlist and safe WebView settings policy are implemented; OpenClone has no embedded WebView screen yet and cannot control cloned-app WebViews |
+| P2 | Notification Manager | Explain notification behavior and supported per-clone notification settings | Partial: manages OpenClone's own update channel and deep-links to Android notification settings for each detected clone; cannot rewrite third-party notification payloads |
+| P2 | Automation Studio | Explicit, user-approved workflows using supported Android intents/actions | Partial: opt-in WorkManager source-app update checks on a selectable 1-, 3- or 7-day cadence; reports only and never auto-installs |
+| P2 | Remote Control | Authenticated, opt-in control of OpenClone actions over a secure local/remote channel | Research: HMAC request signing, freshness checks and nonce replay guard primitives are implemented and tested; pairing UX, transport, action authorization and revocation are not active |
+| P3 | Extension Updater | Verify catalogue metadata, publisher signatures, version and compatibility before update | Partial: ECDSA-signed descriptor and package SHA-256 verifier with API compatibility checks are implemented and tested; trusted publisher key, signed catalogue, download/install and rollback remain |
 
 ## Milestones
 
@@ -48,7 +48,7 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 - Apply profiles to the existing clone setup form without silently changing a previously selected app.
 - Consolidate icon, label, package ID and badge settings into Icon & Name Studio.
 - Expand icon replacement diagnostics for unsupported adaptive/vector/layer-list resources.
-- Add clone grouping and sorting; persistent grouping by original package, filtering, multi-select and sequential system-confirmed bulk uninstall are implemented.
+- Add clone grouping and sorting; filtering, multi-select, sequential system-confirmed bulk uninstall and grouping by original app are implemented in main.
 - Extend the existing theme selector without breaking current saved preferences; four persistent accent palettes are now available alongside the four theme modes.
 
 ### M2 — Privacy and data lifecycle
@@ -92,7 +92,7 @@ An extension is complete only when it has:
 
 ## Current implementation boundary
 
-Existing OpenClone functionality includes app browsing, APK inspection and rebuild, custom label/package ID, limited custom PNG icon replacement, optional manifest permission removal, clone discovery/launch/uninstall, APK ZIP export, signing identity backup, build history, System/Light/Dark/AMOLED themes and four saved accent palettes. Versioned clone-profile backup and redacted build-history export are also available; this does not back up clone-private data or signing identities. The current extension tools also provide saved proxy endpoint profiles with TCP reachability checks, Android connectivity diagnostics, OpenClone notification-channel settings and an opt-in daily clone-source update check. These tools do not provide per-clone proxy routing or third-party traffic/notification access. These existing features are not evidence that the broader extensions listed above are complete.
+Existing OpenClone functionality includes app browsing, APK inspection and rebuild, custom label/package ID, limited custom PNG icon replacement, optional manifest permission removal, clone discovery/launch/uninstall, APK ZIP export, signing identity backup, build history, System/Light/Dark/AMOLED themes and four saved accent palettes. Versioned clone-profile backup with appearance and proxy settings, bounded privacy audits and redacted runtime/build diagnostics are also available; this does not back up clone-private data or signing identities. The current extension tools also provide HTTP CONNECT/SOCKS5 handshake tests, live Android connectivity diagnostics, OpenClone cache cleanup, per-clone notification settings, selectable update-check cadence, custom theme colors, settings-aware profile backups and validated signature/authentication primitives. These tools do not provide per-clone proxy routing or third-party traffic/notification access. These existing features are not evidence that the broader extensions listed above are complete.
 
 ## Core UI workstream — Top Bar & Dashboard
 
@@ -116,7 +116,7 @@ This is a core application experience, not a seventeenth extension. It is tracke
 | Item | Status |
 |---|---|
 | Existing destination/taskbar navigation | Partial — current navigation exists; visual consistency and final polish remain |
-| Screen-aware top app bar actions | Partial — Home shows Settings; Apps and Cloned apps expose a Search action that focuses the screen search field; Settings/back navigation polish remains |
+| Screen-aware top app bar actions | Partial — Home shows Settings; Apps and Cloned apps expose Search; system and visible in-app Back navigation are merged; contextual settings/back polish remains |
 | Premium gradient dashboard header | Implemented — rounded blue/purple/teal gradient header is present |
 | Live installed-app and clone counts | Implemented — header reads installed-app and discovered-clone counts from current app state |
 | Account & Tools placement in Settings | Existing direction — verify final navigation and remove duplicate entry points if any |
