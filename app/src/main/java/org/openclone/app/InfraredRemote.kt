@@ -74,6 +74,7 @@ fun InfraredApplianceRemoteCard() {
     var appliance by remember { mutableStateOf("TV") }
     var carrier by remember { mutableStateOf("38000") }
     var timings by remember { mutableStateOf("") }
+    var prontoHex by remember { mutableStateOf("") }
     var message by remember {
         mutableStateOf(
             if (available) "IR blaster detected. Enter a command's raw timing sequence to transmit it."
@@ -126,6 +127,30 @@ fun InfraredApplianceRemoteCard() {
                     }.onFailure { message = it.message ?: "Could not transmit the IR command." }
                 }
             ) { Text("Transmit IR command") }
+            OutlinedTextField(
+                value = prontoHex,
+                onValueChange = { prontoHex = it.take(6000) },
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 2,
+                label = { Text("Pronto Hex code (optional)") },
+                placeholder = { Text("0000 006D 0022 0000 …") }
+            )
+            Button(
+                enabled = available && prontoHex.isNotBlank(),
+                onClick = {
+                    runCatching {
+                        val command = ProntoHexDecoder.decode(prontoHex)
+                        val supported = InfraredRemote.supportedCarrierRanges(context)
+                        if (supported.isNotEmpty()) {
+                            require(supported.any { command.carrierHz in it.minFrequency..it.maxFrequency }) {
+                                "This phone does not support the Pronto Hex carrier frequency."
+                            }
+                        }
+                        InfraredRemote.transmit(context, command)
+                        message = "$appliance Pronto Hex command transmitted. Check whether the appliance responded."
+                    }.onFailure { message = it.message ?: "Could not transmit Pronto Hex command." }
+                }
+            ) { Text("Transmit Pronto Hex") }
             Text(
                 "Important: Android phones can transmit IR but generally cannot learn/receive remote signals through ConsumerIrManager. A model-specific code library and device testing are still needed for a ready-made brand/model remote.",
                 style = MaterialTheme.typography.bodySmall,
