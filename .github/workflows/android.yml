@@ -32,6 +32,12 @@ jobs:
         with:
           gradle-version: "8.11.1"
       - name: Build debug APK
+        env:
+          OPENCLONE_KEYSTORE_BASE64: ${{ secrets.OPENCLONE_KEYSTORE_BASE64 }}
+          OPENCLONE_KEYSTORE_PASSWORD: ${{ secrets.OPENCLONE_KEYSTORE_PASSWORD }}
+          OPENCLONE_KEY_ALIAS: ${{ secrets.OPENCLONE_KEY_ALIAS }}
+          OPENCLONE_KEY_PASSWORD: ${{ secrets.OPENCLONE_KEY_PASSWORD }}
+          OPENCLONE_VERSION_CODE: ${{ github.run_number }}
         run: gradle testDebugUnitTest lintDebug assembleDebug
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -46,6 +52,7 @@ jobs:
           OPENCLONE_KEYSTORE_PASSWORD: ${{ secrets.OPENCLONE_KEYSTORE_PASSWORD }}
           OPENCLONE_KEY_ALIAS: ${{ secrets.OPENCLONE_KEY_ALIAS }}
           OPENCLONE_KEY_PASSWORD: ${{ secrets.OPENCLONE_KEY_PASSWORD }}
+          OPENCLONE_VERSION_CODE: ${{ github.run_number }}
         run: gradle assembleRelease
       - name: Upload signed release APK
         if: (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || inputs.build_release
