@@ -1927,7 +1927,10 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
             onDismissRequest = { showSettings = false },
             title = { Text("Settings") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text("Manage OpenClone preferences and information.")
                     Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Text("Choose how OpenClone looks. Changes apply immediately and are saved on this device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
