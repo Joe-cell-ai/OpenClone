@@ -6,8 +6,8 @@
     <application
         android:allowBackup="false"
         android:largeHeap="true"
-        android:icon="@drawable/openclone_launcher"
-        android:roundIcon="@drawable/openclone_launcher"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:label="OpenClone"
         android:supportsRtl="true"
         android:theme="@style/OpenCloneTheme">
