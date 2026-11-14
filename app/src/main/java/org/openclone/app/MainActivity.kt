@@ -103,6 +103,8 @@ import org.openclone.app.data.InstalledClone
 import org.openclone.app.data.InstalledCloneRepository
 import org.openclone.app.data.CloneBuildHistoryRepository
 import org.openclone.app.data.CloneProfileRepository
+import org.openclone.app.data.PrivacyAuditRepository
+import org.openclone.app.data.ExtensionDiagnosticsLog
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -790,6 +792,28 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                         }
                                         savedHistory.onSuccess { buildHistory = it }
                                             .onFailure { statusMessage = it.message ?: "Could not save build history." }
+                                        val privacyAudit = withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                PrivacyAuditRepository(context).record(
+                                                    originalPackage = completedBuild.originalPackage,
+                                                    clonePackage = completedBuild.clonePackage,
+                                                    requestedPermissions = requestedPermissions,
+                                                    removedPermissions = removedPermissions
+                                                )
+                                            }
+                                        }
+                                        privacyAudit.onFailure {
+                                            statusMessage = "Clone built, but the privacy audit could not be saved: " + (it.message ?: "storage error")
+                                        }
+                                        withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                ExtensionDiagnosticsLog(context).append(
+                                                    area = "clone",
+                                                    code = "build_success",
+                                                    summary = "Clone build completed with ${completedBuild.apks.size} APK component(s)."
+                                                )
+                                            }
+                                        }
                                     }
                                     cloneSource = null
                                     externalSource = null
