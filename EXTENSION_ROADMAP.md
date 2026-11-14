@@ -23,7 +23,7 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 | P0 | Multi-Clone Manager | Group, search, sort and bulk-manage OpenClone-created instances | Partial: installed clone discovery, search by clone/original package, multi-select and sequential system-confirmed bulk uninstall UI; grouping/sorting remain planned |
 | P0 | Theme Studio | More theme presets and user-selectable accent/surface options | Partial: System, Light, Dark and AMOLED themes already exist |
 | P1 | Privacy Guard | Per-clone permission review, explain manifest changes and privacy checklist | Partial: clone manifest permission removal exists; dedicated guard UI and audit trail planned |
-| P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Planned |
+| P1 | Storage Manager | Per-clone APK/output size and app-data/cache visibility where Android permits | Partial: installed clone APK/split footprint is shown; other apps' private data/cache sizes are not exposed to ordinary apps |
 | P1 | Backup & Restore | Export/import profiles and supported OpenClone metadata with integrity checks | Partial: signing identity PKCS#12 export/import and APK ZIP export exist; unified backup is planned |
 | P1 | App Lock | Local OpenClone access gate using supported device authentication | Research: threat model and biometric/device-credential flow required |
 | P1 | Proxy Manager | Named proxy profiles and connection test; only supported routing scope | Research: per-clone routing is not generally available to an ordinary app without VPN/OS support |
@@ -53,7 +53,7 @@ Status values: **Foundation** = reusable groundwork exists, but the complete ext
 
 ### M2 — Privacy and data lifecycle
 - Add a permission-impact review before building a clone.
-- Build Storage Manager using only storage information Android exposes to OpenClone.
+- Extend Storage Manager with output APK sizes and app-owned cache visibility where Android exposes it; installed clone APK/split footprint is implemented.
 - Define a versioned backup manifest; include profiles and supported app-owned artifacts, not arbitrary private app data.
 - Add App Lock with explicit device-authentication fallback and no custom password storage.
 
