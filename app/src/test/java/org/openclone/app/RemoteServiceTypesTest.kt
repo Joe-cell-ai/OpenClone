@@ -7,9 +7,14 @@ class RemoteServiceTypesTest {
     @Test fun recognizesOnlyExplicitlySupportedServiceTypes() {
         assertEquals(RemoteTransport.WIFI_LAN, RemoteServiceTypes.transportFor(RemoteServiceTypes.GOOGLE_CAST))
         assertEquals(RemoteTransport.WIFI_LAN, RemoteServiceTypes.transportFor(RemoteServiceTypes.AIRPLAY))
-        assertEquals(RemoteTransport.WIFI_LAN, RemoteServiceTypes.transportFor(RemoteServiceTypes.MATTER_OPERATIONAL))
-        assertEquals(RemoteTransport.WIFI_LAN, RemoteServiceTypes.transportFor(RemoteServiceTypes.MATTER_COMMISSIONABLE))
+        assertEquals(RemoteTransport.MATTER, RemoteServiceTypes.transportFor(RemoteServiceTypes.MATTER_OPERATIONAL))
+        assertEquals(RemoteTransport.MATTER, RemoteServiceTypes.transportFor(RemoteServiceTypes.MATTER_COMMISSIONABLE))
         assertNull(RemoteServiceTypes.transportFor("_unknown._tcp."))
+    }
+
+    @Test fun matterServiceClassificationIsCaseInsensitive() {
+        assertEquals(RemoteTransport.MATTER, RemoteServiceTypes.transportFor(RemoteServiceTypes.MATTER_OPERATIONAL.uppercase()))
+        assertEquals(RemoteTransport.MATTER, RemoteServiceTypes.transportFor(RemoteServiceTypes.MATTER_COMMISSIONABLE.uppercase()))
     }
 
     @Test fun serviceLabelsDoNotClaimControlSupport() {
