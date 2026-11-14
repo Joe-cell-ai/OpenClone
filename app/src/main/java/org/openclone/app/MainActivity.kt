@@ -105,6 +105,7 @@ import org.openclone.app.data.CloneBuildHistoryRepository
 import org.openclone.app.data.CloneProfileRepository
 import org.openclone.app.data.PrivacyAuditRepository
 import org.openclone.app.data.ExtensionDiagnosticsLog
+import org.openclone.app.data.IconResourceReport
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -1264,8 +1265,24 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         label = { Text("Clone package ID") }
                     )
                     HorizontalDivider()
+                    val iconDiagnosticPath = cloneSource?.applicationInfo?.sourceDir
+                        ?: externalSource?.apkFiles?.firstOrNull()?.absolutePath
+                    val iconResourceReport = remember(iconDiagnosticPath) {
+                        iconDiagnosticPath?.let { path -> runCatching { IconResourceReport.inspect(File(path)) }.getOrNull() }
+                    }
                     Text("Icon & Name Studio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Preview the launcher label and icon treatment before building. Some apps use icon resources that cannot be safely replaced.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    iconResourceReport?.let { report ->
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Source icon diagnostics", fontWeight = FontWeight.SemiBold)
+                                Text("${report.launcherImageCount} launcher-like raster image(s) · ${report.launcherXmlCandidateCount} launcher XML candidate(s)", style = MaterialTheme.typography.bodySmall)
+                                report.warnings.forEach { warning ->
+                                    Text("• " + warning, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
                     val studioBitmap = remember(customIconPath) {
                         customIconPath?.let { path -> runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
                     }
