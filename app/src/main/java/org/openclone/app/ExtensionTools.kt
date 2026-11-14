@@ -42,6 +42,10 @@ import org.openclone.app.data.InstalledClone
 import org.openclone.app.data.ManagedWebViewPolicy
 import org.openclone.app.data.TrustedPublisher
 import org.openclone.app.data.TrustedPublisherRepository
+import org.openclone.app.data.CatalogueExtension
+import org.openclone.app.data.ExtensionCatalogueClient
+import org.openclone.app.data.ExtensionPackageDownloader
+import org.openclone.app.data.ExtensionPackageInstaller
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.DataInputStream
@@ -277,6 +281,9 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var publisherFingerprintConfirmation by remember { mutableStateOf("") }
     var publisherCandidate by remember { mutableStateOf<TrustedPublisher?>(null) }
     var updaterMessage by remember { mutableStateOf("Import a publisher EC public key, inspect its fingerprint, then confirm the fingerprint to trust it.") }
+    var catalogueUrl by remember { mutableStateOf("") }
+    var catalogueEntries by remember { mutableStateOf<List<CatalogueExtension>>(emptyList()) }
+    var updaterBusy by remember { mutableStateOf(false) }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
     var automationInterval by remember { mutableStateOf(CloneUpdateAutomation.intervalHours(context)) }
@@ -415,9 +422,75 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                         TextButton(onClick = {
                             publisherRepository.revoke(publisher.id)
                             trustedPublishers = publisherRepository.all()
-                            updaterMessage = "Publisher trust revoked."
+                            catalogueEntries = emptyList()
+                            updaterMessage = "Publisher trust revoked. Catalogues from this key are no longer trusted."
                             ExtensionDiagnosticsLog(context).append("updater", "publisher_revoked", "A publisher key was revoked.")
                         }) { Text("Revoke") }
+                    }
+                }
+                OutlinedTextField(catalogueUrl, { catalogueUrl = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("Signed catalogue HTTPS URL") })
+                Button(enabled = !updaterBusy && trustedPublishers.isNotEmpty(), onClick = {
+                    updaterBusy = true
+                    updaterMessage = "Downloading and verifying signed catalogue…"
+                    scope.launch {
+                        val result = withContext(Dispatchers.IO) {
+                            runCatching { ExtensionCatalogueClient.fetchAndVerify(catalogueUrl, publisherRepository, currentApi = 1) }
+                        }
+                        updaterBusy = false
+                        result.fold(
+                            { entries ->
+                                catalogueEntries = entries
+                                updaterMessage = "Verified ${entries.size} compatible extension(s)."
+                                ExtensionDiagnosticsLog(context).append("updater", "catalogue_verified", "A signed catalogue was verified.")
+                            },
+                            { error ->
+                                catalogueEntries = emptyList()
+                                updaterMessage = error.message ?: "Catalogue verification failed."
+                                ExtensionDiagnosticsLog(context).append("updater", "catalogue_rejected", "A catalogue failed verification.")
+                            }
+                        )
+                    }
+                }) { Text(if (updaterBusy) "Please wait…" else "Fetch & verify catalogue") }
+                catalogueEntries.forEach { entry ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(entry.id + " · " + entry.version, fontWeight = FontWeight.Medium)
+                            Text(entry.publisher + " · API " + entry.minimumOpenCloneApi + "–" + entry.maximumOpenCloneApi, style = MaterialTheme.typography.labelSmall)
+                        }
+                        TextButton(enabled = !updaterBusy, onClick = {
+                            updaterBusy = true
+                            updaterMessage = "Downloading and verifying " + entry.id + "…"
+                            scope.launch {
+                                val result = withContext(Dispatchers.IO) {
+                                    runCatching {
+                                        val bytes = ExtensionPackageDownloader.download(entry.downloadUrl)
+                                        check(publisherRepository.verifyPackage(entry, bytes, currentApi = 1)) {
+                                            "Package digest, publisher signature or API compatibility check failed."
+                                        }
+                                        bytes
+                                    }
+                                }
+                                result.fold(
+                                    { bytes ->
+                                        runCatching {
+                                            if (Build.VERSION.SDK_INT >= 26 &&
+                                                !context.packageManager.canRequestPackageInstalls()) {
+                                                context.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                                                    .setData(Uri.parse("package:" + context.packageName))
+                                                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                                updaterMessage = "Allow OpenClone to request installs in Android settings, then tap Install again."
+                                            } else {
+                                                val sessionId = ExtensionPackageInstaller.stage(context, bytes, entry.id)
+                                                updaterMessage = "Verified package staged in Android installer session " + sessionId + ". Complete or cancel the system confirmation."
+                                                ExtensionDiagnosticsLog(context).append("updater", "package_staged", "A verified extension package was staged for Android installation.")
+                                            }
+                                        }.onFailure { updaterMessage = it.message ?: "Could not stage package for installation." }
+                                    },
+                                    { updaterMessage = it.message ?: "Package download or verification failed." }
+                                )
+                                updaterBusy = false
+                            }
+                        }) { Text("Install") }
                     }
                 }
                 Text(updaterMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
