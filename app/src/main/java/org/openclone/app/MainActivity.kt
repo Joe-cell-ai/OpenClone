@@ -1142,6 +1142,42 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, onThemeModeChange: (Ope
                             Text(if (editingProfileId == null) "Save" else "Update")
                         }
                     }
+                    HorizontalDivider()
+                    Text("Privacy Guard · Manifest review", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Choose which requested permissions to remove from the clone manifest. This changes the rebuilt APK declaration only; it does not revoke permissions at runtime or guarantee that an app will work without them.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text("${requestedPermissions.size} requested · ${removedPermissions.size} selected for removal", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                    if (requestedPermissions.isEmpty()) {
+                        Text("No requested permissions were found in the source manifest.", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        requestedPermissions.forEach { permission ->
+                            val risk = when {
+                                permission.contains("CAMERA") -> "Camera access"
+                                permission.contains("LOCATION") -> "Location access"
+                                permission.contains("CONTACTS") -> "Contacts access"
+                                permission.contains("SMS") || permission.contains("CALL_LOG") || permission.contains("PHONE") -> "Messaging or phone access"
+                                permission.contains("MICROPHONE") || permission.contains("RECORD_AUDIO") -> "Microphone access"
+                                permission.contains("STORAGE") || permission.contains("MEDIA") -> "Files or media access"
+                                permission.contains("NOTIFICATION") -> "Notification access"
+                                else -> "Other manifest permission"
+                            }
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(
+                                    checked = permission in removedPermissions,
+                                    onCheckedChange = { checked ->
+                                        removedPermissions = if (checked) removedPermissions + permission else removedPermissions - permission
+                                    }
+                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(permission.substringAfterLast('.'), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                    Text(risk, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
                     cloneError?.let {
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
