@@ -33,7 +33,7 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 | P2 | Notification Manager | Explain notification behavior and supported per-clone notification settings | Partial: manages OpenClone's own update channel and deep-links to Android notification settings for each detected clone; cannot rewrite third-party notification payloads |
 | P2 | Automation Studio | Explicit, user-approved workflows using supported Android intents/actions | Partial: opt-in WorkManager source-app update checks on a selectable 1-, 3- or 7-day cadence; reports only and never auto-installs |
 | P2 | Remote Control | Authenticated, opt-in control of OpenClone actions over a secure local/remote channel | Partial: user-started TLS 1.2 foreground service with Android Keystore certificate pinning, AES-GCM encrypted pairing secret, HMAC request authentication, freshness/replay checks, explicit stop/revocation and a narrow status/launch-clone API; protocol documented. Device/network lifecycle testing, QR pairing and companion client remain |
-| P3 | Extension Updater | Verify catalogue metadata, publisher signatures, version and compatibility before update | Partial: user-imported EC publisher keys require independent SHA-256 fingerprint confirmation and can be revoked; signed catalogue verification, HTTPS-only bounded download, package digest/signature verification and Android PackageInstaller session staging are implemented with tests. A hosted catalogue, end-to-end catalogue download flow, install result UI and rollback remain |
+| P3 | Extension Updater | Verify catalogue metadata, publisher signatures, version and compatibility before update | Partial: user-imported EC publisher keys require independent SHA-256 fingerprint confirmation and can be revoked; signed catalogue verification, HTTPS-only bounded download, package digest/signature verification and Android PackageInstaller session staging are implemented with tests. A hosted default catalogue, device-level installation validation, user-facing install-result state and rollback remain |
 
 ## Milestones
 
@@ -58,7 +58,7 @@ Status values: **Implemented** = user flow, persistence and required tests are p
 - Add App Lock with AndroidX biometric prompt, device-credential fallback and no custom password storage; device lifecycle verification remains.
 
 ### M3 — Network and diagnostics
-- Implement named HTTP CONNECT/SOCKS5 proxy profiles and test an unauthenticated tunnel handshake; per-clone routing/authentication remains platform- and network-dependent.
+- Implement named HTTP CONNECT/SOCKS5 proxy profiles and test an unauthenticated tunnel handshake; selected-clone routing is now implemented through Android VpnService and tun2proxy, with one active clone route per Android user/profile. Proxy authentication and device leak/OEM compatibility validation remain.
 - Scope VPN-based routing to an explicit, user-approved VpnService session. A selected-clone allowlist, IPv4/IPv6 TUN routes and pinned tun2proxy packet engine are now implemented; only one active VPN/clone route per Android user/profile is supported, and device leak/OEM compatibility testing remains.
 - Add structured, redacted diagnostics and export; bounded runtime event capture and JSON sharing are now available, while deeper engine instrumentation remains.
 - Monitor only traffic OpenClone is authorized and technically able to observe.
