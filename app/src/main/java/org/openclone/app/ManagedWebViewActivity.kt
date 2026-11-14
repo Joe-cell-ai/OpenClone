@@ -3,6 +3,7 @@ package org.openclone.app
 import android.os.Bundle
 import android.webkit.WebView
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.setContent
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
