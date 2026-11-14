@@ -39,6 +39,7 @@ import org.openclone.app.data.StorageSnapshot
 import org.openclone.app.data.InstalledAppRepository
 import org.openclone.app.data.InstalledCloneRepository
 import org.openclone.app.data.InstalledClone
+import org.openclone.app.data.ManagedWebViewPolicy
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.io.DataInputStream
@@ -260,6 +261,12 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     var installedClones by remember { mutableStateOf<List<InstalledClone>>(emptyList()) }
     var showClearCache by remember { mutableStateOf(false) }
     var diagnostics by remember { mutableStateOf(ExtensionDiagnosticsLog(context).getAll()) }
+    var webViewHosts by remember {
+        mutableStateOf(context.getSharedPreferences("openclone_managed_webview", Context.MODE_PRIVATE)
+            .getStringSet("allowed_hosts", emptySet()).orEmpty().toList().sorted())
+    }
+    var webViewHostInput by remember { mutableStateOf("") }
+    var webViewMessage by remember { mutableStateOf("Add exact HTTPS hosts before opening the isolated browser.") }
     var message by remember { mutableStateOf("Saved profiles are not applied to cloned apps or device traffic.") }
     var network by remember { mutableStateOf(NetworkSnapshot.read(context)) }
     var automation by remember { mutableStateOf(CloneUpdateAutomation.isEnabled(context)) }
@@ -507,7 +514,57 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                 Text(appLockMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        ExtensionStatusCard("🌍 WebView Manager", "OpenClone has no embedded WebView workflow today. A fail-closed HTTPS host policy is implemented for a future OpenClone-owned WebView; it cannot control cloned-app WebViews.")
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("🌍 WebView Manager", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Manage an isolated OpenClone-owned browser. Only exact HTTPS hosts you add are loaded; JavaScript, DOM storage, file/content access and mixed content are disabled. This does not control WebViews inside cloned apps.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(
+                    value = webViewHostInput,
+                    onValueChange = { webViewHostInput = it.take(253) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("Allowed host, e.g. docs.example.com") }
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = {
+                        val candidate = webViewHostInput.trim().lowercase().removePrefix("https://")
+                            .substringBefore('/').substringBefore('?').substringBefore('#')
+                        val labels = candidate.split('.')
+                        val valid = labels.size >= 2 && labels.all { label ->
+                            label.isNotBlank() && label.length <= 63 &&
+                                label.first().isLetterOrDigit() && label.last().isLetterOrDigit() &&
+                                label.all { it.isLetterOrDigit() || it == '-' }
+                        } && ManagedWebViewPolicy(allowedHosts = setOf(candidate)).allows("https://$candidate/")
+                        if (!valid) {
+                            webViewMessage = "Enter a valid hostname without a path, port or credentials."
+                        } else {
+                            val updated = (webViewHosts + candidate).distinct().sorted()
+                            context.getSharedPreferences("openclone_managed_webview", Context.MODE_PRIVATE).edit()
+                                .putStringSet("allowed_hosts", updated.toSet()).apply()
+                            webViewHosts = updated
+                            webViewHostInput = ""
+                            webViewMessage = "Host added to the HTTPS allowlist."
+                        }
+                    }) { Text("Add host") }
+                    Button(
+                        enabled = webViewHosts.isNotEmpty(),
+                        onClick = { context.startActivity(Intent(context, ManagedWebViewActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                    ) { Text("Open managed browser") }
+                }
+                webViewHosts.forEach { host ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(host, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = {
+                            val updated = webViewHosts - host
+                            context.getSharedPreferences("openclone_managed_webview", Context.MODE_PRIVATE).edit()
+                                .putStringSet("allowed_hosts", updated.toSet()).apply()
+                            webViewHosts = updated
+                        }) { Text("Remove") }
+                    }
+                }
+                Text(webViewMessage, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
         ExtensionStatusCard("🖥️ Remote Control", "HMAC request-authentication and time-window validation primitives are implemented and tested. No network listener or remote actions are enabled until secure pairing, replay protection and explicit local consent are complete.")
         ExtensionStatusCard("🔄 Extension Updater", "Signed descriptor and package SHA-256/ECDSA verification primitives are implemented and tested. Updates remain disabled until a trusted publisher public key and signed catalogue are provisioned.")
     }
