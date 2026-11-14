@@ -6,6 +6,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <application
         android:allowBackup="false"
         android:largeHeap="true"
@@ -14,6 +16,26 @@
         android:label="OpenClone"
         android:supportsRtl="true"
         android:theme="@style/OpenCloneTheme">
+        <service
+            android:name=".RemoteControlService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-started local network remote-control server" />
+        </service>
+        <service
+            android:name=".ProxyVpnService"
+            android:permission="android.permission.BIND_VPN_SERVICE"
+            android:exported="true"
+            android:foregroundServiceType="specialUse">
+            <intent-filter>
+                <action android:name="android.net.VpnService" />
+            </intent-filter>
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="User-approved per-clone proxy tunnel" />
+        </service>
         <activity
             android:name=".ManagedWebViewActivity"
             android:exported="false" />
@@ -28,5 +50,12 @@
         <receiver
             android:name=".clone.CloneInstallReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".data.ExtensionInstallStatusReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="org.openclone.app.EXTENSION_INSTALL_STATUS" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

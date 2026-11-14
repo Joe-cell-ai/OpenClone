@@ -1,4 +1,7 @@
 import java.util.Base64
+import java.net.URL
+import java.security.MessageDigest
+import java.util.zip.ZipFile
 
 plugins {
     id("com.android.application")
@@ -43,6 +46,48 @@ val generateOpenCloneLauncher = tasks.register<Copy>("generateOpenCloneLauncher"
     rename { "openclone_launcher.png" }
 }
 
+/*
+ * tun2proxy is the MIT-licensed Android TUN packet engine. Pin both the release
+ * and its GitHub-published SHA-256 digest; extract only the four Android .so files.
+ */
+val tun2proxyJniDir = layout.buildDirectory.dir("generated/tun2proxyJniLibs")
+val tun2proxyArchive = layout.buildDirectory.file("downloads/tun2proxy-android-libs-v0.8.7.zip")
+val prepareTun2proxyAndroidLibs = tasks.register("prepareTun2proxyAndroidLibs") {
+    outputs.dir(tun2proxyJniDir)
+    doLast {
+        val archive = tun2proxyArchive.get().asFile
+        if (!archive.isFile) {
+            archive.parentFile.mkdirs()
+            val connection = URL("https://github.com/tun2proxy/tun2proxy/releases/download/v0.8.7/tun2proxy-android-libs.zip")
+                .openConnection()
+            connection.connectTimeout = 30_000
+            connection.readTimeout = 180_000
+            connection.getInputStream().use { input ->
+                archive.outputStream().use { output -> input.copyTo(output) }
+            }
+        }
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(archive.readBytes()).joinToString("") { "%02x".format(it) }
+        check(digest == "e85d311ade195fe90d6b018585bb86f2f0d8c5ec61f52603b016a6a5d78c6cc4") {
+            "tun2proxy v0.8.7 Android library archive failed SHA-256 verification."
+        }
+        val outputRoot = tun2proxyJniDir.get().asFile
+        outputRoot.deleteRecursively()
+        val abis = listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+        ZipFile(archive).use { zip ->
+            abis.forEach { abi ->
+                val entry = zip.getEntry("tun2proxy-android-libs/$abi/libtun2proxy.so")
+                    ?: error("Pinned tun2proxy archive is missing $abi/libtun2proxy.so")
+                val target = outputRoot.resolve("$abi/libtun2proxy.so")
+                target.parentFile.mkdirs()
+                zip.getInputStream(entry).use { input ->
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+            }
+        }
+    }
+}
+
 android {
     namespace = "org.openclone.app"
     compileSdk = 35
@@ -52,9 +97,13 @@ android {
         targetSdk = 35
         versionCode = ciVersionCode
         versionName = "0.1.0"
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
+        }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     sourceSets.getByName("main").res.srcDir(generatedLauncherResDir)
+    sourceSets.getByName("main").jniLibs.srcDir(tun2proxyJniDir)
     signingConfigs {
         if (hasCiSigning) {
             create("ci") {
@@ -86,7 +135,7 @@ android {
 }
 
 tasks.named("preBuild").configure {
-    dependsOn(generateOpenCloneLauncher)
+    dependsOn(generateOpenCloneLauncher, prepareTun2proxyAndroidLibs)
 }
 
 dependencies {
@@ -115,4 +164,5 @@ dependencies {
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }
