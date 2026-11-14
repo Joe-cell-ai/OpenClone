@@ -296,6 +296,8 @@ class ExtensionInstallStatusReceiver : android.content.BroadcastReceiver() {
             }
             confirmation?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)?.let(context::startActivity)
         }
-        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)\n        ExtensionInstallStatusStore.record(context, sessionId, status, message.ifBlank { "Android package installer returned status $status." })\n        ExtensionDiagnosticsLog(context).append("updater", "install_status_$status", message.ifBlank { "Android package installer returned status $status." })
+        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, -1)
+        ExtensionInstallStatusStore.record(context, sessionId, status, message.ifBlank { "Android package installer returned status $status." })
+        ExtensionDiagnosticsLog(context).append("updater", "install_status_$status", message.ifBlank { "Android package installer returned status $status." })
     }
 }

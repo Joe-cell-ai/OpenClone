@@ -542,6 +542,8 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
 
         RemoteControlCompanionCard()
 
+        InfraredApplianceRemoteCard()
+
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🖥️ Remote Control · Secure local session", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
