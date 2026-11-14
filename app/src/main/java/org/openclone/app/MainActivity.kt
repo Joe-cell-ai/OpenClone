@@ -10,7 +10,9 @@ import android.net.Uri
 import android.os.Bundle
 import android.os.Build
 import android.provider.Settings
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -104,6 +106,9 @@ import org.openclone.app.data.InstalledClone
 import org.openclone.app.data.InstalledCloneRepository
 import org.openclone.app.data.CloneBuildHistoryRepository
 import org.openclone.app.data.CloneProfileRepository
+import org.openclone.app.data.PrivacyAuditRepository
+import org.openclone.app.data.ExtensionDiagnosticsLog
+import org.openclone.app.data.IconResourceReport
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -128,7 +133,16 @@ private enum class OpenCloneAccent(val label: String, val primary: Color, val se
     SUNSET("Sunset", Color(0xFFC05A42), Color(0xFFE18B55), Color(0xFFB56A9F), Color(0xFF693326), Color(0xFFFFE8DF))
 }
 
-class MainActivity : ComponentActivity() {
+private data class RestoredProfileBackup(
+    val profileCount: Int,
+    val themeMode: OpenCloneThemeMode?,
+    val accent: OpenCloneAccent?,
+    val customAccentArgb: Int?,
+    val customAccentSpecified: Boolean,
+    val proxyProfiles: List<ProxyProfile>?
+)
+
+class MainActivity : FragmentActivity() {
     private val appLocked = mutableStateOf(false)
     private var appLockEnabled = false
     private var credentialPromptActive = false
@@ -141,7 +155,7 @@ class MainActivity : ComponentActivity() {
             credentialPromptActive = false
             appLocked.value = result.resultCode != RESULT_OK
         }
-        appLockEnabled = getSharedPreferences("openclone_extension_tools", MODE_PRIVATE)
+        appLockEnabled = getSharedPreferences("openclone_extension_tools", Context.MODE_PRIVATE)
             .getBoolean("app_lock_enabled", false)
         appLocked.value = appLockEnabled
         authenticateOnResume = appLockEnabled
@@ -153,7 +167,7 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(
                         runCatching {
                             OpenCloneThemeMode.valueOf(
-                                getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
                                     .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name)!!
                             )
                         }.getOrDefault(OpenCloneThemeMode.DARK)
@@ -163,21 +177,33 @@ class MainActivity : ComponentActivity() {
                     mutableStateOf(
                         runCatching {
                             OpenCloneAccent.valueOf(
-                                getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE)
+                                getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
                                     .getString("accent_palette", OpenCloneAccent.VIOLET.name)!!
                             )
                         }.getOrDefault(OpenCloneAccent.VIOLET)
                     )
                 }
-                OpenCloneTheme(themeMode, accent) {
-                    OpenCloneHome(themeMode, accent, onThemeModeChange = { selected ->
+                var customAccentArgb by remember {
+                    mutableStateOf(
+                        getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
+                            .getInt("custom_accent_argb", 0).takeIf { it != 0 }
+                    )
+                }
+                OpenCloneTheme(themeMode, accent, customAccentArgb?.let { Color(it) }) {
+                    OpenCloneHome(themeMode, accent, customAccentArgb, onThemeModeChange = { selected ->
                         themeMode = selected
-                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
+                        getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE).edit()
                             .putString(THEME_MODE_KEY, selected.name).apply()
                     }, onAccentChange = { selected ->
                         accent = selected
-                        getSharedPreferences(THEME_PREFERENCES, MODE_PRIVATE).edit()
-                            .putString("accent_palette", selected.name).apply()
+                        customAccentArgb = null
+                        getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE).edit()
+                            .putString("accent_palette", selected.name)
+                            .remove("custom_accent_argb").apply()
+                    }, onCustomAccentChange = { selected ->
+                        customAccentArgb = selected
+                        getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE).edit()
+                            .putInt("custom_accent_argb", selected ?: 0).apply()
                     })
                 }
             }
@@ -186,7 +212,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        appLockEnabled = getSharedPreferences("openclone_extension_tools", MODE_PRIVATE)
+        appLockEnabled = getSharedPreferences("openclone_extension_tools", Context.MODE_PRIVATE)
             .getBoolean("app_lock_enabled", false)
         if (appLockEnabled && authenticateOnResume && !credentialPromptActive) {
             authenticateOnResume = false
@@ -205,12 +231,65 @@ class MainActivity : ComponentActivity() {
     private fun launchDeviceCredential() {
         val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
         if (!keyguard.isDeviceSecure) {
-            getSharedPreferences("openclone_extension_tools", MODE_PRIVATE).edit()
+            getSharedPreferences("openclone_extension_tools", Context.MODE_PRIVATE).edit()
                 .putBoolean("app_lock_enabled", false).apply()
             appLockEnabled = false
             appLocked.value = false
             return
         }
+
+        val biometricManager = BiometricManager.from(this)
+        if (Build.VERSION.SDK_INT >= 30) {
+            val authenticators = BiometricManager.Authenticators.BIOMETRIC_STRONG or
+                BiometricManager.Authenticators.DEVICE_CREDENTIAL
+            if (biometricManager.canAuthenticate(authenticators) == BiometricManager.BIOMETRIC_SUCCESS) {
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Unlock OpenClone")
+                    .setSubtitle("Use biometrics or your device screen lock")
+                    .setAllowedAuthenticators(authenticators)
+                    .build()
+                showBiometricPrompt(promptInfo)
+                return
+            }
+        } else if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS) {
+            val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Unlock OpenClone")
+                .setSubtitle("Authenticate to continue")
+                .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+                .setNegativeButtonText("Use device PIN")
+                .build()
+            showBiometricPrompt(promptInfo)
+            return
+        }
+        launchKeyguardCredential(keyguard)
+    }
+
+    private fun showBiometricPrompt(promptInfo: BiometricPrompt.PromptInfo) {
+        val prompt = BiometricPrompt(
+            this,
+            ContextCompat.getMainExecutor(this),
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    credentialPromptActive = false
+                    appLocked.value = false
+                }
+
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    credentialPromptActive = false
+                    if (errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                        val keyguard = getSystemService(Context.KEYGUARD_SERVICE) as android.app.KeyguardManager
+                        launchKeyguardCredential(keyguard)
+                    } else {
+                        appLocked.value = true
+                    }
+                }
+            }
+        )
+        credentialPromptActive = true
+        prompt.authenticate(promptInfo)
+    }
+
+    private fun launchKeyguardCredential(keyguard: android.app.KeyguardManager) {
         val intent = keyguard.createConfirmDeviceCredentialIntent(
             "Unlock OpenClone",
             "Confirm your device screen lock to continue"
@@ -225,7 +304,7 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun OpenCloneTheme(mode: OpenCloneThemeMode, accent: OpenCloneAccent, content: @Composable () -> Unit) {
+private fun OpenCloneTheme(mode: OpenCloneThemeMode, accent: OpenCloneAccent, customAccent: Color?, content: @Composable () -> Unit) {
     val dark = when (mode) {
         OpenCloneThemeMode.SYSTEM -> androidx.compose.foundation.isSystemInDarkTheme()
         OpenCloneThemeMode.LIGHT -> false
@@ -260,18 +339,27 @@ private fun OpenCloneTheme(mode: OpenCloneThemeMode, accent: OpenCloneAccent, co
             onSurfaceVariant = Color(0xFF55546A), outline = Color(0xFF77758A)
         )
     }
+    val selectedPrimary = customAccent ?: accent.primary
+    val contrastText = if (0.299f * selectedPrimary.red + 0.587f * selectedPrimary.green + 0.114f * selectedPrimary.blue > 0.58f) Color.Black else Color.White
+    val customContainer = if (customAccent == null) accent.container else Color(
+        red = customAccent.red * 0.24f + colors.surface.red * 0.76f,
+        green = customAccent.green * 0.24f + colors.surface.green * 0.76f,
+        blue = customAccent.blue * 0.24f + colors.surface.blue * 0.76f,
+        alpha = 1f
+    )
     val accentedColors = colors.copy(
-        primary = accent.primary,
-        secondary = accent.secondary,
+        primary = selectedPrimary,
+        onPrimary = if (customAccent == null) colors.onPrimary else contrastText,
+        secondary = customAccent ?: accent.secondary,
         tertiary = accent.tertiary,
-        primaryContainer = accent.container,
-        onPrimaryContainer = accent.onContainer
+        primaryContainer = customContainer,
+        onPrimaryContainer = if (customAccent == null) accent.onContainer else contrastText
     )
     MaterialTheme(colorScheme = accentedColors, typography = Typography(), content = content)
 }
 
 @Composable
-private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent, onThemeModeChange: (OpenCloneThemeMode) -> Unit, onAccentChange: (OpenCloneAccent) -> Unit) {
+private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent, customAccentColor: Int?, onThemeModeChange: (OpenCloneThemeMode) -> Unit, onAccentChange: (OpenCloneAccent) -> Unit, onCustomAccentChange: (Int?) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val listSearchFocusRequester = remember { FocusRequester() }
@@ -318,6 +406,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingExport by remember { mutableStateOf<CloneBuildResult?>(null) }
     var showSettings by remember { mutableStateOf(false) }
+    var customAccentHex by remember { mutableStateOf(customAccentColor?.let { "%06X".format(it and 0xFFFFFF) } ?: "") }
     var currentTab by rememberSaveable { mutableStateOf("Home") }
     BackHandler(enabled = currentTab != "Home" || cloneSelectionMode) {
         if (cloneSelectionMode) {
@@ -447,6 +536,43 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                 add(Triple(item, name, badge))
                             }
                         }
+                        val settings = root.optJSONObject("settings")
+                        val restoredTheme = settings?.optString("themeMode")?.takeIf { it.isNotBlank() }?.let { value ->
+                            OpenCloneThemeMode.values().firstOrNull { it.name == value }
+                                ?: error("Backup contains an unsupported theme mode.")
+                        }
+                        val restoredAccent = settings?.optString("accentPalette")?.takeIf { it.isNotBlank() }?.let { value ->
+                            OpenCloneAccent.values().firstOrNull { it.name == value }
+                                ?: error("Backup contains an unsupported accent palette.")
+                        }
+                        val hasCustomAccent = settings?.has("customAccentArgb") == true
+                        val restoredCustomAccent = if (hasCustomAccent) settings?.optInt("customAccentArgb", 0)?.takeIf { it != 0 } else null
+                        if (restoredCustomAccent != null) require((restoredCustomAccent ushr 24) == 0xFF) { "Backup custom accent color is invalid." }
+                        val restoredDailyCheck = settings?.takeIf { it.has("dailyUpdateCheck") }?.optBoolean("dailyUpdateCheck")
+                        val restoredInterval = settings?.takeIf { it.has("updateCheckIntervalHours") }?.optLong("updateCheckIntervalHours")
+                        if (restoredInterval != null) require(restoredInterval in setOf(24L, 72L, 168L)) {
+                            "Backup update-check interval is unsupported."
+                        }
+                        val restoredProxyProfiles = settings?.optJSONArray("proxyProfiles")?.let { array ->
+                            require(array.length() <= 10) { "Backup contains too many proxy profiles." }
+                            buildList {
+                                for (index in 0 until array.length()) {
+                                    val item = array.optJSONObject(index) ?: error("Proxy profile #${index + 1} is invalid.")
+                                    val profile = ProxyProfile(
+                                        item.getString("name"),
+                                        item.getString("host"),
+                                        item.getInt("port"),
+                                        item.optString("protocol", "HTTP_CONNECT")
+                                    )
+                                    ProxyProfile.validate(profile.name, profile.host, profile.port, profile.protocol)
+                                    add(profile)
+                                }
+                            }.also { profiles ->
+                                require(profiles.map { it.name.lowercase() }.distinct().size == profiles.size) {
+                                    "Backup proxy profile names must be unique."
+                                }
+                            }
+                        }
                         val repository = CloneProfileRepository(context)
                         validated.forEach { (item, name, badge) ->
                             repository.save(
@@ -458,12 +584,32 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                 badgePosition = badge
                             )
                         }
-                        validated.size
+                        if (settings != null) {
+                            val appearance = context.getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE).edit()
+                            restoredTheme?.let { appearance.putString(THEME_MODE_KEY, it.name) }
+                            restoredAccent?.let { appearance.putString("accent_palette", it.name) }
+                            if (hasCustomAccent) appearance.putInt("custom_accent_argb", restoredCustomAccent ?: 0)
+                            check(appearance.commit()) { "Could not restore appearance settings." }
+                            restoredProxyProfiles?.let { ProxyProfileRepository(context).replaceAll(it) }
+                            restoredInterval?.let { CloneUpdateAutomation.setIntervalHours(context, it) }
+                            restoredDailyCheck?.let { CloneUpdateAutomation.setEnabled(context, it) }
+                        }
+                        RestoredProfileBackup(
+                            profileCount = validated.size,
+                            themeMode = restoredTheme,
+                            accent = restoredAccent,
+                            customAccentArgb = restoredCustomAccent,
+                            customAccentSpecified = hasCustomAccent,
+                            proxyProfiles = restoredProxyProfiles
+                        )
                     }
                 }
-                result.onSuccess { count ->
+                result.onSuccess { restored ->
                     profiles = CloneProfileRepository(context).getAll()
-                    statusMessage = "Restored $count profile(s). Existing profiles were preserved; signing keys, APKs and app data are not restored."
+                    restored.themeMode?.let(onThemeModeChange)
+                    restored.accent?.let(onAccentChange)
+                    if (restored.customAccentSpecified) onCustomAccentChange(restored.customAccentArgb)
+                    statusMessage = "Restored ${restored.profileCount} profile(s), appearance settings and ${restored.proxyProfiles?.size ?: 0} proxy profile(s). Signing keys, APKs, credentials and app data are not restored."
                 }.onFailure { statusMessage = it.message ?: "Could not restore this backup." }
             }
         }
@@ -792,6 +938,28 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                         }
                                         savedHistory.onSuccess { buildHistory = it }
                                             .onFailure { statusMessage = it.message ?: "Could not save build history." }
+                                        val privacyAudit = withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                PrivacyAuditRepository(context).record(
+                                                    originalPackage = completedBuild.originalPackage,
+                                                    clonePackage = completedBuild.clonePackage,
+                                                    requestedPermissions = requestedPermissions,
+                                                    removedPermissions = removedPermissions
+                                                )
+                                            }
+                                        }
+                                        privacyAudit.onFailure {
+                                            statusMessage = "Clone built, but the privacy audit could not be saved: " + (it.message ?: "storage error")
+                                        }
+                                        withContext(Dispatchers.IO) {
+                                            runCatching {
+                                                ExtensionDiagnosticsLog(context).append(
+                                                    area = "clone",
+                                                    code = "build_success",
+                                                    summary = "Clone build completed with ${completedBuild.apks.size} APK component(s)."
+                                                )
+                                            }
+                                        }
                                     }
                                     cloneSource = null
                                     externalSource = null
@@ -1014,8 +1182,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             if (groupClonesByOriginal && (index == 0 || filteredClones[index - 1].originalPackage != clone.originalPackage)) {
                                 Column(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text("ORIGINAL APP", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                                    Text(clone.originalPackage, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                                    Text("${filteredClones.count { it.originalPackage == clone.originalPackage }} clone(s)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(clone.originalPackage, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
                                 }
                             }
                             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1258,8 +1425,24 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         label = { Text("Clone package ID") }
                     )
                     HorizontalDivider()
+                    val iconDiagnosticPath = cloneSource?.applicationInfo?.sourceDir
+                        ?: externalSource?.apkFiles?.firstOrNull()?.absolutePath
+                    val iconResourceReport = remember(iconDiagnosticPath) {
+                        iconDiagnosticPath?.let { path -> runCatching { IconResourceReport.inspect(File(path)) }.getOrNull() }
+                    }
                     Text("Icon & Name Studio", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text("Preview the launcher label and icon treatment before building. Some apps use icon resources that cannot be safely replaced.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    iconResourceReport?.let { report ->
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                            Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                Text("Source icon diagnostics", fontWeight = FontWeight.SemiBold)
+                                Text("${report.launcherImageCount} launcher-like raster image(s) · ${report.launcherXmlCandidateCount} launcher XML candidate(s)", style = MaterialTheme.typography.bodySmall)
+                                report.warnings.forEach { warning ->
+                                    Text("• " + warning, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
                     val studioBitmap = remember(customIconPath) {
                         customIconPath?.let { path -> runCatching { BitmapFactory.decodeFile(path)?.asImageBitmap() }.getOrNull() }
                     }
@@ -1745,7 +1928,10 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
             onDismissRequest = { showSettings = false },
             title = { Text("Settings") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(
+                    Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
                     Text("Manage OpenClone preferences and information.")
                     Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Text("Choose how OpenClone looks. Changes apply immediately and are saved on this device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -1778,6 +1964,30 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             ) {}
                             Text(option.label, modifier = Modifier.padding(start = 10.dp), fontWeight = FontWeight.Medium)
                         }
+                    }
+                    Text("Custom accent", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    OutlinedTextField(
+                        value = customAccentHex,
+                        onValueChange = { customAccentHex = it.filter { char -> char.isDigit() || char.lowercaseChar() in 'a'..'f' }.take(6).uppercase() },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Hex color · RRGGBB") },
+                        leadingIcon = { Text("#") }
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = {
+                            val parsed = customAccentHex.removePrefix("#").takeIf { it.length == 6 }?.toLongOrNull(16)
+                            if (parsed == null) {
+                                statusMessage = "Enter a six-digit hex color, for example 6750A4."
+                            } else {
+                                onCustomAccentChange((0xFF000000L or parsed).toInt())
+                                statusMessage = "Custom accent applied."
+                            }
+                        }) { Text("Apply custom color") }
+                        TextButton(enabled = customAccentColor != null, onClick = {
+                            onCustomAccentChange(null)
+                            customAccentHex = ""
+                        }) { Text("Clear custom") }
                     }
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1844,6 +2054,20 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                         put("formatVersion", 1)
                                         put("createdAtMillis", System.currentTimeMillis())
                                         put("profiles", profileArray)
+                                        put("settings", JSONObject().apply {
+                                            val appearance = context.getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
+                                            put("themeMode", appearance.getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name))
+                                            put("accentPalette", appearance.getString("accent_palette", OpenCloneAccent.VIOLET.name))
+                                            put("customAccentArgb", appearance.getInt("custom_accent_argb", 0))
+                                            val proxyArray = JSONArray()
+                                            ProxyProfileRepository(context).getAll().forEach { proxy ->
+                                                proxyArray.put(JSONObject().put("name", proxy.name).put("host", proxy.host)
+                                                    .put("port", proxy.port).put("protocol", proxy.protocol))
+                                            }
+                                            put("proxyProfiles", proxyArray)
+                            put("dailyUpdateCheck", CloneUpdateAutomation.isEnabled(context))
+                            put("updateCheckIntervalHours", CloneUpdateAutomation.intervalHours(context))
+                                        })
                                     }.toString(2)
                                     exportProfileBackup.launch("openclone-profiles-backup.json")
                                 }) { Text("Export") }
