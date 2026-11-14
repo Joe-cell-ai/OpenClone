@@ -68,7 +68,7 @@ class PrivacyAuditRepository(context: Context) {
         private const val KEY_ENTRIES = "entries"
         private const val MAX_ENTRIES = 100
         private const val MAX_PERMISSIONS = 256
-        private val PACKAGE_PATTERN = Regex("[A-Za-z][A-Za-z0-9_]*(\\\\.[A-Za-z][A-Za-z0-9_]*)+")
+        private val PACKAGE_PATTERN = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
     }
 
     @Synchronized
@@ -235,8 +235,9 @@ data class SignedExtensionDescriptor(
 }
 
 object ExtensionPackageVerifier {
-    fun verify(descriptor: SignedExtensionDescriptor, packageBytes: ByteArray, trustedPublisherKey: PublicKey): Boolean {
+    fun verify(descriptor: SignedExtensionDescriptor, packageBytes: ByteArray, trustedPublisherKey: PublicKey, currentOpenCloneApi: Int = 1): Boolean {
         if (packageBytes.isEmpty() || packageBytes.size > MAX_PACKAGE_BYTES) return false
+        if (currentOpenCloneApi !in descriptor.minimumOpenCloneApi..descriptor.maximumOpenCloneApi) return false
         return runCatching {
             val digest = MessageDigest.getInstance("SHA-256").digest(packageBytes)
                 .joinToString("") { "%02x".format(it) }
@@ -284,6 +285,19 @@ object RemoteControlAuthenticator {
     }
 }
 
+class RemoteControlReplayGuard(private val maxEntries: Int = 256) {
+    private val seen = LinkedHashSet<String>()
+
+    @Synchronized
+    fun consume(nonce: String, timestampMillis: Long, nowMillis: Long = System.currentTimeMillis()): Boolean {
+        if (maxEntries !in 1..4096 || kotlin.math.abs(nowMillis - timestampMillis) > TimeUnit.MINUTES.toMillis(1)) return false
+        if (!nonce.matches(Regex("[A-Za-z0-9_-]{16,80}")) || nonce in seen) return false
+        seen.add(nonce)
+        while (seen.size > maxEntries) seen.remove(seen.first())
+        return true
+    }
+}
+
 /** Fail-closed settings for WebViews owned by OpenClone; cloned-app WebViews are out of scope. */
 data class ManagedWebViewPolicy(
     val javaScriptEnabled: Boolean = false,
@@ -297,5 +311,23 @@ data class ManagedWebViewPolicy(
         val uri = runCatching { android.net.Uri.parse(url) }.getOrNull() ?: return false
         val host = uri.host?.lowercase() ?: return false
         return uri.scheme == "https" && host in allowedHosts.map(String::lowercase).toSet()
+    }
+
+    fun applyTo(webView: android.webkit.WebView) {
+        webView.settings.apply {
+            javaScriptEnabled = this@ManagedWebViewPolicy.javaScriptEnabled
+            domStorageEnabled = this@ManagedWebViewPolicy.domStorageEnabled
+            allowFileAccess = this@ManagedWebViewPolicy.allowFileAccess
+            allowContentAccess = this@ManagedWebViewPolicy.allowContentAccess
+            mixedContentMode = if (this@ManagedWebViewPolicy.mixedContentAllowed) {
+                android.webkit.WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+            } else {
+                android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
+            }
+        }
+        webView.webViewClient = object : android.webkit.WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: android.webkit.WebView, request: android.webkit.WebResourceRequest): Boolean =
+                !allows(request.url.toString())
+        }
     }
 }
