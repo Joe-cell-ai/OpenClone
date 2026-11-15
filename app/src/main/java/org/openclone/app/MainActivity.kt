@@ -1573,7 +1573,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                     }
                                 )
                                 Column(Modifier.weight(1f)) {
-                                    Text(permission.substringAfterLast('.'), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                    Text(permission, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
                                     Text(risk, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
