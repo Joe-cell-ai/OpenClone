@@ -102,7 +102,7 @@ jobs:
           emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -wipe-data
           script: |
-            set -o pipefail
+            set -eu
             if gradle connectedDebugAndroidTest; then
               exit 0
             fi
