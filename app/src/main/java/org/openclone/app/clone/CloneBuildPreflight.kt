@@ -5,7 +5,8 @@ import java.util.zip.ZipFile
 
 /**
  * Estimates the heap needed by resource-table rewriting before a build deletes or creates output.
- * APK entry copying is streamed; the resource table is the largest input that the rebuilder parses.
+ * APK entry copying is streamed; DEX rewriting currently uses dexlib2 and therefore needs a
+ * conservative allowance for its in-memory model.
  */
 data class CloneBuildPreflightReport(
     val sourceBytes: Long,
@@ -24,18 +25,26 @@ object CloneBuildPreflight {
 
     fun inspect(
         sourceApks: List<File>,
-        maxHeapBytes: Long = Runtime.getRuntime().maxMemory(),
-        allocatedHeapBytes: Long = Runtime.getRuntime().totalMemory(),
-        freeAllocatedHeapBytes: Long = Runtime.getRuntime().freeMemory(),
+        maxHeapBytes: Long? = null,
+        allocatedHeapBytes: Long? = null,
+        freeAllocatedHeapBytes: Long? = null,
         rewriteDexPackageStrings: Boolean = true
     ): CloneBuildPreflightReport {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
-        // Release reclaimable allocations before measuring the app's real remaining heap.
-        // Large APK sets can leave short-lived inspection/UI objects eligible for collection.
-        Runtime.getRuntime().gc()
         require(sourceApks.all { it.isFile && it.canRead() }) {
             "One or more source APK files cannot be read."
         }
+
+        // Do GC before sampling the runtime. Default arguments would otherwise capture total/free
+        // heap before collection and make the preflight report stale even after GC succeeds.
+        if (maxHeapBytes == null || allocatedHeapBytes == null || freeAllocatedHeapBytes == null) {
+            Runtime.getRuntime().gc()
+        }
+        val runtime = Runtime.getRuntime()
+        val measuredMaxHeap = maxHeapBytes ?: runtime.maxMemory()
+        val measuredAllocatedHeap = allocatedHeapBytes ?: runtime.totalMemory()
+        val measuredFreeAllocatedHeap = freeAllocatedHeapBytes ?: runtime.freeMemory()
+
         val sourceBytes = sourceApks.sumOf { it.length() }
         val resourceTableBytes = sourceApks.sumOf { apk ->
             ZipFile(apk).use { zip -> zip.getEntry("resources.arsc")?.size?.coerceAtLeast(0L) ?: 0L }
@@ -52,8 +61,8 @@ object CloneBuildPreflight {
             BASE_OVERHEAD_BYTES + resourceTableBytes * RESOURCE_TABLE_MULTIPLIER +
                 if (rewriteDexPackageStrings) dexBytes * DEX_MULTIPLIER else 0L
         )
-        val usedHeap = (allocatedHeapBytes - freeAllocatedHeapBytes).coerceAtLeast(0L)
-        val available = (maxHeapBytes - usedHeap).coerceAtLeast(0L)
+        val usedHeap = (measuredAllocatedHeap - measuredFreeAllocatedHeap).coerceAtLeast(0L)
+        val available = (measuredMaxHeap - usedHeap).coerceAtLeast(0L)
         return CloneBuildPreflightReport(
             sourceBytes = sourceBytes,
             resourceTableBytes = resourceTableBytes,
