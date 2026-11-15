@@ -30,6 +30,9 @@ object CloneBuildPreflight {
         rewriteDexPackageStrings: Boolean = true
     ): CloneBuildPreflightReport {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
+        // Release reclaimable allocations before measuring the app's real remaining heap.
+        // Large APK sets can leave short-lived inspection/UI objects eligible for collection.
+        Runtime.getRuntime().gc()
         require(sourceApks.all { it.isFile && it.canRead() }) {
             "One or more source APK files cannot be read."
         }
