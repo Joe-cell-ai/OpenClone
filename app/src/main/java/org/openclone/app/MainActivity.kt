@@ -399,6 +399,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var requestedPermissions by remember { mutableStateOf<List<String>>(emptyList()) }
     var removedPermissions by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var showPermissionControls by remember { mutableStateOf(false) }
     var versionNameOverride by remember { mutableStateOf("") }
     var versionCodeOverride by remember { mutableStateOf("") }
     var cloneError by remember { mutableStateOf<String?>(null) }
@@ -1549,35 +1550,45 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     HorizontalDivider()
                     Text("Privacy Guard · Manifest review", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        "Choose which requested permissions to remove from the clone manifest. This changes the rebuilt APK declaration only; it does not revoke permissions at runtime or guarantee that an app will work without them.",
+                        "All original app permissions are kept by default.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Text("${requestedPermissions.size} requested · ${removedPermissions.size} selected for removal", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-                    if (requestedPermissions.isEmpty()) {
-                        Text("No requested permissions were found in the source manifest.", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        requestedPermissions.forEach { permission ->
-                            val risk = when {
-                                permission.contains("CAMERA") -> "Camera access"
-                                permission.contains("LOCATION") -> "Location access"
-                                permission.contains("CONTACTS") -> "Contacts access"
-                                permission.contains("SMS") || permission.contains("CALL_LOG") || permission.contains("PHONE") -> "Messaging or phone access"
-                                permission.contains("MICROPHONE") || permission.contains("RECORD_AUDIO") -> "Microphone access"
-                                permission.contains("STORAGE") || permission.contains("MEDIA") -> "Files or media access"
-                                permission.contains("NOTIFICATION") -> "Notification access"
-                                else -> "Other manifest permission"
-                            }
-                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                Checkbox(
-                                    checked = permission in removedPermissions,
-                                    onCheckedChange = { checked ->
-                                        removedPermissions = if (checked) removedPermissions + permission else removedPermissions - permission
+                    TextButton(onClick = { showPermissionControls = !showPermissionControls }) {
+                        Text(if (showPermissionControls) "Hide permission list" else "Customize permissions · ${requestedPermissions.size}")
+                    }
+                    if (showPermissionControls) {
+                        Text(
+                            "Select permissions to remove from the clone manifest. Removing declarations may stop app features from working.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text("${removedPermissions.size} selected for removal", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+                        if (requestedPermissions.isEmpty()) {
+                            Text("No requested permissions were found in the source manifest.", style = MaterialTheme.typography.bodySmall)
+                        } else {
+                            requestedPermissions.forEach { permission ->
+                                val risk = when {
+                                    permission.contains("CAMERA") -> "Camera access"
+                                    permission.contains("LOCATION") -> "Location access"
+                                    permission.contains("CONTACTS") -> "Contacts access"
+                                    permission.contains("SMS") || permission.contains("CALL_LOG") || permission.contains("PHONE") -> "Messaging or phone access"
+                                    permission.contains("MICROPHONE") || permission.contains("RECORD_AUDIO") -> "Microphone access"
+                                    permission.contains("STORAGE") || permission.contains("MEDIA") -> "Files or media access"
+                                    permission.contains("NOTIFICATION") -> "Notification access"
+                                    else -> "Other manifest permission"
+                                }
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                    Checkbox(
+                                        checked = permission in removedPermissions,
+                                        onCheckedChange = { checked ->
+                                            removedPermissions = if (checked) removedPermissions + permission else removedPermissions - permission
+                                        }
+                                    )
+                                    Column(Modifier.weight(1f)) {
+                                        Text(permission, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                                        Text(risk, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                )
-                                Column(Modifier.weight(1f)) {
-                                    Text(permission, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
-                                    Text(risk, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -1586,11 +1597,16 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
                     if (cloneBuilding) {
-                        LinearProgressIndicator(
-                            progress = { cloneProgress / 100f },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text("Building and signing APKs… $cloneProgress%")
+                        if (cloneProgress > 0) {
+                            LinearProgressIndicator(
+                                progress = { cloneProgress / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text("Building and signing APKs… $cloneProgress%")
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            Text("Preparing and rebuilding APKs… This can take several minutes for large apps.")
+                        }
                     }
                     Text(
                         if (cloneUpdateMode) "The update uses the existing OpenClone signing key. Android should preserve this clone's data if the update is accepted." else "The original app remains unchanged. The clone uses separate app data and is signed with your OpenClone signing identity.",
