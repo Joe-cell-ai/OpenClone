@@ -51,6 +51,8 @@ import org.openclone.app.data.ExtensionPackageDownloader
 import org.openclone.app.data.ExtensionPackageInstaller
 import org.openclone.app.data.ExtensionInstallStatusStore
 import org.openclone.app.data.CloneProxyAssignmentRepository
+import org.openclone.app.adshield.AdShieldVpnService
+import org.openclone.app.adshield.DomainBlocklist
 import org.openclone.app.RemoteControlPairingStore
 import org.openclone.app.RemotePairingInfo
 import org.openclone.app.RemoteControlService
@@ -264,6 +266,15 @@ class CloneUpdateCheckWorker(context: Context, params: WorkerParameters) : Corou
 fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit, onOpenApps: () -> Unit, onOpenClones: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val adShieldConsentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) context.startForegroundService(Intent(context, AdShieldVpnService::class.java))
+    }
+    var adShieldRunning by remember { mutableStateOf(AdShieldVpnService.isRunning()) }
+    var adShieldDomainInput by remember { mutableStateOf("") }
+    var adShieldBlockedDomains by remember {
+        mutableStateOf(context.getSharedPreferences("openclone_ad_shield", Context.MODE_PRIVATE)
+            .getString("blocked_domains", "").orEmpty().lineSequence().filter { it.isNotBlank() }.toList())
+    }
     val repository = remember { ProxyProfileRepository(context) }
     var profiles by remember { mutableStateOf(repository.getAll()) }
     var name by remember { mutableStateOf("") }
@@ -411,6 +422,48 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                     val share = Intent(Intent.ACTION_SEND).setType("application/json").putExtra(Intent.EXTRA_TEXT, report)
                     context.startActivity(Intent.createChooser(share, "Share OpenClone diagnostics"))
                 }) { Text("Share runtime diagnostics") }
+            }
+        }
+
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("🛡️ Ad Shield · Local DNS filtering", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Uses Android VPN consent and routes only the private DNS endpoint through this app. Other IP traffic stays on the normal network. Allowed DNS queries use Cloudflare DNS-over-HTTPS; blocked domains receive NXDOMAIN. This cannot block in-app DoH or same-domain ads.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(value = adShieldDomainInput, onValueChange = { adShieldDomainInput = it }, label = { Text("Domain to block (e.g. ads.example)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = {
+                        val normalized = DomainBlocklist.normalize(adShieldDomainInput)
+                        if (normalized != null) {
+                            adShieldBlockedDomains = (adShieldBlockedDomains + normalized).distinct().sorted()
+                            context.getSharedPreferences("openclone_ad_shield", Context.MODE_PRIVATE).edit()
+                                .putString("blocked_domains", adShieldBlockedDomains.joinToString("\n")).apply()
+                            adShieldDomainInput = ""
+                        }
+                    }, enabled = DomainBlocklist.normalize(adShieldDomainInput) != null) { Text("Add block rule") }
+                    OutlinedButton(onClick = {
+                        if (!adShieldRunning) {
+                            val consent = VpnService.prepare(context)
+                            if (consent == null) {
+                                context.startForegroundService(Intent(context, AdShieldVpnService::class.java))
+                                adShieldRunning = true
+                            } else adShieldConsentLauncher.launch(consent)
+                        } else {
+                            context.startService(Intent(context, AdShieldVpnService::class.java).setAction(AdShieldVpnService.ACTION_STOP))
+                            adShieldRunning = false
+                        }
+                    }) { Text(if (adShieldRunning) "Stop protection" else "Start protection") }
+                }
+                Text("${adShieldBlockedDomains.size} custom block rule(s) · ${if (adShieldRunning) "VPN active" else "VPN stopped"}", style = MaterialTheme.typography.labelMedium)
+                adShieldBlockedDomains.take(12).forEach { domain ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(domain, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                        TextButton(onClick = {
+                            adShieldBlockedDomains = adShieldBlockedDomains.filterNot { it == domain }
+                            context.getSharedPreferences("openclone_ad_shield", Context.MODE_PRIVATE).edit()
+                                .putString("blocked_domains", adShieldBlockedDomains.joinToString("\n")).apply()
+                        }) { Text("Remove") }
+                    }
+                }
             }
         }
 
