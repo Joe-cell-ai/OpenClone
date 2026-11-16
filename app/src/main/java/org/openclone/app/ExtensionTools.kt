@@ -267,7 +267,7 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val adShieldConsentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) context.startForegroundService(Intent(context, AdShieldVpnService::class.java))
+        if (result.resultCode == Activity.RESULT_OK) { context.startForegroundService(Intent(context, AdShieldVpnService::class.java)); adShieldRunning = true }
     }
     var adShieldRunning by remember { mutableStateOf(AdShieldVpnService.isRunning()) }
     var adShieldDomainInput by remember { mutableStateOf("") }
