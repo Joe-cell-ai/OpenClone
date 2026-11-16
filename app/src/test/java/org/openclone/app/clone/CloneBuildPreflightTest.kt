@@ -39,6 +39,24 @@ class CloneBuildPreflightTest {
     }
 
     @Test
+    fun defaultPreflightDoesNotChargeForOptionalDexRewriting() {
+        val apk = createApk(resourceBytes = 1024L, dexBytes = 20L * 1024 * 1024)
+        try {
+            val report = CloneBuildPreflight.inspect(
+                listOf(apk),
+                maxHeapBytes = 256L * 1024 * 1024,
+                allocatedHeapBytes = 64L * 1024 * 1024,
+                freeAllocatedHeapBytes = 32L * 1024 * 1024
+            )
+            assertEquals(20L * 1024 * 1024, report.dexBytes)
+            assertEquals(64L * 1024 * 1024, report.estimatedPeakBytes)
+            assertTrue(report.canProceed)
+        } finally {
+            apk.delete()
+        }
+    }
+
+    @Test
     fun rejectsBuildWhenAvailableHeapIsBelowSafetyEstimate() {
         val apk = createApk(resourceBytes = 1024L)
         try {
@@ -65,14 +83,14 @@ class CloneBuildPreflightTest {
         }
     }
 
-    private fun createApk(resourceBytes: Long): File {
+    private fun createApk(resourceBytes: Long, dexBytes: Long = 2048L): File {
         val file = File.createTempFile("preflight", ".apk")
         ZipOutputStream(file.outputStream()).use { zip ->
             zip.putNextEntry(ZipEntry("resources.arsc"))
             zip.write(ByteArray(resourceBytes.toInt()))
             zip.closeEntry()
             zip.putNextEntry(ZipEntry("classes.dex"))
-            zip.write(ByteArray(2048))
+            zip.write(ByteArray(dexBytes.toInt()))
             zip.closeEntry()
             zip.putNextEntry(ZipEntry("AndroidManifest.xml"))
             zip.write(byteArrayOf(1, 2, 3))

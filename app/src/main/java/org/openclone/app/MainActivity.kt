@@ -394,7 +394,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var cloneWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
-    var rewriteDexPackageStrings by remember { mutableStateOf(true) }
+    var rewriteDexPackageStrings by remember { mutableStateOf(false) }
     var customIconPath by rememberSaveable { mutableStateOf<String?>(null) }
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var requestedPermissions by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -699,7 +699,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         cloneError = null
                         cloneUpdateMode = false
                         markCloneIcon = true
-                        rewriteDexPackageStrings = true
+                        rewriteDexPackageStrings = false
                         customIconPath = null
                         badgePosition = BadgePosition.BOTTOM_RIGHT
                         statusMessage = "Imported ${source.apkFiles.size} APK component(s) and ${source.obbFiles.size} OBB file(s) from ${source.archiveName}."
@@ -1433,7 +1433,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         Column(Modifier.weight(1f)) {
                             Text("Keep internal launches inside this clone", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "Rewrites package identity strings used by explicit component references. Class names remain unchanged. Some apps that verify their original package identity may still need app-specific compatibility work.",
+                                "Optional compatibility rewrite. It can use substantial memory and slow large APK builds, so it is off by default. Class names remain unchanged; apps that verify their original package identity may still need app-specific compatibility work.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
