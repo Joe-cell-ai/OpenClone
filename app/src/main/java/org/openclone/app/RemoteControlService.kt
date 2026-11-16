@@ -114,7 +114,7 @@ object RemoteControlPairingStore {
 
 /** Stable self-signed EC identity generated and retained by Android Keystore; clients pin its SHA-256 certificate fingerprint. */
 object RemoteControlTlsIdentity {
-    private const val ALIAS = "openclone_remote_tls_identity"
+    private const val ALIAS = "openclone_remote_tls_identity_v2"
 
     fun fingerprint(): String {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
