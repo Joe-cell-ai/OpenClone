@@ -68,3 +68,14 @@ The branch now contains two isolated, JVM-testable primitives:
 - Unit tests are present for both primitives under `app/src/test/java/org/openclone/app/`.
 
 These tests have been added to the repository but have not yet been executed in CI. The delivery checklist above remains incomplete; no UI should advertise either service as active.
+
+
+## DNS policy and wire-codec primitives
+
+Additional isolated primitives have been added:
+
+- `adshield/DnsWireCodec.kt` parses bounded, standard single-question DNS packets (uncompressed QNAME only) and can construct an NXDOMAIN response while preserving the transaction ID and question.
+- Unsupported compression, malformed labels, response packets, non-standard opcodes, multiple questions, extra sections and truncated packets are rejected by the parser. A future forwarder must pass unsupported packets through safely; it must not turn parse failures into false block decisions.
+- `adshield/DnsWireCodecTest.kt` covers normal queries, NXDOMAIN response fields, malformed/truncated packets and unsupported packet forms.
+
+This still is not a DNS server or VPN. It does not bind a UDP socket, process TUN packets, forward permitted queries to an upstream resolver, or protect traffic. The new unit tests are committed but not yet executed.
