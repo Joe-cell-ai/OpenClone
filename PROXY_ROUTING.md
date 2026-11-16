@@ -1,32 +1,45 @@
-# Per-clone proxy routing
+# Per-clone proxy routing — implementation status
 
-OpenClone uses Android's `VpnService` allowlist and the pinned MIT-licensed tun2proxy v0.8.7 Android engine.
+> **Not currently implemented.** This document records the intended design, not a shipped capability. The current source tree does not contain a `VpnService` subclass, a VPN service manifest declaration, a call to `VpnService.prepare()`, or a call to the native `Tun2proxy.run()` / `Tun2proxy.stop()` methods. The existing proxy profile and clone-assignment UI must not be treated as evidence that traffic is being routed.
 
-## How it works
+## Existing pieces
 
-1. Save an unauthenticated HTTP CONNECT or SOCKS5 proxy profile in Extensions.
-2. Select one installed OpenClone-created clone and one saved profile.
-3. OpenClone saves the clone-to-profile assignment and asks Android for VPN consent if it has not already been granted.
-4. Android's VPN allowlist routes only that selected clone through the TUN interface. OpenClone and other apps are excluded from the allowlist and use the normal network.
-5. The tunnel sends IPv4/IPv6 traffic through the chosen proxy and uses tun2proxy's virtual DNS handling.
+- Proxy profile validation and storage for unauthenticated HTTP CONNECT and SOCKS5 endpoints.
+- Clone-to-profile assignment storage.
+- A pinned, SHA-256-verified tun2proxy v0.8.7 Android native library archive and a JNI declaration.
 
-The foreground notification stays visible while the route is active. If the native packet engine exits unexpectedly while the service is alive, OpenClone keeps the VPN interface and notification active so selected-clone traffic remains blocked until the user stops the route. Stop the route from Extensions or the notification. Android can still revoke or kill a VPN service; OpenClone cannot guarantee fail-closed behavior after an OS-level revocation or process death.
+These pieces do not create a TUN interface, start a foreground VPN service, route packets, provide DNS filtering, or guarantee traffic blocking.
 
-## Android platform limit
+## Required implementation before this feature can be enabled
 
-Android permits one active VPN service per Android user/profile. Consequently OpenClone can route one selected clone at a time in this implementation. Selecting a different clone/profile requires stopping the current route first. OpenClone checks for an existing VPN and does not silently replace it.
+1. Add a dedicated Android `VpnService` subclass and declare it with `android.permission.BIND_VPN_SERVICE` and the `android.net.VpnService` intent action.
+2. Obtain explicit Android VPN consent through `VpnService.prepare()`; never start or replace another VPN silently.
+3. Establish and configure the TUN interface, define IPv4/IPv6 routes and DNS behavior, and start the native packet engine with validated arguments.
+4. Handle foreground-service requirements, notification stop action, network changes, engine failure, service revocation, process death, and explicit user stop.
+5. Verify that the selected clone is the only routed application and that excluded applications continue to use the normal network.
+6. Add instrumented tests for VPN consent, route configuration, engine startup/failure, stop/revoke behavior, and supported Android versions. Test GrapheneOS separately, including Network permission denial and VPN lockdown.
+7. Do not describe the route as fail-closed after Android revokes or kills the VPN service. Android owns that lifecycle boundary.
 
-## Current supported scope
+## Android platform limits
 
-- HTTP CONNECT and SOCKS5 endpoints without proxy authentication.
-- One selected clone per active tunnel.
-- IPv4 and IPv6 routes with virtual DNS.
-- Android system consent and foreground notification.
+Android allows one active VPN service per Android user/profile. This feature must detect an existing VPN and explain the conflict rather than silently replacing it. VPN configuration is per Android user/profile.
 
-Unsupported: multiple simultaneous clone-to-different-proxy tunnels, authenticated proxy credentials, routing across Android work profiles/users, and cloned apps that require their own VPN service while OpenClone's VPN is active.
+## Intended supported scope (not yet available)
 
-The native engine archive is pinned to tun2proxy v0.8.7 and SHA-256 verified during the Gradle build. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+- One selected OpenClone-created clone per active tunnel.
+- HTTP CONNECT and SOCKS5 upstreams.
+- IPv4 and IPv6, with explicitly tested DNS handling.
+- Android system consent and a persistent foreground notification.
 
-## Privacy and safety
+Not supported by the current code: authenticated proxy credentials, multiple simultaneous clone-to-different-proxy tunnels, routing across Android work profiles/users, or compatibility with a cloned app that requires its own VPN.
 
-OpenClone does not capture or inspect the selected clone's payloads. The TUN engine forwards packets to the configured proxy. Use a proxy endpoint you trust; an HTTP proxy connection to the proxy server itself is not encrypted unless the proxy provider separately offers a protected transport. Stop the tunnel before switching networks or using another VPN.
+## Ad Shield is a separate capability
+
+A proxy tunnel is not an ad blocker. DNS-based ad/tracker filtering requires a real DNS filtering engine, maintained blocklists, explicit DNS upstream and Private DNS behavior, per-app policy, and leak/failure handling. Do not expose an Ad Shield enabled state until those components are implemented and tested. DNS filtering cannot reliably remove ads served from the same domains as requested content.
+
+## Privacy and safety requirements
+
+- Do not inspect or log application payloads.
+- Explain that an ordinary HTTP proxy connection is not encrypted unless the upstream transport itself is protected.
+- Never override Android Private DNS or another VPN without clear user action.
+- Never claim protection after VPN revocation, process death, or an unsupported network transition.
