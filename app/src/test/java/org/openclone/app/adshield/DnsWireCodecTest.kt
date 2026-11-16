@@ -68,6 +68,26 @@ class DnsWireCodecTest {
         assertNull(DnsWireCodec.parseSingleQuestion(byteArrayOf(0x12, 0x34, 0, 0)))
     }
 
+    @Test fun acceptsEdnsOptRecordAndPreservesItInBlockedResponse() {
+        val base = query("ads.example")
+        val packet = base.copyOf(base.size + 11)
+        packet[11] = 1 // ARCOUNT
+        val offset = base.size
+        packet[offset] = 0 // root owner name
+        packet[offset + 1] = 0
+        packet[offset + 2] = 41 // OPT
+        packet[offset + 3] = 0x04
+        packet[offset + 4] = 0xd0.toByte() // advertised UDP payload 1232
+        packet[offset + 9] = 0
+        packet[offset + 10] = 0 // empty OPT data
+
+        val parsed = DnsWireCodec.parseSingleQuestion(packet)!!
+        assertEquals("ads.example", parsed.hostname)
+        val response = DnsWireCodec.buildNxDomainResponse(packet, parsed)
+        assertEquals(1, response[11].toInt() and 0xff)
+        assertArrayEquals(packet.copyOfRange(12, packet.size), response.copyOfRange(12, response.size))
+    }
+
     @Test fun malformedHostnameIsNotTreatedAsBlocked() {
         val packet = query("ads.example")
         packet[13] = 0 // empty label in middle
