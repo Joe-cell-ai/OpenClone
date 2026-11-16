@@ -120,13 +120,17 @@ object RemoteControlTlsIdentity {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         if (!store.containsAlias(ALIAS)) {
             val now = System.currentTimeMillis()
-            val generator = KeyPairGenerator.getInstance("EC", "AndroidKeyStore")
+            // RSA is broadly interoperable with TLS 1.2 providers on older Android releases.
+            // Some API 26 emulator/provider combinations close ECDSA handshakes before the
+            // pinned companion client can complete authentication.
+            val generator = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_RSA, "AndroidKeyStore")
             generator.initialize(
                 KeyGenParameterSpec.Builder(
                     ALIAS,
                     KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_VERIFY
-                ).setAlgorithmParameterSpec(java.security.spec.ECGenParameterSpec("secp256r1"))
+                ).setKeySize(2048)
                     .setDigests(KeyProperties.DIGEST_SHA256)
+                    .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1)
                     .setCertificateSubject(javax.security.auth.x500.X500Principal("CN=OpenClone Remote Control"))
                     .setCertificateSerialNumber(BigInteger.valueOf(now.coerceAtLeast(1)))
                     .setCertificateNotBefore(Date(now - 60_000))
@@ -241,8 +245,15 @@ class RemoteControlService : Service() {
                     val accepted = socket.accept() as javax.net.ssl.SSLSocket
                     accepted.use { client ->
                         client.soTimeout = 5000
-                        client.startHandshake()
-                        handleRequest(client)
+                        try {
+                            client.startHandshake()
+                            handleRequest(client)
+                        } catch (error: javax.net.ssl.SSLException) {
+                            // A malformed or incompatible peer must not terminate the listener.
+                            ExtensionDiagnosticsLog(this).append(
+                                "remote", "tls_handshake_rejected", error.javaClass.simpleName
+                            )
+                        }
                     }
                 } catch (_: java.net.SocketTimeoutException) {
                     // Allows the stop action to be observed without holding the service thread indefinitely.
