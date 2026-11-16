@@ -5,6 +5,8 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Intent
 import android.net.VpnService
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import java.io.FileInputStream
@@ -135,7 +137,14 @@ class AdShieldVpnService : VpnService() {
     private fun resolveOverHttps(query: ByteArray): ByteArray? {
         var connection: HttpURLConnection? = null
         return try {
-            connection = URL(DNS).openConnection() as HttpsURLConnection
+            val manager = getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager
+            val upstream = manager.allNetworks.firstOrNull { network ->
+                val caps = manager.getNetworkCapabilities(network) ?: return@firstOrNull false
+                !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) &&
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            } ?: return null
+            // Bind DoH to the physical upstream network to avoid recursive DNS through this VPN.
+            connection = upstream.openConnection(URL(DNS)) as HttpsURLConnection
             connection.connectTimeout = 5000
             connection.readTimeout = 7000
             connection.requestMethod = "POST"
