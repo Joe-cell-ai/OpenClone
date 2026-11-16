@@ -57,3 +57,14 @@ The project credits protocol schemas from `tronikos/androidtvremote2` (Apache-2.
 - [ ] Open one reviewable PR only after substantive implementation and CI evidence exist.
 
 No Ad Shield or Smart Remote control is considered shipped until its corresponding implementation and tests are complete.
+
+
+## Implemented foundations (not yet connected to live services)
+
+The branch now contains two isolated, JVM-testable primitives:
+
+- `app/src/main/java/org/openclone/app/adshield/DomainBlocklist.kt`: parses plain-domain and hosts-file rules, normalizes IDNs, matches exact domains and subdomains, and gives explicit allow rules precedence. It does not intercept DNS or network traffic.
+- `app/src/main/java/org/openclone/app/smartremote/AndroidTvRemoteFraming.kt`: reads/writes length-delimited protobuf frames with a 1 MiB limit and rejects truncated/invalid frames. It does not implement TLS, pairing, protobuf message schemas, discovery, or remote commands.
+- Unit tests are present for both primitives under `app/src/test/java/org/openclone/app/`.
+
+These tests have been added to the repository but have not yet been executed in CI. The delivery checklist above remains incomplete; no UI should advertise either service as active.
