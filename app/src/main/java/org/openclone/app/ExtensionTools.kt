@@ -416,6 +416,66 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
 
         Card {
             Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("🌐 Proxy Profiles", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("Save up to 10 HTTP CONNECT or SOCKS5 endpoints, test a real connection, and assign profiles to clones. Saving or testing a profile does not route device or clone traffic.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Profile name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = host, onValueChange = { host = it }, label = { Text("Proxy host or IP") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit).take(5) }, label = { Text("Port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(selected = protocol == "HTTP_CONNECT", onClick = { protocol = "HTTP_CONNECT" }, label = { Text("HTTP CONNECT") })
+                    FilterChip(selected = protocol == "SOCKS5", onClick = { protocol = "SOCKS5" }, label = { Text("SOCKS5") })
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = {
+                        runCatching {
+                            val profile = ProxyProfile(name.trim(), host.trim(), port.toInt(), protocol)
+                            repository.save(profile)
+                            profiles = repository.getAll()
+                            selectedProxyProfile = profile.name
+                            proxyRoutingMessage = "Saved ${profile.name}. This profile is not active until a supported routing engine is connected."
+                            ExtensionDiagnosticsLog(context).append("proxy", "profile_saved", "A proxy profile was saved.")
+                        }.onFailure { proxyRoutingMessage = it.message ?: "Could not save proxy profile." }
+                    }, enabled = name.isNotBlank() && host.isNotBlank() && port.toIntOrNull() in 1..65535) { Text("Save profile") }
+                    OutlinedButton(onClick = {
+                        val candidate = runCatching { ProxyProfile(name.trim(), host.trim(), port.toInt(), protocol) }.getOrNull()
+                        if (candidate == null) proxyRoutingMessage = "Enter a valid profile before testing."
+                        else scope.launch {
+                            proxyRoutingMessage = "Testing proxy connection…"
+                            val result = withContext(Dispatchers.IO) { runCatching { ProxyConnectivityTester.test(candidate) } }
+                            proxyRoutingMessage = result.fold(
+                                { "Connection test passed for ${candidate.host}:${candidate.port}. Traffic is not routed through this profile." },
+                                { "Connection test failed: ${it.message ?: "Unknown error"}" }
+                            )
+                        }
+                    }, enabled = host.isNotBlank() && port.toIntOrNull() in 1..65535) { Text("Test connection") }
+                }
+                if (profiles.isEmpty()) Text("No saved proxy profiles.")
+                profiles.forEach { profile ->
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(profile.name, fontWeight = FontWeight.SemiBold)
+                            Text("${profile.protocol} · ${profile.host}:${profile.port}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        TextButton(onClick = {
+                            name = profile.name
+                            host = profile.host
+                            port = profile.port.toString()
+                            protocol = profile.protocol
+                        }) { Text("Edit") }
+                        TextButton(onClick = {
+                            repository.delete(profile.name)
+                            profiles = repository.getAll()
+                            proxyAssignments = assignmentRepository.getAll()
+                            if (selectedProxyProfile == profile.name) selectedProxyProfile = profiles.firstOrNull()?.name.orEmpty()
+                            proxyRoutingMessage = "Deleted ${profile.name}."
+                        }) { Text("Delete") }
+                    }
+                }
+                Text(proxyRoutingMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Card {
+            Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("🖥️ Remote Control · Secure local session", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("Opt-in TLS 1.2 server with a pinned device certificate, Android Keystore-encrypted pairing secret, HMAC authentication and replay protection. The API exposes status and launch of OpenClone-created clones only. It does not expose arbitrary shell commands or private app data.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 if (remotePairingInfo == null) {
