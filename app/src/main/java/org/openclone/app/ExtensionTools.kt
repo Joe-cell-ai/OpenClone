@@ -601,7 +601,6 @@ fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit,
                 Text(appLockMessage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
-        ExtensionStatusCard("🖥️ Remote Control", "HMAC request-authentication and time-window validation primitives are implemented and tested. No network listener or remote actions are enabled until secure pairing, replay protection and explicit local consent are complete.")
     }
 
     if (showClearCache) {
