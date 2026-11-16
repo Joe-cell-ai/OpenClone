@@ -1433,7 +1433,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         Column(Modifier.weight(1f)) {
                             Text("Keep internal launches inside this clone", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "Rewrites package identity strings used by explicit component references. Class names remain unchanged. Some apps that verify their original package identity may still need app-specific compatibility work.",
+                                "Optional compatibility rewrite. It can use substantial memory and slow large APK builds, so it is off by default. Class names remain unchanged; apps that verify their original package identity may still need app-specific compatibility work.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
