@@ -53,6 +53,18 @@ class DnsWireCodecTest {
         assertArrayEquals(packet.copyOfRange(12, packet.size), response.copyOfRange(12, response.size))
     }
 
+    @Test fun buildsServFailResponseWhenUpstreamIsUnavailable() {
+        val packet = query("allowed.example")
+        val parsed = DnsWireCodec.parseSingleQuestion(packet)!!
+        val response = DnsWireCodec.buildServFailResponse(packet, parsed)
+        val flags = ((response[2].toInt() and 0xff) shl 8) or (response[3].toInt() and 0xff)
+        assertTrue((flags and 0x8000) != 0)
+        assertEquals(2, flags and 0x000f)
+        assertTrue((flags and 0x0080) != 0) // RA
+        assertEquals(0, response[7].toInt()) // no answer
+        assertArrayEquals(packet.copyOfRange(12, packet.size), response.copyOfRange(12, response.size))
+    }
+
     @Test fun rejectsResponseAndMultiQuestionPackets() {
         val response = query("ads.example", flags = 0x8180)
         assertNull(DnsWireCodec.parseSingleQuestion(response))
