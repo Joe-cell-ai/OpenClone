@@ -13,7 +13,8 @@ object DnsWireCodec {
         val queryType: Int,
         val queryClass: Int,
         internal val questionEndOffset: Int,
-        internal val requestFlags: Int
+        internal val requestFlags: Int,
+        internal val additionalCount: Int
     )
 
     fun parseSingleQuestion(packet: ByteArray): Question? {
@@ -24,7 +25,7 @@ object DnsWireCodec {
         val authorityCount = u16(packet, 8) ?: return null
         val additionalCount = u16(packet, 10) ?: return null
         if ((flags and 0x8000) != 0 || (flags and 0x7800) != 0) return null
-        if (questionCount != 1 || answerCount != 0 || authorityCount != 0 || additionalCount != 0) return null
+        if (questionCount != 1 || answerCount != 0 || authorityCount != 0 || additionalCount !in 0..1) return null
 
         var offset = 12
         val labels = ArrayList<String>()
@@ -45,17 +46,27 @@ object DnsWireCodec {
             if (totalNameLength > 254 || labels.size > 127) return null
             offset += length
         }
-        if (labels.isEmpty() || offset + 4 != packet.size) return null
+        if (labels.isEmpty() || offset + 4 > packet.size) return null
         val hostname = DomainBlocklist.normalize(labels.joinToString(".")) ?: return null
         val queryType = u16(packet, offset) ?: return null
         val queryClass = u16(packet, offset + 2) ?: return null
+        offset += 4
+        if (additionalCount == 1) {
+            // Accept the common EDNS0 OPT pseudo-record only; reject arbitrary trailing RRs.
+            if (offset + 11 > packet.size || packet[offset] != 0.toByte()) return null
+            if (u16(packet, offset + 1) != 41) return null
+            val dataLength = u16(packet, offset + 9) ?: return null
+            offset += 11
+            if (dataLength > 1232 || offset + dataLength != packet.size) return null
+        } else if (offset != packet.size) return null
         return Question(
             transactionId = u16(packet, 0) ?: return null,
             hostname = hostname,
             queryType = queryType,
             queryClass = queryClass,
             questionEndOffset = packet.size,
-            requestFlags = flags
+            requestFlags = flags,
+            additionalCount = additionalCount
         )
     }
 
@@ -70,7 +81,7 @@ object DnsWireCodec {
         putU16(response, 4, 1)
         putU16(response, 6, 0)
         putU16(response, 8, 0)
-        putU16(response, 10, 0)
+        putU16(response, 10, question.additionalCount)
         return response
     }
 
