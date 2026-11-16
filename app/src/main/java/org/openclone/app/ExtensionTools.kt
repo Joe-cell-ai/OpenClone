@@ -266,10 +266,15 @@ class CloneUpdateCheckWorker(context: Context, params: WorkerParameters) : Corou
 fun ExtensionToolsScreen(onOpenSettings: () -> Unit, onOpenProfiles: () -> Unit, onOpenApps: () -> Unit, onOpenClones: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val adShieldConsentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) { context.startForegroundService(Intent(context, AdShieldVpnService::class.java)); adShieldRunning = true }
-    }
     var adShieldRunning by remember { mutableStateOf(AdShieldVpnService.isRunning()) }
+    val adShieldConsentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            context.startForegroundService(Intent(context, AdShieldVpnService::class.java))
+            adShieldRunning = true
+        } else {
+            adShieldRunning = AdShieldVpnService.isRunning()
+        }
+    }
     var adShieldDomainInput by remember { mutableStateOf("") }
     var adShieldBlockedDomains by remember {
         mutableStateOf(context.getSharedPreferences("openclone_ad_shield", Context.MODE_PRIVATE)

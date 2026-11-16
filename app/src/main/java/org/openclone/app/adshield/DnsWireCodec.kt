@@ -85,6 +85,18 @@ object DnsWireCodec {
         return response
     }
 
+    /** Builds a DNS SERVFAIL response when the encrypted upstream cannot be reached. */
+    fun buildServFailResponse(request: ByteArray, question: Question): ByteArray {
+        require(question.questionEndOffset == request.size && request.size >= 17)
+        val response = ByteArray(request.size)
+        request.copyInto(response)
+        val responseFlags = 0x8000 or (question.requestFlags and 0x0100) or 0x0080 or 0x0002
+        putU16(response, 2, responseFlags)
+        putU16(response, 6, 0)
+        putU16(response, 8, 0)
+        return response
+    }
+
     private fun u16(bytes: ByteArray, offset: Int): Int? {
         if (offset < 0 || offset + 1 >= bytes.size) return null
         return ((bytes[offset].toInt() and 0xff) shl 8) or

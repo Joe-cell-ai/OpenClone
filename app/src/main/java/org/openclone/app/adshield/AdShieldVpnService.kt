@@ -127,7 +127,7 @@ class AdShieldVpnService : VpnService() {
             DnsWireCodec.buildNxDomainResponse(dns, question)
         } else {
             forwardedCount.incrementAndGet()
-            resolveOverHttps(dns) ?: return null
+            resolveOverHttps(dns) ?: DnsWireCodec.buildServFailResponse(dns, question)
         }
         val sourceAddress = packet.copyOfRange(12, 16)
         val destinationAddress = packet.copyOfRange(16, 20)
