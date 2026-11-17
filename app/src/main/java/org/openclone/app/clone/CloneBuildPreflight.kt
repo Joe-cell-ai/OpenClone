@@ -48,16 +48,28 @@ object CloneBuildPreflight {
         val measuredFreeAllocatedHeap = freeAllocatedHeapBytes ?: runtime.freeMemory()
 
         val sourceBytes = sourceApks.sumOf { it.length() }
-        val resourceTableBytes = sourceApks.sumOf { apk ->
-            ZipFile(apk).use { zip -> zip.getEntry("resources.arsc")?.size?.coerceAtLeast(0L) ?: 0L }
-        }
-        val dexBytes = sourceApks.sumOf { apk ->
+        var resourceTableBytes = 0L
+        var dexBytes = 0L
+        sourceApks.forEachIndexed { apkIndex, apk ->
+            ensureActive()
             ZipFile(apk).use { zip ->
-                zip.entries().asSequence()
-                    .filter { !it.isDirectory && it.name.matches(Regex("""classes(\d*)\.dex""")) }
-                    .sumOf { it.size.coerceAtLeast(0L) }
+                val entries = zip.entries()
+                while (entries.hasMoreElements()) {
+                    ensureActive()
+                    val entry = entries.nextElement()
+                    if (!entry.isDirectory) {
+                        when {
+                            entry.name == "resources.arsc" -> resourceTableBytes += entry.size.coerceAtLeast(0L)
+                            entry.name.matches(Regex("""classes(\\d*)\\.dex""")) -> dexBytes += entry.size.coerceAtLeast(0L)
+                        }
+                    }
+                    val fraction = (apkIndex + 1f) / sourceApks.size
+                    onProgress((2 + fraction * 6).toInt().coerceIn(2, 8))
+                }
             }
         }
+        ensureActive()
+        onProgress(9)
         val estimated = maxOf(
             MINIMUM_HEADROOM_BYTES,
             BASE_OVERHEAD_BYTES + resourceTableBytes * RESOURCE_TABLE_MULTIPLIER +
