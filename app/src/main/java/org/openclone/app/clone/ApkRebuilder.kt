@@ -100,7 +100,10 @@ object ApkRebuilder {
                         // package.
                         fun renamed(to: OutputStream) = zip.getInputStream(entry).use {
                             val toPackage = if (patcher.keepResourceTable) patcher.oldPackage else patcher.newPackage
-                            ResourceTableRenamer.copy(it, to, patcher.oldPackage, toPackage, onStep)
+                            ResourceTableRenamer.copy(it, to, patcher.oldPackage, toPackage, onStep) { copied ->
+                                val fraction = (copied.toDouble() / entry.size.coerceAtLeast(1L)).coerceIn(0.0, 1.0)
+                                onProgress(((processedEntries + fraction) * 100.0 / totalEntries).toInt().coerceIn(0, 99))
+                            }
                         }
                         if (entry.method == ZipEntry.STORED) {
                             val checksum = CRC32()
