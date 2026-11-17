@@ -51,18 +51,21 @@ class CloneBuildWorker(
                 ?.let { runCatching { BadgePosition.valueOf(it) }.getOrNull() }
                 ?: BadgePosition.BOTTOM_RIGHT
             var lastReportedProgress = -1
+            fun reportProgress(value: Int) {
+                val visibleProgress = (1 + (value.coerceIn(0, 100) * 98 / 100)).coerceIn(1, 99)
+                if (visibleProgress != lastReportedProgress) {
+                    lastReportedProgress = visibleProgress
+                    setProgressAsync(Data.Builder().putInt(KEY_PROGRESS, visibleProgress).build())
+                }
+            }
+            reportProgress(0)
             val result = ApkCloneEngine(applicationContext).build(
                 sourceApks = sourceApks,
                 originalPackage = originalPackage,
                 newPackage = clonePackage,
                 newLabel = cloneLabel,
                 outputDirectory = File(applicationContext.filesDir, "openclone/builds/$clonePackage"),
-                onProgress = { value ->
-                    if (value != lastReportedProgress) {
-                        lastReportedProgress = value
-                        setProgressAsync(Data.Builder().putInt(KEY_PROGRESS, value).build())
-                    }
-                },
+                onProgress = ::reportProgress,
                 iconSource = iconSource.takeIf { markIcon || customIconFile != null },
                 allowUpdate = inputData.getBoolean(KEY_ALLOW_UPDATE, false),
                 ensureActive = {
@@ -78,6 +81,7 @@ class CloneBuildWorker(
                 versionNameOverride = inputData.getString(KEY_VERSION_NAME_OVERRIDE)?.takeIf { it.isNotBlank() },
                 versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 }
             )
+            reportProgress(99)
             val obbOutputDirectory = File(result.apks.first().parentFile, "obb")
             val obbOutputs = if (obbSources.isEmpty()) emptyList() else {
                 check(obbOutputDirectory.mkdirs() || obbOutputDirectory.isDirectory) { "Could not create the OBB export directory." }
