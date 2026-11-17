@@ -142,7 +142,7 @@ object ApkRebuilder {
                         zip.getInputStream(entry).use { copyWithProgress(it, out) }
                     } else {
                         out.putNextEntry(copy)
-                        zip.getInputStream(entry).use { copyChecked(it, out, onStep) }
+                        zip.getInputStream(entry).use { copyWithProgress(it, out) }
                     }
                     out.closeEntry()
                     processedEntries++
