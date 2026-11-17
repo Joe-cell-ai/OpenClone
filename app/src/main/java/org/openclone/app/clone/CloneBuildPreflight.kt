@@ -28,7 +28,9 @@ object CloneBuildPreflight {
         maxHeapBytes: Long? = null,
         allocatedHeapBytes: Long? = null,
         freeAllocatedHeapBytes: Long? = null,
-        rewriteDexPackageStrings: Boolean = false
+        rewriteDexPackageStrings: Boolean = false,
+        ensureActive: () -> Unit = {},
+        onProgress: (Int) -> Unit = {}
     ): CloneBuildPreflightReport {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) {
@@ -46,16 +48,31 @@ object CloneBuildPreflight {
         val measuredFreeAllocatedHeap = freeAllocatedHeapBytes ?: runtime.freeMemory()
 
         val sourceBytes = sourceApks.sumOf { it.length() }
-        val resourceTableBytes = sourceApks.sumOf { apk ->
-            ZipFile(apk).use { zip -> zip.getEntry("resources.arsc")?.size?.coerceAtLeast(0L) ?: 0L }
-        }
-        val dexBytes = sourceApks.sumOf { apk ->
+        var resourceTableBytes = 0L
+        var dexBytes = 0L
+        sourceApks.forEachIndexed { apkIndex, apk ->
+            ensureActive()
             ZipFile(apk).use { zip ->
-                zip.entries().asSequence()
-                    .filter { !it.isDirectory && it.name.matches(Regex("""classes(\d*)\.dex""")) }
-                    .sumOf { it.size.coerceAtLeast(0L) }
+                val entries = zip.entries()
+                val totalEntries = zip.size().coerceAtLeast(1)
+                var processedEntries = 0
+                while (entries.hasMoreElements()) {
+                    ensureActive()
+                    val entry = entries.nextElement()
+                    if (!entry.isDirectory) {
+                        when {
+                            entry.name == "resources.arsc" -> resourceTableBytes += entry.size.coerceAtLeast(0L)
+                            entry.name.matches(Regex("""classes(\d*)\.dex""")) -> dexBytes += entry.size.coerceAtLeast(0L)
+                        }
+                    }
+                    processedEntries++
+                    val fraction = (apkIndex + processedEntries.toFloat() / totalEntries) / sourceApks.size
+                    onProgress((2 + fraction * 6).toInt().coerceIn(2, 8))
+                }
             }
         }
+        ensureActive()
+        onProgress(9)
         val estimated = maxOf(
             MINIMUM_HEADROOM_BYTES,
             BASE_OVERHEAD_BYTES + resourceTableBytes * RESOURCE_TABLE_MULTIPLIER +
