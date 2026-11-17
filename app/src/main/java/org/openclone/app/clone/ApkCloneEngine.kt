@@ -170,7 +170,7 @@ class ApkCloneEngine(context: Context) {
                     extraEntry = metadataEntry,
                     onStep = ensureActive,
                     onProgress = { localProgress ->
-                        onProgress(((index * 100) + localProgress) / sourceApks.size)
+                        onProgress(10 + ((index * 80) + (localProgress * 80 / 100)) / sourceApks.size)
                     },
                     dexPackageRewrite = if (rewriteDexPackageStrings) originalPackage.takeIf { it != newPackage }?.let { it to newPackage } else null
                 )
