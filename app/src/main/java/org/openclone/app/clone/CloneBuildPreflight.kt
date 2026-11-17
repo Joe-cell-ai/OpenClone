@@ -54,16 +54,19 @@ object CloneBuildPreflight {
             ensureActive()
             ZipFile(apk).use { zip ->
                 val entries = zip.entries()
+                val totalEntries = zip.size().coerceAtLeast(1)
+                var processedEntries = 0
                 while (entries.hasMoreElements()) {
                     ensureActive()
                     val entry = entries.nextElement()
                     if (!entry.isDirectory) {
                         when {
                             entry.name == "resources.arsc" -> resourceTableBytes += entry.size.coerceAtLeast(0L)
-                            entry.name.matches(Regex("""classes(\\d*)\\.dex""")) -> dexBytes += entry.size.coerceAtLeast(0L)
+                            entry.name.matches(Regex("""classes(\d*)\.dex""")) -> dexBytes += entry.size.coerceAtLeast(0L)
                         }
                     }
-                    val fraction = (apkIndex + 1f) / sourceApks.size
+                    processedEntries++
+                    val fraction = (apkIndex + processedEntries.toFloat() / totalEntries) / sourceApks.size
                     onProgress((2 + fraction * 6).toInt().coerceIn(2, 8))
                 }
             }
