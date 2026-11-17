@@ -68,7 +68,7 @@ class CloneBuildPreflightTest {
                 allocatedHeapBytes = 64L * 1024 * 1024,
                 freeAllocatedHeapBytes = 32L * 1024 * 1024,
                 ensureActive = { activeChecks++ },
-                onProgress = progress::add
+                onProgress = { progress.add(it) }
             )
             assertTrue(progress.isNotEmpty())
             assertTrue(progress.last() >= 9)
