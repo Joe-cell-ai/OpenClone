@@ -122,7 +122,7 @@ object ApkRebuilder {
                             val selectedDex = if (rewrite.replacements > 0) rewrittenDex else sourceDex
                             if (entry.method == ZipEntry.STORED) {
                                 val checksum = CRC32()
-                                selectedDex.inputStream().use { input -> copyWithProgress(input, CheckedOutputStream(Discard, checksum)) }
+                                selectedDex.inputStream().use { input -> copyChecked(input, CheckedOutputStream(Discard, checksum), onStep) }
                                 copy.storedAt(counter.count, selectedDex.length(), checksum.value)
                             }
                             out.putNextEntry(copy)
