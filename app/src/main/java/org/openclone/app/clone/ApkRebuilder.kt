@@ -49,8 +49,25 @@ object ApkRebuilder {
         ZipFile(source).use { zip ->
             ZipOutputStream(counter).use { out ->
                 val seen = HashSet<String>()
-                val totalEntries = zip.entries().asSequence().count().coerceAtLeast(1)
+                val entries = zip.entries().asSequence().toList()
+                val totalEntries = entries.size.coerceAtLeast(1)
+                val totalBytes = entries.asSequence()
+                    .filterNot { it.isDirectory || SIGNATURE_FILE.matches(it.name) || it.name.startsWith("META-INF/apkclon") || it.name == "META-INF/openclone.properties" }
+                    .sumOf { it.size.coerceAtLeast(0L) }
+                    .coerceAtLeast(1L)
                 var processedEntries = 0
+                var processedBytes = 0L
+                fun copyWithProgress(input: java.io.InputStream, output: OutputStream) {
+                    val buffer = ByteArray(1 shl 16)
+                    while (true) {
+                        onStep?.invoke()
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        output.write(buffer, 0, count)
+                        processedBytes = (processedBytes + count).coerceAtMost(totalBytes)
+                        onProgress(((processedBytes * 95L) / totalBytes).toInt().coerceIn(0, 95))
+                    }
+                }
                 // Patched up front: the resource table needs the old package name, and nothing
                 // says the manifest comes before it in the archive.
                 val manifest = zip.getEntry(MANIFEST)?.let { entry ->
@@ -59,14 +76,18 @@ object ApkRebuilder {
                 require(manifest != null) { "No AndroidManifest.xml in ${source.name}" }
                 // The manifest rewrite is a step like any patch pass; counted up front with the rest.
                 onStep?.invoke()
-                for (entry in zip.entries()) {
+                for (entry in entries) {
                     onStep?.invoke()
                     if (entry.isDirectory || !seen.add(entry.name)) {
                         processedEntries++
                         onProgress(processedEntries * 100 / totalEntries)
                         continue
                     }
-                    if (SIGNATURE_FILE.matches(entry.name) || entry.name.startsWith("META-INF/apkclon") || entry.name == "META-INF/openclone.properties") continue
+                    if (SIGNATURE_FILE.matches(entry.name) || entry.name.startsWith("META-INF/apkclon") || entry.name == "META-INF/openclone.properties") {
+                        processedEntries++
+                        onProgress(processedEntries * 100 / totalEntries)
+                        continue
+                    }
 
                     val copy = ZipEntry(entry.name).apply { if (entry.time != -1L) time = entry.time }
                     if (entry.name == MANIFEST) {
@@ -92,7 +113,7 @@ object ApkRebuilder {
                         val sourceDex = File.createTempFile("openclone-source-", ".dex", target.parentFile)
                         val rewrittenDex = File.createTempFile("openclone-rewritten-", ".dex", target.parentFile)
                         try {
-                            zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyChecked(input, output, onStep) } }
+                            zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyWithProgress(input, output) } }
                             onStep?.invoke()
                             val rewrite = DexPackageStringRewriter.rewrite(
                                 sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {}
@@ -101,11 +122,11 @@ object ApkRebuilder {
                             val selectedDex = if (rewrite.replacements > 0) rewrittenDex else sourceDex
                             if (entry.method == ZipEntry.STORED) {
                                 val checksum = CRC32()
-                                selectedDex.inputStream().use { input -> copyChecked(input, CheckedOutputStream(Discard, checksum), onStep) }
+                                selectedDex.inputStream().use { input -> copyWithProgress(input, CheckedOutputStream(Discard, checksum)) }
                                 copy.storedAt(counter.count, selectedDex.length(), checksum.value)
                             }
                             out.putNextEntry(copy)
-                            selectedDex.inputStream().use { input -> copyChecked(input, out, onStep) }
+                            selectedDex.inputStream().use { input -> copyWithProgress(input, out) }
                         } finally {
                             sourceDex.delete()
                             rewrittenDex.delete()
@@ -118,14 +139,14 @@ object ApkRebuilder {
                         // out of the APK, so they must stay stored and aligned.
                         copy.storedAt(counter.count, entry.size, entry.crc)
                         out.putNextEntry(copy)
-                        zip.getInputStream(entry).use { copyChecked(it, out, onStep) }
+                        zip.getInputStream(entry).use { copyWithProgress(it, out) }
                     } else {
                         out.putNextEntry(copy)
                         zip.getInputStream(entry).use { copyChecked(it, out, onStep) }
                     }
                     out.closeEntry()
                     processedEntries++
-                    onProgress(processedEntries * 100 / totalEntries)
+                    onProgress(maxOf((processedBytes * 95L / totalBytes).toInt(), processedEntries * 100 / totalEntries).coerceIn(0, 99))
                 }
                 extraEntry?.invoke()?.let { (name, data) ->
                     out.putNextEntry(ZipEntry(name))
