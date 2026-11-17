@@ -57,6 +57,28 @@ class CloneBuildPreflightTest {
     }
 
     @Test
+    fun reportsProgressAndChecksCancellationWhileScanningApkEntries() {
+        val apk = createApk(resourceBytes = 1024L, dexBytes = 4096L)
+        val progress = mutableListOf<Int>()
+        var activeChecks = 0
+        try {
+            CloneBuildPreflight.inspect(
+                listOf(apk),
+                maxHeapBytes = 256L * 1024 * 1024,
+                allocatedHeapBytes = 64L * 1024 * 1024,
+                freeAllocatedHeapBytes = 32L * 1024 * 1024,
+                ensureActive = { activeChecks++ },
+                onProgress = progress::add
+            )
+            assertTrue(progress.isNotEmpty())
+            assertTrue(progress.last() >= 9)
+            assertTrue(activeChecks >= 4)
+        } finally {
+            apk.delete()
+        }
+    }
+
+    @Test
     fun rejectsBuildWhenAvailableHeapIsBelowSafetyEstimate() {
         val apk = createApk(resourceBytes = 1024L)
         try {
