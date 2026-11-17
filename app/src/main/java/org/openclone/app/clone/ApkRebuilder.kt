@@ -98,16 +98,18 @@ object ApkRebuilder {
                         // clone keeps the original package name, the table keeps it too, so
                         // getIdentifier(name, type, getPackageName()) still resolves against the original
                         // package.
-                        fun renamed(to: OutputStream) = zip.getInputStream(entry).use {
+                        fun renamed(to: OutputStream, reportProgress: Boolean = true) = zip.getInputStream(entry).use {
                             val toPackage = if (patcher.keepResourceTable) patcher.oldPackage else patcher.newPackage
                             ResourceTableRenamer.copy(it, to, patcher.oldPackage, toPackage, onStep) { copied ->
-                                val fraction = (copied.toDouble() / entry.size.coerceAtLeast(1L)).coerceIn(0.0, 1.0)
-                                onProgress(((processedEntries + fraction) * 100.0 / totalEntries).toInt().coerceIn(0, 99))
+                                if (reportProgress) {
+                                    val fraction = (copied.toDouble() / entry.size.coerceAtLeast(1L)).coerceIn(0.0, 1.0)
+                                    onProgress(((processedEntries + fraction) * 100.0 / totalEntries).toInt().coerceIn(0, 99))
+                                }
                             }
                         }
                         if (entry.method == ZipEntry.STORED) {
                             val checksum = CRC32()
-                            renamed(CheckedOutputStream(Discard, checksum))
+                            renamed(CheckedOutputStream(Discard, checksum), reportProgress = false)
                             copy.storedAt(counter.count, entry.size, checksum.value)
                         }
                         out.putNextEntry(copy)
