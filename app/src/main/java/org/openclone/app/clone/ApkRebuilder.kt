@@ -98,22 +98,36 @@ object ApkRebuilder {
                         // clone keeps the original package name, the table keeps it too, so
                         // getIdentifier(name, type, getPackageName()) still resolves against the original
                         // package.
-                        fun renamed(to: OutputStream, reportProgress: Boolean = true) = zip.getInputStream(entry).use {
+                        fun renamed(to: OutputStream, progressStart: Double = 0.0, progressSpan: Double = 1.0) = zip.getInputStream(entry).use {
                             val toPackage = if (patcher.keepResourceTable) patcher.oldPackage else patcher.newPackage
                             ResourceTableRenamer.copy(it, to, patcher.oldPackage, toPackage, onStep) { copied ->
-                                if (reportProgress) {
-                                    val fraction = (copied.toDouble() / entry.size.coerceAtLeast(1L)).coerceIn(0.0, 1.0)
-                                    onProgress(((processedEntries + fraction) * 100.0 / totalEntries).toInt().coerceIn(0, 99))
-                                }
+                                val fraction = (copied.toDouble() / entry.size.coerceAtLeast(1L)).coerceIn(0.0, 1.0)
+                                val entryFraction = progressStart + fraction * progressSpan
+                                onProgress(((processedEntries + entryFraction) * 100.0 / totalEntries).toInt().coerceIn(0, 99))
                             }
                         }
                         if (entry.method == ZipEntry.STORED) {
-                            val checksum = CRC32()
-                            renamed(CheckedOutputStream(Discard, checksum), reportProgress = false)
-                            copy.storedAt(counter.count, entry.size, checksum.value)
+                            // A STORED ZIP entry needs its CRC before it can be written. Transform
+                            // the resource table once into a temporary file while calculating that
+                            // CRC, then stream the prepared bytes into the output archive. The old
+                            // implementation transformed the entire table twice and hid the first
+                            // pass from progress, leaving the UI apparently stuck at 11%.
+                            val prepared = File.createTempFile("openclone-resources-", ".arsc", target.parentFile)
+                            try {
+                                val checksum = CRC32()
+                                prepared.outputStream().use { fileOutput ->
+                                    renamed(CheckedOutputStream(fileOutput, checksum), progressStart = 0.0, progressSpan = 0.5)
+                                }
+                                copy.storedAt(counter.count, prepared.length(), checksum.value)
+                                out.putNextEntry(copy)
+                                prepared.inputStream().use { copyWithProgress(it, out) }
+                            } finally {
+                                prepared.delete()
+                            }
+                        } else {
+                            out.putNextEntry(copy)
+                            renamed(out)
                         }
-                        out.putNextEntry(copy)
-                        renamed(out)
                     } else if (dexPackageRewrite != null && entry.name.matches(Regex("classes(\\d*)\\.dex"))) {
                         val sourceDex = File.createTempFile("openclone-source-", ".dex", target.parentFile)
                         val rewrittenDex = File.createTempFile("openclone-rewritten-", ".dex", target.parentFile)
