@@ -72,7 +72,8 @@ class ApkCloneEngine(context: Context) {
         rewriteDexPackageStrings: Boolean = false,
         removedPermissions: Set<String> = emptySet(),
         versionNameOverride: String? = null,
-        versionCodeOverride: Int? = null
+        versionCodeOverride: Int? = null,
+        onDiagnostic: (String) -> Unit = {}
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
