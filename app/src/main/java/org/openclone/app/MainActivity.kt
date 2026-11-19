@@ -1634,6 +1634,17 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text("Building and signing APKs… $cloneProgress%")
+                            Text(
+                                "Current stage: ${cloneWorkInfo?.progress?.getString(CloneBuildWorker.KEY_STAGE) ?: "Starting"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            TextButton(onClick = {
+                                cloneWorkId?.let { workId ->
+                                    pendingDiagnosticWorkId = workId
+                                    exportDiagnostics.launch("OpenClone-diagnostics-${workId.take(8)}.zip")
+                                }
+                            }, enabled = cloneWorkId != null) { Text("Export diagnostic logs") }
                         } else {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                             Text("Preparing and rebuilding APKs… This can take several minutes for large apps.")
