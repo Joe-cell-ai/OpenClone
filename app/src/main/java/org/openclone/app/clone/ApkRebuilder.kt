@@ -44,6 +44,7 @@ object ApkRebuilder {
         onStep: (() -> Unit)? = null,
         onProgress: (Int) -> Unit = {},
         dexPackageRewrite: Pair<String, String>? = null,
+        onDiagnostic: ((String) -> Unit)? = null,
     ) {
         val counter = CountingOutputStream(BufferedOutputStream(target.outputStream(), 1 shl 16))
         ZipFile(source).use { zip ->
@@ -78,6 +79,7 @@ object ApkRebuilder {
                 onStep?.invoke()
                 for (entry in entries) {
                     onStep?.invoke()
+                    onDiagnostic?.invoke("APK entry: ${entry.name} (method=${entry.method}, size=${entry.size})")
                     if (entry.isDirectory || !seen.add(entry.name)) {
                         processedEntries++
                         onProgress(processedEntries * 100 / totalEntries)
@@ -106,6 +108,7 @@ object ApkRebuilder {
                                 onProgress(((processedEntries + entryFraction) * 100.0 / totalEntries).toInt().coerceIn(0, 99))
                             }
                         }
+                        onDiagnostic?.invoke("Rewriting resource table: ${entry.name}")
                         if (entry.method == ZipEntry.STORED) {
                             // A STORED ZIP entry needs its CRC before it can be written. Transform
                             // the resource table once into a temporary file while calculating that
