@@ -101,19 +101,4 @@ jobs:
           force-avd-creation: true
           emulator-boot-timeout: 900
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -wipe-data
-          script: |
-            set -eu
-            # Maven Central can briefly rate-limit parallel emulator jobs (HTTP 429).
-            # Retry the complete Gradle invocation with backoff; fail normally after
-            # the final attempt so real test/build failures remain visible.
-            attempt=1
-            until gradle connectedDebugAndroidTest; do
-              if [ "$attempt" -ge 4 ]; then
-                echo "Android compatibility tests failed after $attempt attempts."
-                exit 1
-              fi
-              delay=$((attempt * 30))
-              echo "Gradle dependency/build request failed; retrying in ${delay}s (attempt $((attempt + 1))/4)."
-              sleep "$delay"
-              attempt=$((attempt + 1))
-            done
+          script: gradle connectedDebugAndroidTest
