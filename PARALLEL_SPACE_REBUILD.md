@@ -2,55 +2,62 @@
 
 ## Product decision
 
-Rebuild OpenClone around three user-facing areas only:
+Rebuild OpenClone as a non-root, Parallel Space-style app virtualization product. The user explicitly chose the same *type of approach* used by Parallel Space (its vendor-described MultiDroid application virtualization), and explicitly rejected root-related functionality.
 
-1. **Space** — add installed apps to isolated instances, launch them, manage instance state, and remove an instance without touching the original app.
-2. **Remote Control** — retain the remote-control feature family as a first-class screen. Appliance control is capability-gated by the target device and available transport (Wi-Fi/LAN, Bluetooth LE, or an explicitly supported external IR/RF bridge); do not claim the Pixel has an IR emitter.
-3. **Ad Block** — retain a user-enabled DNS filtering VPN with explicit Android VPN consent, visible status, allow/deny rules, blocklist updates, and clear limitations.
+The product has only three user-facing areas:
 
-Remove unrelated product surfaces from the app navigation and, after dependency analysis, remove their implementation and dependencies. Do not delete user data or signing material as part of migration. Do not remove Remote Control or Ad Block.
+1. **Space** — add installed apps to isolated virtual instances, launch them, manage instance state, and remove a virtual instance without touching the original app.
+2. **Remote Control** — retain remote-control features for supported appliances and transports (Wi-Fi/LAN, Bluetooth LE, or an explicitly supported external IR/RF bridge). Do not claim the Pixel 10a has an IR emitter.
+3. **Ad Block** — retain a user-enabled DNS filtering VPN with Android VPN consent, visible status, allow/deny rules, blocklist updates, and clear limitations.
 
-## Cloning architecture
+Remove root-related features and unrelated product surfaces. Do not delete user data or signing material during migration. Do not remove Remote Control or Ad Block.
 
-Use AppDualZuku (https://github.com/nathanatgit/AppDualZuku) as a technical reference for Shizuku/root-mediated Android workspace management, not as code to copy blindly.
+## Cloning architecture — non-root app virtualization
 
-The primary clone backend should manage Android users/profiles through an explicit privileged backend:
-- Shizuku is the preferred non-root execution path, with clear setup and permission state.
-- Root is an optional advanced backend only when detected and explicitly enabled.
-- Create/manage a supported Android secondary user or managed profile, install the selected original package into that space, enumerate installed apps there, and launch/uninstall only after confirmation.
-- Keep original-user packages and data untouched.
-- Persist workspace IDs and per-app instance metadata; reconcile against Android's actual user/package state after process death and reboot.
-- Use bounded command execution, structured exit/error parsing, cancellation, and progress. Never leave a permanent spinner on a failed command.
-- If profile creation is blocked by OS policy or ROM limits, show the exact restriction and a supported recovery path. Never silently bypass policy restrictions.
+Parallel Space publicly describes its engine as MultiDroid, an application-virtualization engine. Its implementation is proprietary; do not claim access to or reproduce its private source. Build an original, maintainable non-root virtualization layer that follows the same broad app-container model.
 
-Do not promise Parallel Space's proprietary in-process virtualization behavior. Android's public APIs do not give an ordinary third-party app a universal way to host arbitrary APKs inside its own process. A real Android user/profile provides OS-level data separation, but launch/switch behavior and background notifications vary by Android build and profile type. Verify these behaviors on Pixel 10a / GrapheneOS before claiming parity.
+Required architecture:
+- Run cloned application components within OpenClone's host process using a dedicated virtualization/runtime layer; maintain a separate virtual package registry, per-clone application identity, virtual data directory, and component/task routing.
+- Intercept and virtualize Android framework/service interactions needed by guest apps (package/application context, activities, services, providers, broadcasts, resources, files, and app-private preferences/databases) through explicit, testable adapters. Keep host and guest state separated.
+- Install/import the selected APK into the virtual container; do not install a second package into an Android secondary user/profile as the primary cloning strategy.
+- Preserve the original installed application and its data. A clone uninstall must remove only that clone's virtual data.
+- Support ABI/64-bit APK handling and dependency/resource loading only where the runtime can do so safely and correctly.
+- Use a capability/compatibility check before adding an app. Show unsupported reasons rather than hanging or pretending a clone works.
+- Persist clone metadata and recover cleanly after process death/reboot. Provide bounded operations, structured errors, progress, cancellation, and useful diagnostics.
+- Keep the design non-root: no `su`, root detection, root permission prompts, root shell, root-only backend, or root-dependent code paths. Do not use Shizuku as the primary cloning mechanism.
+- Do not bypass Android signature verification, SELinux, secure-environment requirements, app licensing, or other platform security boundaries. Do not promise support for apps that explicitly require a secure environment or rely on unsupported native/runtime behavior.
 
-The existing APK-rewrite engine must not be the default clone path. Retain it only as an explicitly labelled optional compatibility fallback if it remains useful after tests; do not silently mutate packages, signatures, or app integrity/security checks.
+Important engineering reality:
+- Parallel Space's MultiDroid implementation is proprietary. A compatible, broad Android app virtualization engine is a substantial runtime project, not a UI-only change or a simple APK rename/re-sign operation.
+- Android does not expose a public API that lets an ordinary app universally host arbitrary third-party APKs in its process. Implement only well-understood framework virtualization hooks, document unsupported APIs, and expand compatibility based on real tests.
+- Some apps (especially banking/payment apps, apps with strict integrity/secure-environment checks, apps with complex native code, and apps that depend on privileged Google services) may refuse to run or may be unsupported. Never bypass those checks.
+- Do not fall back silently to Android users/profiles, Shizuku, root, or APK package rewriting. Any future alternative must be explicitly presented as a separate mode and approved by the user.
 
 ## UI direction
 
 Use a simple Parallel Space-inspired layout without copying its branding or assets:
-- Home/Space: app grid, Add apps, instance badges, launch, long-press management.
+- Home/Space: app grid, Add apps, clone badges, launch, long-press management.
 - Remote: supported device discovery/pairing and remote controls.
 - Ad Block: one clear on/off state, VPN permission, blocklist status, allowlist and diagnostics.
-- Settings: only permissions, execution mode, privacy, and essential app information.
+- Settings: only permissions, privacy, and essential app information.
 
-No Extensions Store, APK inspector, signing identity manager, clone update dashboard, proxy catalogue, backup tools, or unrelated developer utilities in the primary product UI.
+No root settings, Shizuku setup, Extensions Store, APK inspector, signing identity manager, clone update dashboard, proxy catalogue, backup tools, or unrelated developer utilities in the primary product UI.
 
 ## Delivery gates
 
-1. Inspect current main and all existing feature dependencies before removing anything.
-2. Implement the workspace backend and test its command/state machine independently.
-3. Add UI only when the underlying action works and reports real system state.
-4. Preserve and harden Remote Control and Ad Block; no placeholder screens.
-5. Run unit tests, lint, debug APK build, and available emulator tests.
-6. Test workspace creation, app install-existing, launch, removal, reboot recovery, and permission denial on a real Pixel 10a / GrapheneOS device before claiming device compatibility.
-7. Work on `rebuild/parallel-space-core`; open a reviewable PR after the first complete, buildable milestone. Never merge to main without the user's review.
+1. Audit current main and all existing feature dependencies. Identify every root/Shizuku reference, command, permission, UI entry, and dependency.
+2. Remove root/Shizuku execution paths and root-only UI/dependencies from the rebuild branch. Verify there are no residual root commands or permission prompts.
+3. Inspect existing APK import/clone code and design a small, isolated virtualization runtime with a documented compatibility matrix before wiring the UI.
+4. Implement and test the runtime in stages: virtual package registry and storage isolation first; then activity/task routing; then services, providers, broadcasts, and framework adapters. Do not label a stage as working until guest apps actually launch and pass tests.
+5. Preserve and harden Remote Control and Ad Block; no placeholder screens.
+6. Run unit tests, lint, debug APK build, and available emulator/device tests. Test multiple APK architectures and representative simple apps before adding complex apps.
+7. Work on `rebuild/parallel-space-core`; open a reviewable PR after a complete, buildable milestone. Never merge to main without the user's review.
 
-## Known platform constraints
+## Acceptance criteria
 
-- Shizuku permission and its running service are required for the non-root shell path.
-- Android may block adding users/profiles due to device policy, ROM limits, or system configuration.
-- Profile isolation is not the same as Parallel Space's proprietary virtualization engine; some apps and notification flows may behave differently.
-- Ad Block uses Android's single active VPN slot per user/profile and DNS filtering cannot reliably block embedded DoH or server-side ads.
-- Remote-control compatibility is model/protocol-specific and requires explicit pairing and verified device identity.
+- No root or Shizuku code, settings, prompts, dependencies, or shell commands remain in the product.
+- The original app remains installed and its data is unchanged after adding, launching, and removing a clone.
+- A supported clone launches inside the virtual runtime with separate app data and can be stopped/reopened.
+- Unsupported apps receive a precise compatibility error; no endless spinner or false success state.
+- Remote Control and Ad Block remain accessible and functional.
+- Build, lint, and tests pass before a PR is offered.
