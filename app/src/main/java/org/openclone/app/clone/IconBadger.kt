@@ -187,7 +187,7 @@ class IconBadger(private val context: Context) {
     /** A plain bitmap icon: the same picture, redrawn with the dot on it. */
     private fun bitmapIcon(resources: Resources, icon: Int, density: Int, color: Int, position: BadgePosition, customBitmap: Bitmap? = null, addBadge: Boolean = true): ByteArray {
         val drawable = if (customBitmap == null) {
-            if (density == 0) resources.getDrawable(icon, null) else resources.getDrawableForDensity(icon, density, null)!!
+            if (density == 0) resources.getDrawable(icon, null) else resources.getDrawableForDensity(icon, density, null) ?: error("Launcher icon resource not found for density $density")
         } else null
         val size = (drawable?.intrinsicWidth ?: customBitmap!!.width).coerceIn(MIN_BITMAP, MAX_BITMAP)
         val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)

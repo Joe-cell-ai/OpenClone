@@ -169,7 +169,7 @@ class MainActivity : FragmentActivity() {
                         runCatching {
                             OpenCloneThemeMode.valueOf(
                                 getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
-                                    .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name)!!
+                                    .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name) ?: OpenCloneThemeMode.DARK.name
                             )
                         }.getOrDefault(OpenCloneThemeMode.DARK)
                     )
@@ -179,7 +179,7 @@ class MainActivity : FragmentActivity() {
                         runCatching {
                             OpenCloneAccent.valueOf(
                                 getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
-                                    .getString("accent_palette", OpenCloneAccent.VIOLET.name)!!
+                                    .getString("accent_palette", OpenCloneAccent.VIOLET.name) ?: OpenCloneAccent.VIOLET.name
                             )
                         }.getOrDefault(OpenCloneAccent.VIOLET)
                     )
@@ -1289,16 +1289,14 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     item {
                         ExtensionPreviewCard("🔒", "App Lock", "Device-authentication gate for OpenClone", "Research")
                     }
-                    item {
-                    }
+
                     item {
                         ExtensionPreviewCard("📡", "Network Monitor", "Diagnostics for traffic OpenClone can legitimately observe", "Research")
                     }
                     item {
                         ExtensionPreviewCard("🧰", "Developer Toolkit", "APK preflight plus redacted build-history diagnostics export", "Partial")
                     }
-                    item {
-                    }
+
                     item {
                         ExtensionPreviewCard("🔔", "Notification Manager", "Supported OpenClone notification controls only; cross-app rewriting is restricted", "Research")
                     }
@@ -1308,8 +1306,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     item {
                         ExtensionPreviewCard("🖥️", "Remote Control", "Secure pairing, authenticated IPC and revocation", "Research")
                     }
-                    item {
-                    }
+
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1383,7 +1380,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     versionCodeOverride = ""
                     cloneError = null
                     markCloneIcon = true
-                    rewriteDexPackageStrings = true
+                    rewriteDexPackageStrings = false
                     customIconPath = null
                     badgePosition = BadgePosition.BOTTOM_RIGHT
                     cloneUpdateMode = false
