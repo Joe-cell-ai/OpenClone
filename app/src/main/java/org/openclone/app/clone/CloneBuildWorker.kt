@@ -30,7 +30,7 @@ class CloneBuildWorker(
 
     @Suppress("DEPRECATION")
     override suspend fun doWork(): Result {
-        logDiagnostic("Clone build worker started. Work ID: $id")
+        logDiagnostic("Clone build worker started. Work ID: $id; attempt: $runAttemptCount; stopReason: $stopReason")
         return try {
         withContext(Dispatchers.IO) {
             val sourcePaths = inputData.getStringArray(KEY_SOURCE_APKS)
@@ -98,7 +98,10 @@ class CloneBuildWorker(
                 rewriteDexPackageStrings = inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, false),
                 removedPermissions = inputData.getStringArray(KEY_REMOVED_PERMISSIONS).orEmpty().toSet(),
                 versionNameOverride = inputData.getString(KEY_VERSION_NAME_OVERRIDE)?.takeIf { it.isNotBlank() },
-                versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 }
+                versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 },
+                onEntry = { name, size, index, total ->
+                    logDiagnostic("APK entry [$index/$total]: $name; size=$size bytes")
+                }
             )
             logDiagnostic("APK rebuild/signing completed; preparing OBB outputs.")
             reportProgress(99)
