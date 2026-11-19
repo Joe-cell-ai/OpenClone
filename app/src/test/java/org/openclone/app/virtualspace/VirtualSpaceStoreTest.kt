@@ -24,6 +24,20 @@ class VirtualSpaceStoreTest {
         assertEquals(1, store.listInstances().size)
     }
 
+    @Test fun storesAndRestoresSplitApkSets() {
+        val base = temporaryFolder.newFile("base.apk").apply { writeText("base") }
+        val split = temporaryFolder.newFile("split.apk").apply { writeText("split") }
+        val store = VirtualSpaceStore(File(temporaryFolder.root, "split-store"))
+
+        val instance = store.createInstance("com.example.bundle", "Bundle", listOf(base, split))
+        val restored = store.findInstance(instance.id)
+
+        assertNotNull(restored)
+        assertEquals(2, restored!!.apkFiles.size)
+        assertEquals("base", restored.apkFiles[0].readText())
+        assertEquals("split", restored.apkFiles[1].readText())
+    }
+
     @Test fun deletingAnInstanceDoesNotTouchItsSourceApk() {
         val source = temporaryFolder.newFile("original.apk").apply { writeText("original") }
         val store = VirtualSpaceStore(File(temporaryFolder.root, "store"))
