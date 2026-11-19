@@ -101,7 +101,7 @@ class VirtualSpaceStore(rootDirectory: File) {
         val data = File(canonical, "data")
         if (!metadataFile.isFile || !apk.isFile || !data.isDirectory) return null
 
-        val properties = Properties().apply { metadataFile.inputStream().use(::load) }
+        val properties = Properties().apply { metadataFile.inputStream().use { load(it) } }
         val id = properties.getProperty("id") ?: return null
         if (id != canonical.name || !UUID_PATTERN.matches(id)) return null
         if (properties.getProperty("formatVersion")?.toIntOrNull() != FORMAT_VERSION) return null
