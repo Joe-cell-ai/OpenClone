@@ -44,6 +44,7 @@ object ApkRebuilder {
         onStep: (() -> Unit)? = null,
         onProgress: (Int) -> Unit = {},
         dexPackageRewrite: Pair<String, String>? = null,
+        onEntry: ((String, Long, Int, Int) -> Unit)? = null,
     ) {
         val counter = CountingOutputStream(BufferedOutputStream(target.outputStream(), 1 shl 16))
         ZipFile(source).use { zip ->
@@ -76,8 +77,9 @@ object ApkRebuilder {
                 require(manifest != null) { "No AndroidManifest.xml in ${source.name}" }
                 // The manifest rewrite is a step like any patch pass; counted up front with the rest.
                 onStep?.invoke()
-                for (entry in entries) {
+                for ((entryIndex, entry) in entries.withIndex()) {
                     onStep?.invoke()
+                    onEntry?.invoke(entry.name, entry.size, entryIndex + 1, totalEntries)
                     if (entry.isDirectory || !seen.add(entry.name)) {
                         processedEntries++
                         onProgress(processedEntries * 100 / totalEntries)
@@ -94,6 +96,7 @@ object ApkRebuilder {
                         out.putNextEntry(copy)
                         out.write(manifest)
                     } else if (entry.name == ResourceTableRenamer.ENTRY) {
+                        onEntry?.invoke("resources.arsc: rewrite start", entry.size, entryIndex + 1, totalEntries)
                         // Same size and place as before; only the package name inside changes. When the
                         // clone keeps the original package name, the table keeps it too, so
                         // getIdentifier(name, type, getPackageName()) still resolves against the original
@@ -128,7 +131,9 @@ object ApkRebuilder {
                             out.putNextEntry(copy)
                             renamed(out)
                         }
+                        onEntry?.invoke("resources.arsc: rewrite complete", entry.size, entryIndex + 1, totalEntries)
                     } else if (dexPackageRewrite != null && entry.name.matches(Regex("classes(\\d*)\\.dex"))) {
+                        onEntry?.invoke("${entry.name}: DEX rewrite start", entry.size, entryIndex + 1, totalEntries)
                         val sourceDex = File.createTempFile("openclone-source-", ".dex", target.parentFile)
                         val rewrittenDex = File.createTempFile("openclone-rewritten-", ".dex", target.parentFile)
                         try {
@@ -138,6 +143,7 @@ object ApkRebuilder {
                                 sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {}
                             )
                             onStep?.invoke()
+                            onEntry?.invoke("${entry.name}: DEX rewrite complete; replacements=${rewrite.replacements}", entry.size, entryIndex + 1, totalEntries)
                             val selectedDex = if (rewrite.replacements > 0) rewrittenDex else sourceDex
                             if (entry.method == ZipEntry.STORED) {
                                 val checksum = CRC32()
