@@ -43,7 +43,7 @@ class VirtualSpaceStoreTest {
         assertThrows(IllegalArgumentException::class.java) {
             store.createInstance("../outside", "Bad", source)
         }
-        assertThrows(IllegalArgumentException::class.java) { store.findInstance("../outside") }
+        assertNull(store.findInstance("../outside"))
         assertThrows(IllegalArgumentException::class.java) { store.deleteInstance("../outside") }
     }
 }
