@@ -50,15 +50,27 @@ class CloneBuildWorker(
             val position = inputData.getString(KEY_BADGE_POSITION)
                 ?.let { runCatching { BadgePosition.valueOf(it) }.getOrNull() }
                 ?: BadgePosition.BOTTOM_RIGHT
+            val diagnostics = CloneBuildDiagnostics(applicationContext, id.toString())
+            var currentStage = "worker_started"
+            diagnostics.record(currentStage, "Clone build worker started.")
             var lastReportedProgress = -1
             fun reportProgress(value: Int) {
                 val visibleProgress = (1 + (value.coerceIn(0, 100) * 98 / 100)).coerceIn(1, 99)
+                currentStage = when {
+                    value < 10 -> "preflight"
+                    value < 90 -> "apk_rebuild"
+                    value < 95 -> "apk_signing"
+                    value < 100 -> "signature_verification"
+                    else -> "completed"
+                }
+                diagnostics.record(currentStage, "Build progress callback: $value%", visibleProgress)
                 if (visibleProgress != lastReportedProgress) {
                     lastReportedProgress = visibleProgress
-                    setProgressAsync(Data.Builder().putInt(KEY_PROGRESS, visibleProgress).build())
+                    setProgressAsync(Data.Builder().putInt(KEY_PROGRESS, visibleProgress).putString(KEY_STAGE, currentStage).build())
                 }
             }
             reportProgress(0)
+            diagnostics.record("engine_start", "Starting APK clone engine.")
             val result = ApkCloneEngine(applicationContext).build(
                 sourceApks = sourceApks,
                 originalPackage = originalPackage,
@@ -81,6 +93,7 @@ class CloneBuildWorker(
                 versionNameOverride = inputData.getString(KEY_VERSION_NAME_OVERRIDE)?.takeIf { it.isNotBlank() },
                 versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 }
             )
+            diagnostics.record("engine_complete", "APK rebuild, signing and verification completed.", 99)
             reportProgress(99)
             val obbOutputDirectory = File(result.apks.first().parentFile, "obb")
             val obbOutputs = if (obbSources.isEmpty()) emptyList() else {
@@ -108,9 +121,14 @@ class CloneBuildWorker(
             )
         }
     } catch (cancelled: CancellationException) {
+        CloneBuildDiagnostics(applicationContext, id.toString()).record("cancelled", cancelled.message.orEmpty(), error = cancelled)
         throw cancelled
     } catch (error: Exception) {
-        Result.failure(Data.Builder().putString(KEY_ERROR, error.message ?: "Clone build failed.").build())
+        CloneBuildDiagnostics(applicationContext, id.toString()).record("failed", error.message.orEmpty(), error = error)
+        Result.failure(Data.Builder()
+            .putString(KEY_ERROR, error.message ?: "Clone build failed.")
+            .putString(KEY_DIAGNOSTIC_PATH, CloneBuildDiagnostics.logFile(applicationContext, id.toString()).absolutePath)
+            .build())
     }
 
     companion object {
@@ -127,6 +145,8 @@ class CloneBuildWorker(
         const val KEY_ICON_PACKAGE = "icon_package"
         const val KEY_BADGE_POSITION = "badge_position"
         const val KEY_PROGRESS = "progress"
+        const val KEY_STAGE = "stage"
+        const val KEY_DIAGNOSTIC_PATH = "diagnostic_path"
         const val KEY_OUTPUT_APKS = "output_apks"
         const val KEY_OBB_FILES = "obb_files"
         const val KEY_OUTPUT_OBB_FILES = "output_obb_files"
