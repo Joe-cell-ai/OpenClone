@@ -47,7 +47,8 @@ class ApkCloneEngine(context: Context) {
         rewriteDexPackageStrings: Boolean = true,
         removedPermissions: Set<String> = emptySet(),
         versionNameOverride: String? = null,
-        versionCodeOverride: Int? = null
+        versionCodeOverride: Int? = null,
+        onDiagnostic: (String) -> Unit = {}
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
@@ -131,6 +132,7 @@ class ApkCloneEngine(context: Context) {
             sourceApks.forEachIndexed { index, source ->
                 ensureActive()
                 onProgress(10 + (index * 80 / sourceApks.size))
+                onDiagnostic("Rebuilding split ${index + 1}/${sourceApks.size}: ${source.name}")
                 val replacements = if (index == 0 && iconSource != null && (markIcon || customIconFile != null)) {
                     runCatching {
                         IconBadger(appContext).replacements(iconSource, newPackage, badgePosition, customIconFile, markIcon)
@@ -172,12 +174,14 @@ class ApkCloneEngine(context: Context) {
                     onProgress = { localProgress ->
                         onProgress(10 + ((index * 80) + (localProgress * 80 / 100)) / sourceApks.size)
                     },
-                    dexPackageRewrite = if (rewriteDexPackageStrings) originalPackage.takeIf { it != newPackage }?.let { it to newPackage } else null
+                    dexPackageRewrite = if (rewriteDexPackageStrings) originalPackage.takeIf { it != newPackage }?.let { it to newPackage } else null,
+                    onDiagnostic = onDiagnostic
                 )
 
                 ensureActive()
                 val output = File(outputDirectory, if (index == 0) "base.apk" else "split_$index.apk")
                 onProgress(90 + (index * 5 / sourceApks.size))
+                onDiagnostic("Signing rebuilt APK: ${output.name}")
                 ApkSigner.Builder(listOf(signingKey.signerConfig))
                     .setInputApk(unsigned)
                     .setOutputApk(output)
@@ -187,6 +191,7 @@ class ApkCloneEngine(context: Context) {
 
                 ensureActive()
                 onProgress(95 + (index * 4 / sourceApks.size))
+                onDiagnostic("Verifying APK signature: ${output.name}")
                 val verification = ApkVerifier.Builder(output).build().verify()
                 check(verification.isVerified) {
                     "The rebuilt APK did not pass signature verification: ${verification.errors.joinToString()}"
