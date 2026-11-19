@@ -52,7 +52,7 @@ class ApkCloneEngine(context: Context) {
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
-        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon || customIconFile != null }, allowUpdate, ensureActive, badgePosition, markIcon, customIconFile, rewriteDexPackageStrings, removedPermissions, versionNameOverride, versionCodeOverride)
+        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon || customIconFile != null }, allowUpdate, ensureActive, badgePosition, markIcon, customIconFile, rewriteDexPackageStrings, removedPermissions, versionNameOverride, versionCodeOverride, onEntry)
     }
 
     @Suppress("DEPRECATION")
@@ -72,7 +72,8 @@ class ApkCloneEngine(context: Context) {
         rewriteDexPackageStrings: Boolean = false,
         removedPermissions: Set<String> = emptySet(),
         versionNameOverride: String? = null,
-        versionCodeOverride: Int? = null
+        versionCodeOverride: Int? = null,
+        onEntry: ((String, Long, Int, Int) -> Unit)? = null
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
