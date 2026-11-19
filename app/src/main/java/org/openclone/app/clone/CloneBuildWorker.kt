@@ -30,7 +30,7 @@ class CloneBuildWorker(
 
     @Suppress("DEPRECATION")
     override suspend fun doWork(): Result {
-        logDiagnostic("Clone build worker started. Work ID: $id; attempt: $runAttemptCount; stopReason: $stopReason")
+        logDiagnostic("Clone build worker started. Work ID: $id; attempt: $runAttemptCount")
         return try {
         withContext(Dispatchers.IO) {
             val sourcePaths = inputData.getStringArray(KEY_SOURCE_APKS)
