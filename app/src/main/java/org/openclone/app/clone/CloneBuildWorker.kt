@@ -63,8 +63,8 @@ class CloneBuildWorker(
                     value < 100 -> "signature_verification"
                     else -> "completed"
                 }
-                diagnostics.record(currentStage, "Build progress callback: $value%", visibleProgress)
                 if (visibleProgress != lastReportedProgress) {
+                    diagnostics.record(currentStage, "Build progress callback: $value%", visibleProgress)
                     lastReportedProgress = visibleProgress
                     setProgressAsync(Data.Builder().putInt(KEY_PROGRESS, visibleProgress).putString(KEY_STAGE, currentStage).build())
                 }
