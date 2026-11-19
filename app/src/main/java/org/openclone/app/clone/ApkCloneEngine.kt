@@ -47,7 +47,8 @@ class ApkCloneEngine(context: Context) {
         rewriteDexPackageStrings: Boolean = true,
         removedPermissions: Set<String> = emptySet(),
         versionNameOverride: String? = null,
-        versionCodeOverride: Int? = null
+        versionCodeOverride: Int? = null,
+        onEntry: ((String, Long, Int, Int) -> Unit)? = null
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
@@ -172,7 +173,8 @@ class ApkCloneEngine(context: Context) {
                     onProgress = { localProgress ->
                         onProgress(10 + ((index * 80) + (localProgress * 80 / 100)) / sourceApks.size)
                     },
-                    dexPackageRewrite = if (rewriteDexPackageStrings) originalPackage.takeIf { it != newPackage }?.let { it to newPackage } else null
+                    dexPackageRewrite = if (rewriteDexPackageStrings) originalPackage.takeIf { it != newPackage }?.let { it to newPackage } else null,
+                    onEntry = onEntry
                 )
 
                 ensureActive()
