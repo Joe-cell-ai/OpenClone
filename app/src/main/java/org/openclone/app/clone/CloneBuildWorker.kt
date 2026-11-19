@@ -91,7 +91,10 @@ class CloneBuildWorker(
                 rewriteDexPackageStrings = inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, false),
                 removedPermissions = inputData.getStringArray(KEY_REMOVED_PERMISSIONS).orEmpty().toSet(),
                 versionNameOverride = inputData.getString(KEY_VERSION_NAME_OVERRIDE)?.takeIf { it.isNotBlank() },
-                versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 }
+                versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 },
+                onDiagnostic = { detail ->
+                    diagnostics.record("engine_operation", detail, lastReportedProgress)
+                }
             )
             diagnostics.record("engine_complete", "APK rebuild, signing and verification completed.", 99)
             reportProgress(99)
