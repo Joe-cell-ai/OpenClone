@@ -5,19 +5,20 @@ import java.util.Properties
 import java.util.UUID
 
 /**
- * Persistent, non-root storage for a virtual app instance.
+ * Private storage and package registry for guest APKs.
  *
- * This is the storage/registry foundation only. It does not execute APK code or claim
- * Parallel Space compatibility; guest execution requires the separate virtualization runtime.
+ * This is the persistent container layer, not yet an Android component virtualization engine.
  */
 data class VirtualAppInstance(
     val id: String,
     val originalPackage: String,
     val label: String,
-    val apkFile: File,
+    val apkFiles: List<File>,
     val privateDataDirectory: File,
     val createdAtMillis: Long
-)
+) {
+    val apkFile: File get() = apkFiles.first()
+}
 
 class VirtualSpaceStore(rootDirectory: File) {
     private val root = rootDirectory.canonicalFile
@@ -30,23 +31,28 @@ class VirtualSpaceStore(rootDirectory: File) {
     }
 
     @Synchronized
-    fun createInstance(originalPackage: String, label: String, sourceApk: File): VirtualAppInstance {
+    fun createInstance(originalPackage: String, label: String, sourceApk: File): VirtualAppInstance =
+        createInstance(originalPackage, label, listOf(sourceApk))
+
+    @Synchronized
+    fun createInstance(originalPackage: String, label: String, sourceApks: List<File>): VirtualAppInstance {
         require(PACKAGE_ID.matches(originalPackage)) { "Invalid Android package name." }
         require(label.isNotBlank() && label.length <= 100) { "App name must contain 1–100 characters." }
-        require(sourceApk.isFile && sourceApk.canRead()) { "The source APK is unavailable." }
+        require(sourceApks.isNotEmpty() && sourceApks.size <= MAX_APK_PARTS) { "The APK set is empty or contains too many split files." }
+        require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files are unavailable." }
 
         val id = UUID.randomUUID().toString()
         val directory = instanceDirectory(id)
         check(directory.mkdirs()) { "Could not create the virtual app directory." }
 
         try {
-            val apk = File(directory, "base.apk")
-            val temporaryApk = File(directory, "base.apk.tmp")
-            sourceApk.inputStream().use { input ->
-                temporaryApk.outputStream().use { output -> input.copyTo(output) }
+            val copiedApks = sourceApks.mapIndexed { index, source ->
+                val target = File(directory, if (index == 0) "base.apk" else "split_$index.apk")
+                val temporary = File(directory, "${target.name}.tmp")
+                source.inputStream().use { input -> temporary.outputStream().use { output -> input.copyTo(output) } }
+                check(temporary.renameTo(target)) { "Could not save ${source.name}." }
+                target
             }
-            check(temporaryApk.renameTo(apk)) { "Could not save the app APK." }
-
             val dataDirectory = File(directory, "data")
             check(dataDirectory.mkdirs()) { "Could not create private app storage." }
 
@@ -55,6 +61,7 @@ class VirtualSpaceStore(rootDirectory: File) {
                 setProperty("id", id)
                 setProperty("originalPackage", originalPackage)
                 setProperty("label", label)
+                setProperty("apkCount", copiedApks.size.toString())
                 setProperty("createdAtMillis", System.currentTimeMillis().toString())
             }
             val metadataFile = File(directory, METADATA_FILE)
@@ -71,13 +78,10 @@ class VirtualSpaceStore(rootDirectory: File) {
 
     @Synchronized
     fun listInstances(): List<VirtualAppInstance> =
-        instancesDirectory.listFiles()
-            .orEmpty()
-            .asSequence()
+        instancesDirectory.listFiles().orEmpty().asSequence()
             .filter { it.isDirectory }
             .mapNotNull { directory -> runCatching { readInstance(directory) }.getOrNull() }
-            .sortedBy { it.label.lowercase() }
-            .toList()
+            .sortedBy { it.label.lowercase() }.toList()
 
     @Synchronized
     fun findInstance(id: String): VirtualAppInstance? =
@@ -97,9 +101,8 @@ class VirtualSpaceStore(rootDirectory: File) {
         val canonical = directory.canonicalFile
         if (canonical.parentFile != instancesDirectory || !canonical.isDirectory) return null
         val metadataFile = File(canonical, METADATA_FILE)
-        val apk = File(canonical, "base.apk")
         val data = File(canonical, "data")
-        if (!metadataFile.isFile || !apk.isFile || !data.isDirectory) return null
+        if (!metadataFile.isFile || !data.isDirectory) return null
 
         val properties = Properties().apply { metadataFile.inputStream().use { load(it) } }
         val id = properties.getProperty("id") ?: return null
@@ -109,8 +112,13 @@ class VirtualSpaceStore(rootDirectory: File) {
         if (!PACKAGE_ID.matches(originalPackage)) return null
         val label = properties.getProperty("label")?.takeIf { it.isNotBlank() } ?: return null
         val createdAt = properties.getProperty("createdAtMillis")?.toLongOrNull() ?: return null
+        val apkCount = properties.getProperty("apkCount")?.toIntOrNull()?.takeIf { it in 1..MAX_APK_PARTS } ?: return null
+        val apks = (0 until apkCount).map { index ->
+            File(canonical, if (index == 0) "base.apk" else "split_$index.apk")
+        }
+        if (apks.any { !it.isFile || it.length() == 0L }) return null
 
-        return VirtualAppInstance(id, originalPackage, label, apk, data, createdAt)
+        return VirtualAppInstance(id, originalPackage, label, apks, data, createdAt)
     }
 
     private fun instanceDirectory(id: String): File {
@@ -119,8 +127,9 @@ class VirtualSpaceStore(rootDirectory: File) {
     }
 
     private companion object {
-        const val FORMAT_VERSION = 1
+        const val FORMAT_VERSION = 2
         const val METADATA_FILE = "instance.properties"
+        const val MAX_APK_PARTS = 128
         val UUID_PATTERN = Regex("[0-9a-fA-F-]{36}")
         val PACKAGE_ID = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
     }
