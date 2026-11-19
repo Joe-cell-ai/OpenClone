@@ -96,6 +96,7 @@ import org.openclone.app.clone.BadgePosition
 import org.openclone.app.clone.CloneBuildResult
 import org.openclone.app.clone.CloneInstaller
 import org.openclone.app.clone.CloneBuildWorker
+import org.openclone.app.clone.CloneBuildDiagnostics
 import org.openclone.app.clone.SigningKeys
 import org.openclone.app.data.ApkInspection
 import org.openclone.app.data.ApkInspector
@@ -407,6 +408,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var cloneResult by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingExport by remember { mutableStateOf<CloneBuildResult?>(null) }
+    var pendingDiagnosticWorkId by remember { mutableStateOf<String?>(null) }
     var showSettings by remember { mutableStateOf(false) }
     var customAccentHex by remember { mutableStateOf(customAccentColor?.let { "%06X".format(it and 0xFFFFFF) } ?: "") }
     var currentTab by rememberSaveable { mutableStateOf("Home") }
@@ -769,6 +771,35 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
             }
         } else {
             signingPassword = ""
+        }
+    }
+
+    val exportDiagnostics = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/zip")
+    ) { uri: Uri? ->
+        val workId = pendingDiagnosticWorkId
+        pendingDiagnosticWorkId = null
+        if (uri != null && workId != null) {
+            scope.launch {
+                val outcome = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val temporary = File(context.cacheDir, "openclone-diagnostics-$workId.zip")
+                        CloneBuildDiagnostics(context, workId).exportZip(
+                            temporary,
+                            currentState = cloneWorkInfo?.state?.name ?: "running",
+                            progress = cloneProgress
+                        )
+                        context.contentResolver.openOutputStream(uri)?.use { output ->
+                            temporary.inputStream().use { input -> input.copyTo(output) }
+                        } ?: error("Could not write the diagnostic archive.")
+                        temporary.delete()
+                    }
+                }
+                statusMessage = outcome.fold(
+                    onSuccess = { "Diagnostic ZIP saved. Review it before sharing." },
+                    onFailure = { it.message ?: "Could not export diagnostic logs." }
+                )
+            }
         }
     }
 
@@ -1603,6 +1634,17 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                 modifier = Modifier.fillMaxWidth()
                             )
                             Text("Building and signing APKs… $cloneProgress%")
+                            Text(
+                                "Current stage: ${cloneWorkInfo?.progress?.getString(CloneBuildWorker.KEY_STAGE) ?: "Starting"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            TextButton(onClick = {
+                                cloneWorkId?.let { workId ->
+                                    pendingDiagnosticWorkId = workId
+                                    exportDiagnostics.launch("OpenClone-diagnostics-${workId.take(8)}.zip")
+                                }
+                            }, enabled = cloneWorkId != null) { Text("Export diagnostic logs") }
                         } else {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                             Text("Preparing and rebuilding APKs… This can take several minutes for large apps.")
@@ -1745,9 +1787,20 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     )
                     Text("Building and signing APKs… $cloneProgress%")
                     Text(
-                        "This build continues in the background. You can cancel it here.",
+                        "Current stage: ${cloneWorkInfo?.progress?.getString(CloneBuildWorker.KEY_STAGE) ?: "Starting"}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "This build continues in the background. Export diagnostics if it stops progressing.",
                         style = MaterialTheme.typography.bodySmall
                     )
+                    TextButton(onClick = {
+                        cloneWorkId?.let { workId ->
+                            pendingDiagnosticWorkId = workId
+                            exportDiagnostics.launch("OpenClone-diagnostics-${workId.take(8)}.zip")
+                        }
+                    }, enabled = cloneWorkId != null) { Text("Export diagnostic logs") }
                 }
             },
             confirmButton = {
