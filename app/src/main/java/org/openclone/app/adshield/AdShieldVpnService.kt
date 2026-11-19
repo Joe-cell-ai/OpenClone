@@ -9,6 +9,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.util.Log
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.net.HttpURLConnection
@@ -154,7 +155,8 @@ class AdShieldVpnService : VpnService() {
             connection.outputStream.use { it.write(query) }
             if (connection.responseCode != 200) return null
             connection.inputStream.use { it.readBytes().takeIf { bytes -> bytes.size in 12..4096 } }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w("AdShieldVpn", "Upstream DoH query failed", e)
             null
         } finally {
             connection?.disconnect()
