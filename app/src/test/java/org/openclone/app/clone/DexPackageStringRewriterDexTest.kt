@@ -11,8 +11,8 @@ import org.jf.dexlib2.Opcode
 import org.jf.dexlib2.builder.MutableMethodImplementation
 import org.jf.dexlib2.builder.instruction.BuilderInstruction10x
 import org.jf.dexlib2.builder.instruction.BuilderInstruction21c
-import org.jf.dexlib2.immutable.reference.ImmutableStringReference
 import org.jf.dexlib2.writer.builder.DexBuilder
+import org.jf.dexlib2.writer.io.FileDataStore
 
 /**
  * Exercises the rewriter against a real DEX container and const-string instruction,
@@ -36,13 +36,17 @@ class DexPackageStringRewriterDexTest {
 
             assertEquals(1, result.replacements)
             val rewritten = DexFileFactory.loadDexFile(output, Opcodes.getDefault())
-            val strings = rewritten.classes
-                .flatMap { it.methods }
-                .flatMap { it.implementation?.instructions.orEmpty() }
-                .mapNotNull { instruction ->
-                    val reference = (instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)?.reference
-                    (reference as? org.jf.dexlib2.iface.reference.StringReference)?.string
+            val strings = mutableListOf<String>()
+            for (classDef in rewritten.classes) {
+                for (method in classDef.methods) {
+                    val instructions = method.implementation?.instructions ?: continue
+                    for (instruction in instructions) {
+                        val reference = (instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)
+                            ?.reference as? org.jf.dexlib2.iface.reference.StringReference
+                        if (reference != null) strings += reference.string
+                    }
                 }
+            }
             assertTrue(strings.contains(
                 "com.whatsapp.clone/com.whatsapp.registration.app.phonenumberentry.RegisterPhone"
             ))
@@ -100,6 +104,8 @@ class DexPackageStringRewriterDexTest {
             emptyList(),
             listOf(method)
         )
-        DexFileFactory.writeDexFile(file.absolutePath, builder)
+        FileDataStore(file).use { dataStore ->
+            builder.writeTo(dataStore)
+        }
     }
 }
