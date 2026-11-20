@@ -403,6 +403,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var versionNameOverride by remember { mutableStateOf("") }
     var versionCodeOverride by remember { mutableStateOf("") }
     var cloneError by remember { mutableStateOf<String?>(null) }
+    var pendingCloneLogPath by remember { mutableStateOf<String?>(null) }
     var cloneUpdateMode by remember { mutableStateOf(false) }
     var cloneResult by remember { mutableStateOf<CloneBuildResult?>(null) }
     var pendingInstall by remember { mutableStateOf<CloneBuildResult?>(null) }
@@ -707,6 +708,28 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     onFailure = { statusMessage = it.message ?: "Could not import this APK bundle." }
                 )
                 loading = false
+            }
+        }
+    }
+
+    val exportCloneBuildLog = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri: Uri? ->
+        val sourcePath = pendingCloneLogPath
+        pendingCloneLogPath = null
+        if (uri != null && sourcePath != null) {
+            scope.launch {
+                val saved = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val source = File(sourcePath)
+                        check(source.isFile && source.canRead()) { "The clone build log is not available yet." }
+                        context.contentResolver.openOutputStream(uri)?.use { output ->
+                            source.inputStream().use { input -> input.copyTo(output) }
+                        } ?: error("Could not open the selected destination.")
+                    }
+                }
+                statusMessage = saved.fold(
+                    { "Clone build log saved. Attach this .txt file when reporting the 11% freeze." },
+                    { it.message ?: "Could not export clone build log." }
+                )
             }
         }
     }
@@ -1748,13 +1771,21 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
-                    cloneWorkId?.let { savedId ->
-                        runCatching { UUID.fromString(savedId) }.getOrNull()?.let {
-                            WorkManager.getInstance(context).cancelWorkById(it)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        cloneWorkId?.let { savedId ->
+                            pendingCloneLogPath = File(context.filesDir, "openclone/logs/clone-build-$savedId.txt").absolutePath
+                            exportCloneBuildLog.launch("openclone-clone-build-log.txt")
                         }
-                    }
-                }) { Text("Cancel build") }
+                    }) { Text("Capture logs") }
+                    TextButton(onClick = {
+                        cloneWorkId?.let { savedId ->
+                            runCatching { UUID.fromString(savedId) }.getOrNull()?.let {
+                                WorkManager.getInstance(context).cancelWorkById(it)
+                            }
+                        }
+                    }) { Text("Cancel build") }
+                }
             }
         )
     }

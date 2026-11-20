@@ -17,12 +17,26 @@ class CloneBuildWorker(
     params: WorkerParameters
 ) : CoroutineWorker(appContext, params) {
 
+    private val diagnosticFile: File by lazy {
+        File(applicationContext.filesDir, "openclone/logs/clone-build-${id}.txt")
+    }
+
+    private fun logDiagnostic(message: String) {
+        runCatching {
+            diagnosticFile.parentFile?.mkdirs()
+            diagnosticFile.appendText("[${java.time.Instant.now()}] $message\n")
+        }
+    }
+
     @Suppress("DEPRECATION")
-    override suspend fun doWork(): Result = try {
+    override suspend fun doWork(): Result {
+        logDiagnostic("Clone build worker started. Work ID: $id; attempt: $runAttemptCount")
+        return try {
         withContext(Dispatchers.IO) {
             val sourcePaths = inputData.getStringArray(KEY_SOURCE_APKS)
                 ?: error("No source APK paths were supplied.")
             val sourceApks = sourcePaths.map(::File)
+            logDiagnostic("Received ${sourceApks.size} source APK component(s): ${sourceApks.joinToString { it.name }}")
             require(sourceApks.isNotEmpty() && sourceApks.all { it.isFile && it.canRead() }) {
                 "One or more source APK files are missing or cannot be read."
             }
@@ -55,10 +69,15 @@ class CloneBuildWorker(
                 val visibleProgress = (1 + (value.coerceIn(0, 100) * 98 / 100)).coerceIn(1, 99)
                 if (visibleProgress != lastReportedProgress) {
                     lastReportedProgress = visibleProgress
-                    setProgressAsync(Data.Builder().putInt(KEY_PROGRESS, visibleProgress).build())
+                    logDiagnostic("APK rebuild progress: $visibleProgress% (engine=$value%)")
+                    setProgressAsync(Data.Builder()
+                        .putInt(KEY_PROGRESS, visibleProgress)
+                        .putString(KEY_DIAGNOSTIC_LOG, diagnosticFile.absolutePath)
+                        .build())
                 }
             }
             reportProgress(0)
+            logDiagnostic("Starting APK rebuild and signing. Output directory is app-private.")
             val result = ApkCloneEngine(applicationContext).build(
                 sourceApks = sourceApks,
                 originalPackage = originalPackage,
@@ -79,8 +98,12 @@ class CloneBuildWorker(
                 rewriteDexPackageStrings = inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, false),
                 removedPermissions = inputData.getStringArray(KEY_REMOVED_PERMISSIONS).orEmpty().toSet(),
                 versionNameOverride = inputData.getString(KEY_VERSION_NAME_OVERRIDE)?.takeIf { it.isNotBlank() },
-                versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 }
+                versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 },
+                onEntry = { name, size, index, total ->
+                    logDiagnostic("APK entry [$index/$total]: $name; size=$size bytes")
+                }
             )
+            logDiagnostic("APK rebuild/signing completed; preparing OBB outputs.")
             reportProgress(99)
             val obbOutputDirectory = File(result.apks.first().parentFile, "obb")
             val obbOutputs = if (obbSources.isEmpty()) emptyList() else {
@@ -104,13 +127,24 @@ class CloneBuildWorker(
                     .putBoolean(KEY_ICON_BADGE_APPLIED, result.iconBadgeApplied)
                     .putBoolean(KEY_CUSTOM_ICON_APPLIED, result.customIconApplied)
                     .putBoolean(KEY_ALLOW_UPDATE, inputData.getBoolean(KEY_ALLOW_UPDATE, false))
+                    .putString(KEY_DIAGNOSTIC_LOG, diagnosticFile.absolutePath)
                     .build()
             )
         }
     } catch (cancelled: CancellationException) {
+        logDiagnostic("Build cancelled: ${cancelled.message ?: "no reason supplied"}")
         throw cancelled
     } catch (error: Exception) {
-        Result.failure(Data.Builder().putString(KEY_ERROR, error.message ?: "Clone build failed.").build())
+        val details = error.stackTraceToString()
+            .replace(applicationContext.filesDir.absolutePath, "<app-private>")
+            .replace(applicationContext.cacheDir.absolutePath, "<cache>")
+        logDiagnostic("BUILD FAILED: ${error.javaClass.name}: ${error.message ?: "no message"}")
+        details.lineSequence().forEach { logDiagnostic(it) }
+        Result.failure(Data.Builder()
+            .putString(KEY_ERROR, error.message ?: "Clone build failed.")
+            .putString(KEY_DIAGNOSTIC_LOG, diagnosticFile.absolutePath)
+            .build())
+    }
     }
 
     companion object {
@@ -134,5 +168,6 @@ class CloneBuildWorker(
         const val KEY_CUSTOM_ICON_PATH = "custom_icon_path"
         const val KEY_CUSTOM_ICON_APPLIED = "custom_icon_applied"
         const val KEY_ERROR = "error"
+        const val KEY_DIAGNOSTIC_LOG = "diagnostic_log"
     }
 }

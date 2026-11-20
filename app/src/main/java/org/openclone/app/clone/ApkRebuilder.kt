@@ -44,6 +44,7 @@ object ApkRebuilder {
         onStep: (() -> Unit)? = null,
         onProgress: (Int) -> Unit = {},
         dexPackageRewrite: Pair<String, String>? = null,
+        onEntry: ((String, Long, Int, Int) -> Unit)? = null,
     ) {
         val counter = CountingOutputStream(BufferedOutputStream(target.outputStream(), 1 shl 16))
         ZipFile(source).use { zip ->
@@ -57,15 +58,27 @@ object ApkRebuilder {
                     .coerceAtLeast(1L)
                 var processedEntries = 0
                 var processedBytes = 0L
-                fun copyWithProgress(input: java.io.InputStream, output: OutputStream) {
+                fun reportByteProgress(bytesIntoCurrentEntry: Long = 0L) {
+                    val visibleBytes = (processedBytes + bytesIntoCurrentEntry).coerceAtMost(totalBytes)
+                    onProgress(((visibleBytes * 95L) / totalBytes).toInt().coerceIn(0, 95))
+                }
+                fun copyWithProgress(
+                    input: java.io.InputStream,
+                    output: OutputStream,
+                    countTowardProgress: Boolean = true
+                ) {
                     val buffer = ByteArray(1 shl 16)
+                    var copied = 0L
                     while (true) {
                         onStep?.invoke()
                         val count = input.read(buffer)
                         if (count < 0) break
                         output.write(buffer, 0, count)
-                        processedBytes = (processedBytes + count).coerceAtMost(totalBytes)
-                        onProgress(((processedBytes * 95L) / totalBytes).toInt().coerceIn(0, 95))
+                        copied += count
+                        if (countTowardProgress) {
+                            processedBytes = (processedBytes + count).coerceAtMost(totalBytes)
+                            reportByteProgress()
+                        }
                     }
                 }
                 // Patched up front: the resource table needs the old package name, and nothing
@@ -76,8 +89,9 @@ object ApkRebuilder {
                 require(manifest != null) { "No AndroidManifest.xml in ${source.name}" }
                 // The manifest rewrite is a step like any patch pass; counted up front with the rest.
                 onStep?.invoke()
-                for (entry in entries) {
+                for ((entryIndex, entry) in entries.withIndex()) {
                     onStep?.invoke()
+                    onEntry?.invoke(entry.name, entry.size, entryIndex + 1, totalEntries)
                     if (entry.isDirectory || !seen.add(entry.name)) {
                         processedEntries++
                         onProgress(processedEntries * 100 / totalEntries)
@@ -94,6 +108,7 @@ object ApkRebuilder {
                         out.putNextEntry(copy)
                         out.write(manifest)
                     } else if (entry.name == ResourceTableRenamer.ENTRY) {
+                        onEntry?.invoke("resources.arsc: rewrite start", entry.size, entryIndex + 1, totalEntries)
                         // Same size and place as before; only the package name inside changes. When the
                         // clone keeps the original package name, the table keeps it too, so
                         // getIdentifier(name, type, getPackageName()) still resolves against the original
@@ -101,9 +116,11 @@ object ApkRebuilder {
                         fun renamed(to: OutputStream, progressStart: Double = 0.0, progressSpan: Double = 1.0) = zip.getInputStream(entry).use {
                             val toPackage = if (patcher.keepResourceTable) patcher.oldPackage else patcher.newPackage
                             ResourceTableRenamer.copy(it, to, patcher.oldPackage, toPackage, onStep) { copied ->
-                                val fraction = (copied.toDouble() / entry.size.coerceAtLeast(1L)).coerceIn(0.0, 1.0)
-                                val entryFraction = progressStart + fraction * progressSpan
-                                onProgress(((processedEntries + entryFraction) * 100.0 / totalEntries).toInt().coerceIn(0, 99))
+                                // Resource-table rewriting can dominate the first APK component.
+                                // Count its bytes directly instead of deriving progress from entry
+                                // count, which made a large resources.arsc look frozen at 10–11%.
+                                val weightedBytes = (copied * progressSpan).toLong()
+                                reportByteProgress(weightedBytes)
                             }
                         }
                         if (entry.method == ZipEntry.STORED) {
@@ -120,7 +137,9 @@ object ApkRebuilder {
                                 }
                                 copy.storedAt(counter.count, prepared.length(), checksum.value)
                                 out.putNextEntry(copy)
-                                prepared.inputStream().use { copyWithProgress(it, out) }
+                                // The transform pass already accounts for this entry's work;
+                                // writing the prepared STORED bytes must not count it twice.
+                                prepared.inputStream().use { copyWithProgress(it, out, countTowardProgress = false) }
                             } finally {
                                 prepared.delete()
                             }
@@ -128,7 +147,11 @@ object ApkRebuilder {
                             out.putNextEntry(copy)
                             renamed(out)
                         }
+                        processedBytes = (processedBytes + entry.size).coerceAtMost(totalBytes)
+                        reportByteProgress()
+                        onEntry?.invoke("resources.arsc: rewrite complete", entry.size, entryIndex + 1, totalEntries)
                     } else if (dexPackageRewrite != null && entry.name.matches(Regex("classes(\\d*)\\.dex"))) {
+                        onEntry?.invoke("${entry.name}: DEX rewrite start", entry.size, entryIndex + 1, totalEntries)
                         val sourceDex = File.createTempFile("openclone-source-", ".dex", target.parentFile)
                         val rewrittenDex = File.createTempFile("openclone-rewritten-", ".dex", target.parentFile)
                         try {
@@ -138,6 +161,7 @@ object ApkRebuilder {
                                 sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {}
                             )
                             onStep?.invoke()
+                            onEntry?.invoke("${entry.name}: DEX rewrite complete; replacements=${rewrite.replacements}", entry.size, entryIndex + 1, totalEntries)
                             val selectedDex = if (rewrite.replacements > 0) rewrittenDex else sourceDex
                             if (entry.method == ZipEntry.STORED) {
                                 val checksum = CRC32()
