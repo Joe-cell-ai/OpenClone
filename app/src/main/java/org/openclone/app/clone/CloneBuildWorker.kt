@@ -21,12 +21,32 @@ class CloneBuildWorker(
         File(applicationContext.filesDir, "openclone/logs/clone-build-${id}.txt")
     }
 
-    private fun logDiagnostic(message: String) {
-        runCatching {
-            diagnosticFile.parentFile?.mkdirs()
-            diagnosticFile.appendText("[${java.time.Instant.now()}] $message\n")
+    private val diagnosticLog: DiagnosticLog by lazy { DiagnosticLog(diagnosticFile) }
+
+    private fun logDiagnostic(message: String, essential: Boolean = false) =
+        diagnosticLog.write(message, essential)
+
+    private fun startHeartbeat(buildThread: Thread): Thread = Thread {
+        try {
+            var beats = 0
+            while (beats < HEARTBEAT_MAX_BEATS) {
+                Thread.sleep(HEARTBEAT_MILLIS)
+                beats++
+                if (this@CloneBuildWorker.isStopped) break
+                runCatching {
+                    val runtime = Runtime.getRuntime()
+                    val usedMb = (runtime.totalMemory() - runtime.freeMemory()) shr 20
+                    val frames = buildThread.stackTrace.take(10).joinToString(" <- ") {
+                        it.className.substringAfterLast('.') + "." + it.methodName + ":" + it.lineNumber
+                    }
+                    logDiagnostic("HEARTBEAT heap=" + usedMb + "/" + (runtime.maxMemory() shr 20) +
+                        " MB; thread=" + buildThread.state + "; at " + frames)
+                }
+            }
+        } catch (_: InterruptedException) {
+            // Build finished or was cancelled.
         }
-    }
+    }.apply { isDaemon = true; name = "openclone-build-heartbeat"; start() }
 
     @Suppress("DEPRECATION")
     override suspend fun doWork(): Result {
@@ -78,7 +98,12 @@ class CloneBuildWorker(
             }
             reportProgress(0)
             logDiagnostic("Starting APK rebuild and signing. Output directory is app-private.")
-            val result = ApkCloneEngine(applicationContext).build(
+            val rewriteRequested = inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, DEFAULT_REWRITE_DEX_PACKAGE_STRINGS)
+            logDiagnostic("DEX package-string rewrite: requested=" + rewriteRequested +
+                "; default=" + DEFAULT_REWRITE_DEX_PACKAGE_STRINGS + "; original=" + originalPackage +
+                "; clone=" + clonePackage + "; effective=" + (rewriteRequested && originalPackage != clonePackage))
+            val heartbeat = startHeartbeat(Thread.currentThread())
+            val result = try { ApkCloneEngine(applicationContext).build(
                 sourceApks = sourceApks,
                 originalPackage = originalPackage,
                 newPackage = clonePackage,
@@ -102,7 +127,7 @@ class CloneBuildWorker(
                 onEntry = { name, size, index, total ->
                     logDiagnostic("APK entry [$index/$total]: $name; size=$size bytes")
                 }
-            )
+            ) } finally { heartbeat.interrupt() }
             logDiagnostic("APK rebuild/signing completed; preparing OBB outputs.")
             reportProgress(99)
             val obbOutputDirectory = File(result.apks.first().parentFile, "obb")
@@ -132,14 +157,17 @@ class CloneBuildWorker(
             )
         }
     } catch (cancelled: CancellationException) {
-        logDiagnostic("Build cancelled: ${cancelled.message ?: "no reason supplied"}")
+        logDiagnostic("Build cancelled: ${cancelled.message ?: "no reason supplied"}", essential = true)
         throw cancelled
+    } catch (error: Error) {
+        logDiagnostic("BUILD ERROR (not an Exception): " + error.javaClass.name + ": " + (error.message ?: "no message"), essential = true)
+        throw error
     } catch (error: Exception) {
         val details = error.stackTraceToString()
             .replace(applicationContext.filesDir.absolutePath, "<app-private>")
             .replace(applicationContext.cacheDir.absolutePath, "<cache>")
-        logDiagnostic("BUILD FAILED: ${error.javaClass.name}: ${error.message ?: "no message"}")
-        details.lineSequence().forEach { logDiagnostic(it) }
+        logDiagnostic("BUILD FAILED: ${error.javaClass.name}: ${error.message ?: "no message"}", essential = true)
+        details.lineSequence().forEach { logDiagnostic(it, essential = true) }
         Result.failure(Data.Builder()
             .putString(KEY_ERROR, error.message ?: "Clone build failed.")
             .putString(KEY_DIAGNOSTIC_LOG, diagnosticFile.absolutePath)
@@ -151,6 +179,8 @@ class CloneBuildWorker(
         const val KEY_SOURCE_APKS = "source_apks"
         const val KEY_ORIGINAL_PACKAGE = "original_package"
         const val KEY_CLONE_PACKAGE = "clone_package"
+        private const val HEARTBEAT_MILLIS = 15_000L
+        private const val HEARTBEAT_MAX_BEATS = 480
         const val KEY_CLONE_LABEL = "clone_label"
         const val KEY_MARK_ICON = "mark_icon"
         const val KEY_REWRITE_DEX_PACKAGE_STRINGS = "rewrite_dex_package_strings"

@@ -166,9 +166,15 @@ object ApkRebuilder {
                         try {
                             zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyPlain(input, output) } }
                             onStep?.invoke()
+                            var lastLoggedInstructions = 0L
                             val rewrite = DexPackageStringRewriter.rewrite(
-                                sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {}
+                                sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {},
+                                onStage = { stage -> onEntry?.invoke("${entry.name}: DEX $stage", entry.size, entryIndex + 1, totalEntries) }
                             ) { instructions ->
+                                if (instructions >= lastLoggedInstructions + 400_000L) {
+                                    lastLoggedInstructions = instructions
+                                    onEntry?.invoke("${entry.name}: DEX instructions visited=$instructions", entry.size, entryIndex + 1, totalEntries)
+                                }
                                 // DEX instruction count is unknown before parsing. Ease toward 90%
                                 // of this entry's byte share; final output copying accounts for bytes once.
                                 val share = entry.size.coerceAtLeast(0L)
