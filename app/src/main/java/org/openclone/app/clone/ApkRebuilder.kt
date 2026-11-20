@@ -115,11 +115,11 @@ object ApkRebuilder {
                         // package.
                         fun renamed(to: OutputStream, progressStart: Double = 0.0, progressSpan: Double = 1.0) = zip.getInputStream(entry).use {
                             val toPackage = if (patcher.keepResourceTable) patcher.oldPackage else patcher.newPackage
-                            ResourceTableRenamer.copy(it, to, patcher.oldPackage, toPackage, onStep) { copied ->
-                                // Resource-table rewriting can dominate the first APK component.
-                                // Count its bytes directly instead of deriving progress from entry
-                                // count, which made a large resources.arsc look frozen at 10–11%.
-                                val weightedBytes = (copied * progressSpan).toLong()
+                            ResourceTableRenamer.copy(it, to, patcher.oldPackage, toPackage, onStep) { cumulativeBytes ->
+                                // ResourceTableRenamer reports cumulative bytes. Treating each
+                                // 64 KiB chunk as a fresh total kept large tables visually frozen
+                                // around 10–11% until the resource-table pass completed.
+                                val weightedBytes = (cumulativeBytes * progressSpan).toLong()
                                 reportByteProgress(weightedBytes)
                             }
                         }

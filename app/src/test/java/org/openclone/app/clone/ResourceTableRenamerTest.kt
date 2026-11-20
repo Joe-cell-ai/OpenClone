@@ -57,6 +57,21 @@ class ResourceTableRenamerTest {
     }
 
     @Test
+    fun byteProgressReportsCumulativeBytesAndNeverMovesBackwards() {
+        val source = table("com.example.app")
+        val progress = mutableListOf<Long>()
+        val output = ByteArrayOutputStream()
+        ResourceTableRenamer.copy(
+            source.inputStream(), output, "com.example.app", "com.example.app.clone",
+            onBytes = { progress += it }
+        )
+        assertEquals(source.size.toLong(), progress.last())
+        assertEquals(true, progress.size > 1)
+        assertEquals(true, progress.zipWithNext().all { (before, after) -> after >= before })
+        assertArrayEquals(table("com.example.app.clone"), output.toByteArray())
+    }
+
+    @Test
     fun theSizeNeverChanges() {
         val source = table("com.example.app")
         assertEquals(source.size, rename(source, "com.example.app", "com.example.app.clone2").size)

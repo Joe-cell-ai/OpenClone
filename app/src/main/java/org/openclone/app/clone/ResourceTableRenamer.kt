@@ -37,13 +37,20 @@ object ResourceTableRenamer {
      * Copies a resource table from [input] to [output]. The first package is renamed to
      * [newPackage] if it is called [oldPackage]; a table whose package was named differently
      * from the app to begin with is left alone, since the app cannot be relying on that name.
-     * Anything that does not look like a resource table is copied as it is.
+     * Anything that does not look like a resource table is copied as it is. [onBytes] receives
+     * the cumulative number of bytes written so far (not the latest chunk size).
      */
     fun copy(input: InputStream, output: OutputStream, oldPackage: String, newPackage: String, onStep: (() -> Unit)? = null, onBytes: ((Long) -> Unit)? = null) {
         val data = DataInputStream(input)
+        var bytesCopied = 0L
+        fun reportBytes(count: Long) {
+            bytesCopied += count
+            onBytes?.invoke(bytesCopied)
+        }
         val start = ByteArray(TABLE_HEADER_SIZE + CHUNK_HEADER_SIZE)
         val read = readAsMuchAs(data, start)
         output.write(start, 0, read)
+        reportBytes(read.toLong())
         val header = ByteBuffer.wrap(start).order(ByteOrder.LITTLE_ENDIAN)
         val isTable = read == start.size && header.getShort(0).toInt() == RES_TABLE &&
             header.getShort(2).toInt() == TABLE_HEADER_SIZE &&
@@ -51,11 +58,12 @@ object ResourceTableRenamer {
         if (isTable && newPackage.length < NAME_UNITS) {
             // The package chunk follows the table's string pool, whose size its header gives.
             val poolSize = header.getInt(TABLE_HEADER_SIZE + 4).toLong() and 0xFFFFFFFFL
-            if (copyExactly(data, output, poolSize - CHUNK_HEADER_SIZE, onStep, onBytes)) {
+            if (copyExactly(data, output, poolSize - CHUNK_HEADER_SIZE, onStep, ::reportBytes)) {
                 val chunk = ByteArray(CHUNK_HEADER_SIZE + PACKAGE_ID_SIZE + NAME_BYTES)
                 val got = readAsMuchAs(data, chunk)
                 if (got == chunk.size && isPackageNamed(chunk, oldPackage)) writeName(chunk, newPackage)
                 output.write(chunk, 0, got)
+                reportBytes(got.toLong())
             }
         }
         val buffer = ByteArray(BUFFER)
@@ -64,7 +72,7 @@ object ResourceTableRenamer {
             val count = data.read(buffer)
             if (count < 0) break
             output.write(buffer, 0, count)
-            onBytes?.invoke(count.toLong())
+            reportBytes(count.toLong())
         }
     }
 
