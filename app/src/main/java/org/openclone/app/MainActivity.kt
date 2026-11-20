@@ -1428,6 +1428,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     selectedApp?.let { app ->
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { selectedApp = null },
             title = { Text(app.label) },
             text = {
@@ -1469,6 +1470,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
         val sourcePackage = cloneSource?.packageName ?: externalSource!!.packageName
         val sourceLabel = cloneSource?.label ?: externalSource!!.label
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { if (!cloneBuilding) { cloneSource = null; externalSource = null; cloneUpdateMode = false } },
             title = { Text(if (cloneUpdateMode) "Update clone" else "Create clone") },
             text = {
@@ -1719,6 +1721,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     if (showProfiles) {
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { showProfiles = false },
             title = { Text("Clone Profiles") },
             text = {
@@ -1817,6 +1820,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     if (cloneWorkId != null && cloneSource == null && externalSource == null) {
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { },
             title = { Text("Clone build in progress") },
             text = {
@@ -1826,7 +1830,12 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         progress = { cloneProgress.coerceIn(0, 100) / 100f },
                         modifier = Modifier.fillMaxWidth()
                     )
-                    Text("Building and signing APKs… $cloneProgress%")
+                    Text(
+                        if (cloneProgress > 0) "Building and signing APKs… $cloneProgress%" else "Preparing clone build…",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
                     Text(
                         "This build continues in the background. You can cancel it here.",
                         style = MaterialTheme.typography.bodySmall
@@ -1855,6 +1864,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     if (installInProgress) {
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { },
             title = { Text("Installing clone") },
             text = {
@@ -1870,6 +1880,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     installMessage?.let { message ->
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { installMessage = null },
             title = { Text(if (message.startsWith("Clone installed successfully")) "Installation complete" else "Installation result") },
             text = { Text(message) },
@@ -1879,6 +1890,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     cloneResult?.let { result ->
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { cloneResult = null; cloneUpdateMode = false },
             title = { Text("Clone ready") },
             text = {
@@ -1912,6 +1924,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     if (bulkUninstallQueue.isNotEmpty() && bulkUninstallIndex < bulkUninstallQueue.size) {
         val packageName = bulkUninstallQueue[bulkUninstallIndex]
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { bulkUninstallQueue = emptyList(); bulkUninstallIndex = 0; bulkUninstallRequested = false },
             title = { Text("Bulk uninstall · ${bulkUninstallIndex + 1} of ${bulkUninstallQueue.size}") },
             text = {
@@ -1957,6 +1970,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     selectedClone?.let { clone ->
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { selectedClone = null },
             title = { Text(clone.cloneLabel) },
             text = {
@@ -2046,6 +2060,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     if (showSettings) {
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { showSettings = false },
             title = { Text("Settings") },
             text = {
@@ -2249,6 +2264,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     if (showAbout) {
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { showAbout = false },
             title = { Text("About OpenClone") },
             text = {
@@ -2282,6 +2298,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     if (showSigningKeys) {
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { showSigningKeys = false; signingPassword = "" },
             title = { Text("Signing identities") },
             text = {
@@ -2370,6 +2387,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
 
     inspection?.let { apk ->
         AlertDialog(
+            shape = RoundedCornerShape(24.dp),
             onDismissRequest = { inspection = null },
             title = { Text("APK information") },
             text = {
