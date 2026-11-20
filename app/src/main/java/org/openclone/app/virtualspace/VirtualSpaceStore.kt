@@ -117,7 +117,7 @@ class VirtualSpaceStore(rootDirectory: File) {
         val properties = Properties().apply { metadataFile.inputStream().use { load(it) } }
         val id = properties.getProperty("id") ?: return null
         if (id != canonical.name || !UUID_PATTERN.matches(id)) return null
-        if (properties.getProperty("formatVersion")?.toIntOrNull() != FORMAT_VERSION) return null
+        if (properties.getProperty("formatVersion")?.toIntOrNull() !in SUPPORTED_FORMAT_VERSIONS) return null
         val originalPackage = properties.getProperty("originalPackage") ?: return null
         if (!PACKAGE_ID.matches(originalPackage)) return null
         val label = properties.getProperty("label")?.takeIf { it.isNotBlank() } ?: return null
@@ -154,7 +154,7 @@ class VirtualSpaceStore(rootDirectory: File) {
     }
 
     private companion object {
-        const val FORMAT_VERSION = 3
+        const val FORMAT_VERSION = 3\n        val SUPPORTED_FORMAT_VERSIONS = setOf(2, FORMAT_VERSION)
         const val METADATA_FILE = "instance.properties"
         const val MAX_APK_PARTS = 128\n        const val MAX_COMPONENTS = 4096
         val UUID_PATTERN = Regex("[0-9a-fA-F-]{36}")
