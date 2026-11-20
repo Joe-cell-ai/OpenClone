@@ -128,6 +128,7 @@ private enum class OpenCloneThemeMode(val label: String) {
 }
 
 private enum class OpenCloneAccent(val label: String, val primary: Color, val secondary: Color, val tertiary: Color, val container: Color, val onContainer: Color) {
+    MATERIAL_BLUE("Blue", Color(0xFF03A9F4), Color(0xFF0288D1), Color(0xFF01579B), Color(0xFFE1F5FE), Color(0xFF01579B)),
     VIOLET("Violet", Color(0xFF8B7CFF), Color(0xFFB18CFF), Color(0xFF55D8E8), Color(0xFF342B78), Color(0xFFE7E3FF)),
     OCEAN("Ocean", Color(0xFF168AAD), Color(0xFF52B6C8), Color(0xFF55C7A5), Color(0xFF104B66), Color(0xFFDDF7FF)),
     EMERALD("Emerald", Color(0xFF23856D), Color(0xFF55A88E), Color(0xFF83B85C), Color(0xFF174E40), Color(0xFFD9F7E9)),
@@ -169,7 +170,7 @@ class MainActivity : FragmentActivity() {
                         runCatching {
                             OpenCloneThemeMode.valueOf(
                                 getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
-                                    .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name) ?: OpenCloneThemeMode.DARK.name
+                                    .getString(THEME_MODE_KEY, OpenCloneThemeMode.LIGHT.name) ?: OpenCloneThemeMode.LIGHT.name
                             )
                         }.getOrDefault(OpenCloneThemeMode.DARK)
                     )
@@ -179,9 +180,9 @@ class MainActivity : FragmentActivity() {
                         runCatching {
                             OpenCloneAccent.valueOf(
                                 getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
-                                    .getString("accent_palette", OpenCloneAccent.VIOLET.name) ?: OpenCloneAccent.VIOLET.name
+                                    .getString("accent_palette", OpenCloneAccent.MATERIAL_BLUE.name) ?: OpenCloneAccent.MATERIAL_BLUE.name
                             )
-                        }.getOrDefault(OpenCloneAccent.VIOLET)
+                        }.getOrDefault(OpenCloneAccent.MATERIAL_BLUE)
                     )
                 }
                 var customAccentArgb by remember {
@@ -322,22 +323,22 @@ private fun OpenCloneTheme(mode: OpenCloneThemeMode, accent: OpenCloneAccent, cu
             outline = Color(0xFF3A4260)
         )
         dark -> darkColorScheme(
-            primary = Color(0xFF8B7CFF), onPrimary = Color(0xFF100D2B),
-            primaryContainer = Color(0xFF342B78), onPrimaryContainer = Color(0xFFE7E3FF),
-            secondary = Color(0xFFB18CFF), onSecondary = Color(0xFF21113D),
-            secondaryContainer = Color(0xFF38265A), onSecondaryContainer = Color(0xFFEADFFF),
-            tertiary = Color(0xFF55D8E8), onTertiary = Color(0xFF002F35),
-            background = Color(0xFF090B18), surface = Color(0xFF14182A),
-            surfaceVariant = Color(0xFF20263B), onSurface = Color(0xFFE9EBFF),
-            onSurfaceVariant = Color(0xFFB8BED8), outline = Color(0xFF3A4260)
+            primary = Color(0xFF03A9F4), onPrimary = Color.White,
+            primaryContainer = Color(0xFF01579B), onPrimaryContainer = Color.White,
+            secondary = Color(0xFF0288D1), onSecondary = Color.White,
+            secondaryContainer = Color(0xFF123D56), onSecondaryContainer = Color(0xFFDDF3FF),
+            tertiary = Color(0xFF4FC3F7), onTertiary = Color(0xFF002F45),
+            background = Color(0xFF0B1116), surface = Color(0xFF111B22),
+            surfaceVariant = Color(0xFF1B2A34), onSurface = Color(0xFFEAF4F9),
+            onSurfaceVariant = Color(0xFFB7C8D3), outline = Color(0xFF526B7A)
         )
         else -> lightColorScheme(
-            primary = Color(0xFF5546B8), onPrimary = Color.White,
-            primaryContainer = Color(0xFFE8E2FF), onPrimaryContainer = Color(0xFF20145C),
-            secondary = Color(0xFF65518C), tertiary = Color(0xFF006874),
-            background = Color(0xFFF7F6FC), surface = Color.White,
-            surfaceVariant = Color(0xFFEDEBF5), onSurface = Color(0xFF191827),
-            onSurfaceVariant = Color(0xFF55546A), outline = Color(0xFF77758A)
+            primary = Color(0xFF03A9F4), onPrimary = Color.White,
+            primaryContainer = Color(0xFFE1F5FE), onPrimaryContainer = Color(0xFF01579B),
+            secondary = Color(0xFF0288D1), tertiary = Color(0xFF01579B),
+            background = Color(0xFFF5F9FC), surface = Color.White,
+            surfaceVariant = Color(0xFFEAF3F8), onSurface = Color(0xFF17232B),
+            onSurfaceVariant = Color(0xFF52636D), outline = Color(0xFF8195A1)
         )
     }
     val selectedPrimary = customAccent ?: accent.primary
@@ -394,7 +395,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var cloneWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
-    var rewriteDexPackageStrings by remember { mutableStateOf(true) }
+    var rewriteDexPackageStrings by remember { mutableStateOf(false) }
     var customIconPath by rememberSaveable { mutableStateOf<String?>(null) }
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var requestedPermissions by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -1060,8 +1061,8 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth()
-                    .padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 12.dp)
-                    .offset(y = (-50).dp),
+                    .heightIn(min = 56.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1106,15 +1107,19 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     item {
-                        Column(
-                            modifier = Modifier.fillMaxWidth()
-                                .background(Brush.linearGradient(listOf(Color(0xFF174A83), Color(0xFF342B78), Color(0xFF17677A))), RoundedCornerShape(22.dp))
-                                .padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                         ) {
-                            Text("Clone apps. Your way.", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                            Text("Create independent app spaces with custom identity and signing.", color = Color(0xFFE1E8FF))
-                            Text("${apps.size} apps ready  •  ${clones.size} installed clones", color = Color(0xFF9DECF5), style = MaterialTheme.typography.labelMedium)
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("App Cloner", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
+                                Text("Create independent copies of installed applications.", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("${apps.size} apps available  ·  ${clones.size} installed clones", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                     }
                     item { Text("App Cloner", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
@@ -2120,8 +2125,8 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                         put("profiles", profileArray)
                                         put("settings", JSONObject().apply {
                                             val appearance = context.getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
-                                            put("themeMode", appearance.getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name))
-                                            put("accentPalette", appearance.getString("accent_palette", OpenCloneAccent.VIOLET.name))
+                                            put("themeMode", appearance.getString(THEME_MODE_KEY, OpenCloneThemeMode.LIGHT.name))
+                                            put("accentPalette", appearance.getString("accent_palette", OpenCloneAccent.MATERIAL_BLUE.name))
                                             put("customAccentArgb", appearance.getInt("custom_accent_argb", 0))
                                             val proxyArray = JSONArray()
                                             ProxyProfileRepository(context).getAll().forEach { proxy ->
@@ -2371,7 +2376,7 @@ private fun suggestedClonePackage(original: String, packageManager: android.cont
 private fun HomeActionTile(title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
@@ -2395,11 +2400,11 @@ private fun InstalledAppRow(app: InstalledApp, onClick: () -> Unit, subtitle: St
     }
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {

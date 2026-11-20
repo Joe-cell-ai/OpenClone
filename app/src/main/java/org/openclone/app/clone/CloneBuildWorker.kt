@@ -154,7 +154,7 @@ class CloneBuildWorker(
         const val KEY_CLONE_LABEL = "clone_label"
         const val KEY_MARK_ICON = "mark_icon"
         const val KEY_REWRITE_DEX_PACKAGE_STRINGS = "rewrite_dex_package_strings"
-        const val DEFAULT_REWRITE_DEX_PACKAGE_STRINGS = true
+        const val DEFAULT_REWRITE_DEX_PACKAGE_STRINGS = false
         const val KEY_REMOVED_PERMISSIONS = "removed_permissions"
         const val KEY_VERSION_NAME_OVERRIDE = "version_name_override"
         const val KEY_VERSION_CODE_OVERRIDE = "version_code_override"
