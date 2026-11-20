@@ -25,6 +25,7 @@ This inventory was extracted from the user-provided JADX archive `Documents.zip`
 - The reference manifest requests network, install/delete package, notification, biometric, NFC, camera, location, overlay, foreground-service, audio, phone-state, and storage permissions. OpenClone must request only permissions needed for a user-enabled feature.
 
 ### Runtime and compatibility implications
+- The archive includes `BytesReplacer.java`, a native-backed streaming byte-replacement helper, plus a UI string warning that some clone variants may take substantially longer. These observations do not define a safe, complete DEX rewrite contract. OpenClone does not copy the helper or protected native payloads; it uses its own parsed-DEX, token-boundary-limited, opt-in pass and emits per-DEX stage diagnostics.
 - The presence of hook-related native libraries and protected DEX indicates that the reference app contains a runtime/hooking layer beyond ordinary APK repackaging.
 - Manifest declarations alone do not reveal the complete runtime implementation or prove that a feature is active.
 - OpenClone's current virtual-space storage and component resolver are not a guest Android runtime. A true in-process guest runtime requires lifecycle, class loading, resource, package-manager, provider, service, broadcast, permission, process and native-library compatibility layers. This is a separate major subsystem, not a safe one-line launch fix.

@@ -32,7 +32,7 @@ This document tracks the feature set described by the App Cloner reference proje
 
 ## Implementation sequence
 
-1. [ ] **DEX package rewrite hardening** — the advanced opt-in is off by default; cancellation checkpoints and per-DEX diagnostics are present. This run adds APK-level fixtures for multidex rewriting, encoded static values, package-like unrelated strings, unchanged class descriptors, and cancellation propagation. Initial CI run #479 found that the single-DEX fixture correctly counted both its instruction and encoded-field replacements; the expected count is corrected here and verification remains pending.
+1. [x] **DEX package rewrite hardening** — the advanced opt-in is off by default; cancellation checkpoints and per-DEX start/completion diagnostics are present. APK-level fixtures cover multidex rewriting, encoded static values, package-like unrelated strings, unchanged class descriptors, and cancellation propagation. Verified on 2026-11-20 by full CI run #480 for commit `e7b012d` (`testDebugUnitTest`, `lintDebug`, and `assembleDebug` all passed).
 2. **Icon pipeline** — expand custom replacement beyond direct PNG foregrounds to vector XML, nested layer lists, density variants and monochrome resources; add per-resource diagnostics so unsupported formats are reported instead of silently retaining the source artwork.
 3. **OBB support** — investigate Android-version-appropriate access to installed-source expansion files, while keeping export/import behavior explicit and permission-safe.
 4. **Compatibility analysis** — add fixture-backed checks for package-bound Google services, Firebase/FCM, signature dependencies, shared-user constraints and known runtime limitations.
@@ -46,3 +46,8 @@ OpenClone must not bypass DRM, licensing, account security, anti-cheat, app inte
 ## Source and licensing
 
 This audit is based on the reference project's publicly described feature behavior and OpenClone's own source tree. It does not copy reference implementation source code. Keep OpenClone's existing GPL-3.0-only licensing and third-party notices accurate for the code actually included.
+
+
+## Completed task log
+
+- [x] 2026-11-20 — DEX rewrite hardening test coverage and safer opt-in wording. Commit: `e7b012d198f29d0d2670fa1bc8b17abc192a5647`. Full Android CI run [#480](https://github.com/Joe-cell-ai/OpenClone/actions/runs/44710402654) passed unit tests, lint and debug APK assembly. This verifies build-time behavior only; it is not a device/runtime compatibility claim.
