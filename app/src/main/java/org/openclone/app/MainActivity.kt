@@ -170,7 +170,7 @@ class MainActivity : FragmentActivity() {
                         runCatching {
                             OpenCloneThemeMode.valueOf(
                                 getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
-                                    .getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name) ?: OpenCloneThemeMode.DARK.name
+                                    .getString(THEME_MODE_KEY, OpenCloneThemeMode.LIGHT.name) ?: OpenCloneThemeMode.LIGHT.name
                             )
                         }.getOrDefault(OpenCloneThemeMode.DARK)
                     )
@@ -1061,8 +1061,8 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth()
-                    .padding(start = 18.dp, end = 18.dp, top = 20.dp, bottom = 12.dp)
-                    .offset(y = (-50).dp),
+                    .heightIn(min = 56.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
@@ -1107,15 +1107,19 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     item {
-                        Column(
-                            modifier = Modifier.fillMaxWidth()
-                                .background(Brush.linearGradient(listOf(Color(0xFF03A9F4), Color(0xFF0288D1), Color(0xFF01579B))), RoundedCornerShape(22.dp))
-                                .padding(20.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(8.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                         ) {
-                            Text("Clone apps. Your way.", style = MaterialTheme.typography.headlineMedium, color = Color.White, fontWeight = FontWeight.ExtraBold)
-                            Text("Create independent app spaces with custom identity and signing.", color = Color(0xFFE1E8FF))
-                            Text("${apps.size} apps ready  •  ${clones.size} installed clones", color = Color(0xFF9DECF5), style = MaterialTheme.typography.labelMedium)
+                            Column(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Text("App Cloner", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
+                                Text("Create independent copies of installed applications.", color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("${apps.size} apps available  ·  ${clones.size} installed clones", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.labelMedium)
+                            }
                         }
                     }
                     item { Text("App Cloner", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
@@ -2121,8 +2125,8 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                         put("profiles", profileArray)
                                         put("settings", JSONObject().apply {
                                             val appearance = context.getSharedPreferences(THEME_PREFERENCES, Context.MODE_PRIVATE)
-                                            put("themeMode", appearance.getString(THEME_MODE_KEY, OpenCloneThemeMode.DARK.name))
-                                            put("accentPalette", appearance.getString("accent_palette", OpenCloneAccent.VIOLET.name))
+                                            put("themeMode", appearance.getString(THEME_MODE_KEY, OpenCloneThemeMode.LIGHT.name))
+                                            put("accentPalette", appearance.getString("accent_palette", OpenCloneAccent.MATERIAL_BLUE.name))
                                             put("customAccentArgb", appearance.getInt("custom_accent_argb", 0))
                                             val proxyArray = JSONArray()
                                             ProxyProfileRepository(context).getAll().forEach { proxy ->
@@ -2372,7 +2376,7 @@ private fun suggestedClonePackage(original: String, packageManager: android.cont
 private fun HomeActionTile(title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
@@ -2396,11 +2400,11 @@ private fun InstalledAppRow(app: InstalledApp, onClick: () -> Unit, subtitle: St
     }
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
