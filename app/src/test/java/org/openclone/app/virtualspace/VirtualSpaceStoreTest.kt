@@ -38,6 +38,45 @@ class VirtualSpaceStoreTest {
         assertEquals("split", restored.apkFiles[1].readText())
     }
 
+    @Test fun persistsGuestComponentDeclarations() {
+        val source = temporaryFolder.newFile("component.apk").apply { writeText("apk") }
+        val store = VirtualSpaceStore(File(temporaryFolder.root, "component-store"))
+        val declarations = listOf(
+            GuestComponentDeclaration(
+                className = "com.example.notes.MainActivity",
+                kind = GuestComponentDeclaration.Kind.ACTIVITY,
+                exported = true,
+                enabled = true,
+                permission = null,
+                processName = "com.example.notes"
+            ),
+            GuestComponentDeclaration(
+                className = "com.example.notes.SyncService",
+                kind = GuestComponentDeclaration.Kind.SERVICE,
+                exported = false,
+                enabled = true,
+                permission = "com.example.notes.permission.SYNC",
+                processName = ":sync"
+            ),
+            GuestComponentDeclaration(
+                className = "com.example.notes.NotesProvider",
+                kind = GuestComponentDeclaration.Kind.PROVIDER,
+                exported = false,
+                enabled = true,
+                permission = null,
+                processName = null,
+                authority = "com.example.notes.provider"
+            )
+        )
+
+        val created = store.createInstance("com.example.notes", "Notes", listOf(source), declarations)
+        val restored = VirtualSpaceStore(File(temporaryFolder.root, "component-store"))
+            .findInstance(created.id)
+
+        assertNotNull(restored)
+        assertEquals(declarations, restored!!.components)
+    }
+
     @Test fun deletingAnInstanceDoesNotTouchItsSourceApk() {
         val source = temporaryFolder.newFile("original.apk").apply { writeText("original") }
         val store = VirtualSpaceStore(File(temporaryFolder.root, "store"))
