@@ -33,7 +33,8 @@ class VirtualSpaceManager(context: Context) {
         val instance = store.createInstance(
             originalPackage = descriptor.packageName,
             label = descriptor.label,
-            sourceApks = apkFiles
+            sourceApks = apkFiles,
+            components = descriptor.components
         )
         return VirtualSpaceEntry(instance, descriptor, GuestExecutionState.RUNTIME_NOT_AVAILABLE)
     }
