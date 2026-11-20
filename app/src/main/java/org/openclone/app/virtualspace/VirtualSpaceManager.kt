@@ -43,6 +43,21 @@ class VirtualSpaceManager(context: Context) {
 
     fun remove(instanceId: String): Boolean = store.deleteInstance(instanceId)
 
+    fun resolveExplicitActivity(
+        instanceId: String,
+        targetPackage: String?,
+        targetClass: String?,
+        callerPackage: String?
+    ): ResolvedGuestActivity? {
+        val instance = store.findInstance(instanceId) ?: return null
+        return GuestActivityResolver().resolveExplicit(
+            instance = instance,
+            targetPackage = targetPackage,
+            targetClass = targetClass,
+            callerPackage = callerPackage
+        )
+    }
+
     fun executionReadiness(instanceId: String): GuestExecutionState {
         requireNotNull(store.findInstance(instanceId)) { "Virtual app instance was not found." }
         return GuestExecutionState.RUNTIME_NOT_AVAILABLE
