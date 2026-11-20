@@ -14,20 +14,29 @@ class DiagnosticLog(
     @Synchronized
     fun write(message: String, essential: Boolean = false) {
         runCatching {
-            val ceiling = if (essential) limitBytes + reserveBytes else limitBytes
-            val remaining = ceiling - file.length()
-            if (remaining <= 0L) return
-            val prefix = "[${Instant.now()}] "
-            val notice = "LOG LIMIT REACHED ($limitBytes bytes): additional routine messages are dropped."
-            val text = if (!essential && !noticeWritten && remaining > 0L) notice else message
-            val line = (prefix + text + "\n").toByteArray(Charsets.UTF_8)
-            val bounded = if (line.size.toLong() <= remaining) line else line.copyOf(remaining.coerceAtMost(Int.MAX_VALUE.toLong()).toInt())
-            if (bounded.isNotEmpty()) {
-                file.parentFile?.mkdirs()
-                file.appendBytes(bounded)
-                if (text == notice) noticeWritten = true
+            val routineCeiling = limitBytes
+            val totalCeiling = limitBytes + reserveBytes
+            var current = file.length()
+            if (!essential && current >= routineCeiling) {
+                if (!noticeWritten && current < totalCeiling) {
+                    appendBounded("LOG LIMIT REACHED ($limitBytes bytes): routine messages are dropped; essential failure details may use the reserve.", totalCeiling - current)
+                    noticeWritten = true
+                }
+                return
             }
+            val ceiling = if (essential) totalCeiling else routineCeiling
+            val remaining = ceiling - current
+            if (remaining > 0L) appendBounded(message, remaining)
         }
+    }
+
+    private fun appendBounded(message: String, remaining: Long) {
+        if (remaining <= 0L) return
+        val line = ("[${Instant.now()}] " + message + "\n").toByteArray(Charsets.UTF_8)
+        val count = minOf(line.size.toLong(), remaining, Int.MAX_VALUE.toLong()).toInt()
+        if (count <= 0) return
+        file.parentFile?.mkdirs()
+        file.appendBytes(if (count == line.size) line else line.copyOf(count))
     }
 
     companion object {
