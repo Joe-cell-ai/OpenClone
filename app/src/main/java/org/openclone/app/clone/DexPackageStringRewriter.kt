@@ -108,11 +108,20 @@ object DexPackageStringRewriter {
     internal fun replacePackageIdentityToken(value: String, oldPackage: String, newPackage: String): String {
         if (value == oldPackage) return newPackage
         val marker = "$oldPackage/"
-        val index = value.indexOf(marker)
-        if (index < 0) return value
-        val classPart = value.substring(index + marker.length)
-        val qualifiedClass = if (classPart.startsWith(".")) "$oldPackage$classPart" else classPart
-        return value.substring(0, index) + newPackage + "/" + qualifiedClass
+        var searchFrom = 0
+        while (true) {
+            val index = value.indexOf(marker, searchFrom)
+            if (index < 0) return value
+            val hasPackageBoundary = index == 0 || !isPackageCharacter(value[index - 1])
+            if (!hasPackageBoundary) {
+                searchFrom = index + marker.length
+                continue
+            }
+            val classPart = value.substring(index + marker.length)
+            if (classPart.isBlank()) return value
+            val qualifiedClass = if (classPart.startsWith(".")) "$oldPackage$classPart" else classPart
+            return value.substring(0, index) + newPackage + "/" + qualifiedClass
+        }
     }
 
     internal fun replacePackageToken(value: String, oldPackage: String, newPackage: String): String {
