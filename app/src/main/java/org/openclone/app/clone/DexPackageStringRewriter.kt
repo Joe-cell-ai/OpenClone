@@ -24,18 +24,31 @@ import org.jf.dexlib2.rewriter.Rewriters
 object DexPackageStringRewriter {
     data class Result(val replacements: Int)
 
-    fun rewrite(input: File, output: File, oldPackage: String, newPackage: String, ensureActive: () -> Unit = {}): Result {
+    private const val PROGRESS_INTERVAL = 20_000L
+
+    fun rewrite(
+        input: File,
+        output: File,
+        oldPackage: String,
+        newPackage: String,
+        ensureActive: () -> Unit = {},
+        /** Called every [PROGRESS_INTERVAL] visited instructions with the running total. */
+        onInstructions: (Long) -> Unit = {}
+    ): Result {
         require(input.isFile && input.canRead()) { "DEX input is missing or unreadable." }
         require(oldPackage.isNotBlank() && newPackage.isNotBlank() && oldPackage != newPackage) {
             "A distinct source and target package ID is required for DEX rewriting."
         }
         val replacements = AtomicInteger()
+        val visited = java.util.concurrent.atomic.AtomicLong()
         val rewriter = DexRewriter(object : RewriterModule() {
             override fun getInstructionRewriter(rewriters: Rewriters): Rewriter<Instruction> {
                 val delegate = super.getInstructionRewriter(rewriters)
                 return object : Rewriter<Instruction> {
                     override fun rewrite(value: Instruction): Instruction {
                         ensureActive()
+                        val count = visited.incrementAndGet()
+                        if (count % PROGRESS_INTERVAL == 0L) onInstructions(count)
                         val instruction = delegate.rewrite(value)
                         val reference = ((instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)?.reference) as? org.jf.dexlib2.iface.reference.StringReference
                         if (reference == null) return instruction
