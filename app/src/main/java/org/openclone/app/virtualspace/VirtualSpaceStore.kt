@@ -15,8 +15,7 @@ data class VirtualAppInstance(
     val label: String,
     val apkFiles: List<File>,
     val privateDataDirectory: File,
-    val createdAtMillis: Long
-) {
+    val createdAtMillis: Long,\n    val components: List<GuestComponentDeclaration>\n) {
     val apkFile: File get() = apkFiles.first()
 }
 
@@ -35,7 +34,7 @@ class VirtualSpaceStore(rootDirectory: File) {
         createInstance(originalPackage, label, listOf(sourceApk))
 
     @Synchronized
-    fun createInstance(originalPackage: String, label: String, sourceApks: List<File>): VirtualAppInstance {
+    fun createInstance(originalPackage: String, label: String, sourceApks: List<File>, components: List<GuestComponentDeclaration> = emptyList()): VirtualAppInstance {
         require(PACKAGE_ID.matches(originalPackage)) { "Invalid Android package name." }
         require(label.isNotBlank() && label.length <= 100) { "App name must contain 1–100 characters." }
         require(sourceApks.isNotEmpty() && sourceApks.size <= MAX_APK_PARTS) { "The APK set is empty or contains too many split files." }
@@ -62,6 +61,17 @@ class VirtualSpaceStore(rootDirectory: File) {
                 setProperty("originalPackage", originalPackage)
                 setProperty("label", label)
                 setProperty("apkCount", copiedApks.size.toString())
+                setProperty("componentCount", components.size.toString())
+                components.forEachIndexed { index, component ->
+                    val prefix = "component.$index."
+                    setProperty(prefix + "className", component.className)
+                    setProperty(prefix + "kind", component.kind.name)
+                    setProperty(prefix + "exported", component.exported.toString())
+                    setProperty(prefix + "enabled", component.enabled.toString())
+                    component.permission?.let { setProperty(prefix + "permission", it) }
+                    component.processName?.let { setProperty(prefix + "processName", it) }
+                    component.authority?.let { setProperty(prefix + "authority", it) }
+                }
                 setProperty("createdAtMillis", System.currentTimeMillis().toString())
             }
             val metadataFile = File(directory, METADATA_FILE)
@@ -118,7 +128,24 @@ class VirtualSpaceStore(rootDirectory: File) {
         }
         if (apks.any { !it.isFile || it.length() == 0L }) return null
 
-        return VirtualAppInstance(id, originalPackage, label, apks, data, createdAt)
+        val componentCount = properties.getProperty("componentCount")?.toIntOrNull()?.takeIf { it in 0..MAX_COMPONENTS } ?: 0
+        val components = (0 until componentCount).mapNotNull { index ->
+            val prefix = "component.$index."
+            val className = properties.getProperty(prefix + "className") ?: return@mapNotNull null
+            val kind = properties.getProperty(prefix + "kind")?.let {
+                runCatching { GuestComponentDeclaration.Kind.valueOf(it) }.getOrNull()
+            } ?: return@mapNotNull null
+            GuestComponentDeclaration(
+                className = className,
+                kind = kind,
+                exported = properties.getProperty(prefix + "exported")?.toBooleanStrictOrNull() ?: false,
+                enabled = properties.getProperty(prefix + "enabled")?.toBooleanStrictOrNull() ?: true,
+                permission = properties.getProperty(prefix + "permission"),
+                processName = properties.getProperty(prefix + "processName"),
+                authority = properties.getProperty(prefix + "authority")
+            )
+        }
+        return VirtualAppInstance(id, originalPackage, label, apks, data, createdAt, components)
     }
 
     private fun instanceDirectory(id: String): File {
@@ -127,9 +154,9 @@ class VirtualSpaceStore(rootDirectory: File) {
     }
 
     private companion object {
-        const val FORMAT_VERSION = 2
+        const val FORMAT_VERSION = 3
         const val METADATA_FILE = "instance.properties"
-        const val MAX_APK_PARTS = 128
+        const val MAX_APK_PARTS = 128\n        const val MAX_COMPONENTS = 4096
         val UUID_PATTERN = Regex("[0-9a-fA-F-]{36}")
         val PACKAGE_ID = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
     }
