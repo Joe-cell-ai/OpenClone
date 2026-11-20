@@ -14,7 +14,8 @@ data class VirtualApkDescriptor(
     val targetSdk: Int,
     val splitNames: List<String>,
     val requestedPermissions: List<String>,
-    val containsCode: Boolean
+    val containsCode: Boolean,
+    val components: List<GuestComponentDeclaration>
 )
 
 class VirtualApkInspector(private val context: Context) {
@@ -27,7 +28,7 @@ class VirtualApkInspector(private val context: Context) {
         }
 
         val packageInfos = apkFiles.map { file ->
-            val flags = PackageManager.GET_META_DATA or PackageManager.GET_PERMISSIONS
+            val flags = PackageManager.GET_META_DATA or PackageManager.GET_PERMISSIONS or\n                PackageManager.GET_ACTIVITIES or PackageManager.GET_RECEIVERS or\n                PackageManager.GET_SERVICES or PackageManager.GET_PROVIDERS
             val info = if (Build.VERSION.SDK_INT >= 33) {
                 context.packageManager.getPackageArchiveInfo(
                     file.absolutePath,
@@ -70,8 +71,7 @@ class VirtualApkInspector(private val context: Context) {
             targetSdk = appInfo.targetSdkVersion,
             splitNames = splitNames,
             requestedPermissions = base.requestedPermissions?.toList().orEmpty(),
-            containsCode = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_HAS_CODE != 0
-        )
+            containsCode = appInfo.flags and android.content.pm.ApplicationInfo.FLAG_HAS_CODE != 0,\n            components = GuestComponentDeclaration.from(base)\n        )
     }
 
     @Suppress("DEPRECATION")
