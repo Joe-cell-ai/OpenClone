@@ -491,6 +491,31 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
         }
     }
 
+    var pendingBuildLogFile by remember { mutableStateOf<File?>(null) }
+    val exportBuildLog = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri: Uri? ->
+        val source = pendingBuildLogFile
+        pendingBuildLogFile = null
+        if (uri != null && source != null) {
+            val result = runCatching {
+                require(source.isFile && source.canRead()) { "The latest clone build log is unavailable." }
+                val maxBytes = 8L * 1024 * 1024
+                val length = source.length()
+                val destination = context.contentResolver.openOutputStream(uri)
+                    ?: error("Could not open the selected log destination.")
+                destination.use { output ->
+                    java.io.FileInputStream(source).use { input ->
+                        if (length > maxBytes) {
+                            input.channel.position(length - maxBytes)
+                            output.write(("[log truncated: last 8 MB of " + length + " bytes]\n").toByteArray(Charsets.UTF_8))
+                        }
+                        input.copyTo(output)
+                    }
+                }
+            }
+            statusMessage = result.fold({ "Clone build log exported." }, { "Log export failed: " + (it.message ?: it.javaClass.simpleName) })
+        }
+    }
+
     val exportProfileBackup = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri: Uri? ->
         if (uri != null) {
             val result = runCatching {
@@ -2085,6 +2110,22 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                 }.toString(2)
                                 exportProfileBackup.launch("openclone-build-diagnostics.json")
                             }) { Text("Export build diagnostics") }
+                            TextButton(onClick = {
+                                val latest = runCatching {
+                                    File(context.filesDir, "openclone/logs").listFiles()
+                                        ?.filter { it.isFile && it.name.startsWith("clone-build-") && it.name.endsWith(".txt") }
+                                        ?.maxByOrNull { it.lastModified() }
+                                }.getOrElse {
+                                    statusMessage = "Could not locate the latest clone build log: " + (it.message ?: "unknown error")
+                                    null
+                                }
+                                if (latest == null) {
+                                    statusMessage = "No clone build log is available yet."
+                                } else {
+                                    pendingBuildLogFile = latest
+                                    exportBuildLog.launch("openclone-clone-build-log.txt")
+                                }
+                            }) { Text("Export latest clone build log") }
                         }
                     }
                     HorizontalDivider()
