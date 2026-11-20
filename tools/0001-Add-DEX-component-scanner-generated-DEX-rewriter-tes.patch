@@ -1,0 +1,450 @@
+From 4ae6b6bc69f90fd2042d8fc04e2d635921402705 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 20 Nov 2026 07:09:40 +0000
+Subject: [PATCH] Add DEX component scanner, generated-DEX rewriter tests, DEX
+ rewrite progress, clone verify script
+
+---
+ .../org/openclone/app/clone/ApkRebuilder.kt   |  19 +-
+ .../app/clone/DexComponentScanner.kt          | 107 ++++++++++
+ .../app/clone/DexPackageStringRewriter.kt     |  15 +-
+ .../clone/DexPackageStringRewriterDexTest.kt  | 195 ++++++++++++++++++
+ tools/verify_clone.sh                         |  33 +++
+ 5 files changed, 366 insertions(+), 3 deletions(-)
+ create mode 100644 app/src/main/java/org/openclone/app/clone/DexComponentScanner.kt
+ create mode 100644 app/src/test/java/org/openclone/app/clone/DexPackageStringRewriterDexTest.kt
+ create mode 100755 tools/verify_clone.sh
+
+diff --git a/app/src/main/java/org/openclone/app/clone/ApkRebuilder.kt b/app/src/main/java/org/openclone/app/clone/ApkRebuilder.kt
+index d5fd5b5..d7b2691 100644
+--- a/app/src/main/java/org/openclone/app/clone/ApkRebuilder.kt
++++ b/app/src/main/java/org/openclone/app/clone/ApkRebuilder.kt
+@@ -83,6 +83,15 @@ object ApkRebuilder {
+                 }
+                 // Patched up front: the resource table needs the old package name, and nothing
+                 // says the manifest comes before it in the archive.
++                fun copyPlain(input: java.io.InputStream, output: OutputStream) {
++                    val buffer = ByteArray(1 shl 16)
++                    while (true) {
++                        onStep?.invoke()
++                        val count = input.read(buffer)
++                        if (count < 0) break
++                        output.write(buffer, 0, count)
++                    }
++                }
+                 val manifest = zip.getEntry(MANIFEST)?.let { entry ->
+                     patcher.patch(originalManifest ?: zip.getInputStream(entry).use { it.readBytes() })
+                 }
+@@ -155,11 +164,17 @@ object ApkRebuilder {
+                         val sourceDex = File.createTempFile("openclone-source-", ".dex", target.parentFile)
+                         val rewrittenDex = File.createTempFile("openclone-rewritten-", ".dex", target.parentFile)
+                         try {
+-                            zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyWithProgress(input, output) } }
++                            zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyPlain(input, output) } }
+                             onStep?.invoke()
+                             val rewrite = DexPackageStringRewriter.rewrite(
+                                 sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {}
+-                            )
++                            ) { instructions ->
++                                // The instruction total is unknown up front, so ease toward 90% of this
++                                // entry's byte share. Its bytes are counted once, by the final copy below.
++                                val share = entry.size.coerceAtLeast(0L)
++                                val partial = (share * 0.9 * (1.0 - kotlin.math.exp(-instructions / 1_500_000.0))).toLong()
++                                onProgress((((processedBytes + partial) * 95L) / totalBytes).toInt().coerceIn(0, 95))
++                            }
+                             onStep?.invoke()
+                             onEntry?.invoke("${entry.name}: DEX rewrite complete; replacements=${rewrite.replacements}", entry.size, entryIndex + 1, totalEntries)
+                             val selectedDex = if (rewrite.replacements > 0) rewrittenDex else sourceDex
+diff --git a/app/src/main/java/org/openclone/app/clone/DexComponentScanner.kt b/app/src/main/java/org/openclone/app/clone/DexComponentScanner.kt
+new file mode 100644
+index 0000000..3fe58af
+--- /dev/null
++++ b/app/src/main/java/org/openclone/app/clone/DexComponentScanner.kt
+@@ -0,0 +1,107 @@
++package org.openclone.app.clone
++
++import java.io.File
++import java.util.zip.ZipFile
++import org.jf.dexlib2.DexFileFactory
++import org.jf.dexlib2.Opcodes
++import org.jf.dexlib2.iface.instruction.ReferenceInstruction
++import org.jf.dexlib2.iface.reference.MethodReference
++import org.jf.dexlib2.iface.reference.StringReference
++
++/**
++ * Diagnostic scan of how an app's DEX files refer to its own package, so a build can be checked
++ * against the real app instead of guessed at. It reads only; it changes nothing.
++ *
++ * It is a per-method heuristic, not data-flow analysis: a literal and a component API that sit in
++ * the same method are reported together. Treat DYNAMIC as "look at this method by hand".
++ */
++object DexComponentScanner {
++    enum class Shape {
++        /** One flattened string such as "pkg/.Class" or "pkg/pkg.Class". */
++        FLATTENED,
++        /** The package alone and a package-qualified class name as two literals. */
++        SEPARATE_LITERALS,
++        /** The package alone, with a relative fragment ("/.X", ".X") or string building in the method. */
++        DYNAMIC,
++        /** The package alone, used with no class literal beside it. */
++        PACKAGE_ONLY
++    }
++
++    data class Finding(
++        val method: String,
++        val shape: Shape,
++        val literals: List<String>,
++        val componentApis: List<String>
++    )
++
++    private val COMPONENT_APIS = setOf(
++        "ComponentName-><init>", "Intent->setClassName", "Intent->setComponent", "Intent->setPackage",
++        "Intent-><init>", "PackageManager->getLaunchIntentForPackage", "ComponentName->unflattenFromString",
++        "Intent->parseUri", "Class->forName", "PendingIntent->getActivity"
++    )
++    private val STRING_BUILDING = setOf("StringBuilder->append", "String->concat", "String->format", "String->valueOf")
++
++    fun scanApk(apk: File, oldPackage: String): List<Finding> {
++        val results = mutableListOf<Finding>()
++        val temp = File.createTempFile("openclone-scan-", ".dex")
++        try {
++            ZipFile(apk).use { zip ->
++                for (entry in zip.entries().asSequence().filter { it.name.matches(Regex("classes\\d*\\.dex")) }) {
++                    zip.getInputStream(entry).use { input -> temp.outputStream().use { input.copyTo(it) } }
++                    results += scan(temp, oldPackage).map { it.copy(method = "${entry.name}:${it.method}") }
++                }
++            }
++        } finally {
++            temp.delete()
++        }
++        return results
++    }
++
++    fun scan(dexFile: File, oldPackage: String): List<Finding> {
++        val dex = DexFileFactory.loadDexFile(dexFile, Opcodes.getDefault())
++        val findings = mutableListOf<Finding>()
++        for (classDef in dex.classes) {
++            for (method in classDef.methods) {
++                val instructions = method.implementation?.instructions ?: continue
++                val literals = mutableListOf<String>()
++                val apis = linkedSetOf<String>()
++                for (instruction in instructions) {
++                    val reference = (instruction as? ReferenceInstruction)?.reference
++                    when (reference) {
++                        is StringReference -> literals += reference.string
++                        is MethodReference -> apis += reference.definingClass.substringAfterLast('/').trimEnd(';') +
++                            "->" + reference.name
++                    }
++                }
++                val mine = literals.filter {
++                    it == oldPackage || it.startsWith("$oldPackage/") || it.startsWith("$oldPackage.") ||
++                        it.startsWith("/.") || (it.startsWith(".") && it.length > 1)
++                }
++                if (mine.none { it == oldPackage || it.startsWith("$oldPackage/") }) continue
++                val componentApis = apis.filter { it in COMPONENT_APIS }
++                val building = apis.any { it in STRING_BUILDING }
++                val shape = when {
++                    mine.any { it.startsWith("$oldPackage/") } -> Shape.FLATTENED
++                    mine.any { it.startsWith("/.") || it.startsWith(".") } || building -> Shape.DYNAMIC
++                    mine.any { it.startsWith("$oldPackage.") } -> Shape.SEPARATE_LITERALS
++                    else -> Shape.PACKAGE_ONLY
++                }
++                findings += Finding("${classDef.type}->${method.name}", shape, mine.distinct(), componentApis + apis.filter { it in STRING_BUILDING })
++            }
++        }
++        return findings
++    }
++
++    /** Command line: DexComponentScanner app.apk com.example.app */
++    @JvmStatic
++    fun main(args: Array<String>) {
++        require(args.size == 2) { "usage: DexComponentScanner <apk-or-dex> <original-package>" }
++        val file = File(args[0])
++        val findings = if (file.name.endsWith(".dex")) scan(file, args[1]) else scanApk(file, args[1])
++        findings.groupBy { it.shape }.forEach { (shape, items) ->
++            println("== $shape (${items.size})")
++            items.forEach { println("  ${it.method}\n    literals=${it.literals}\n    apis=${it.componentApis}") }
++        }
++        if (findings.isEmpty()) println("No method pairs the package literal with a component API.")
++    }
++}
+diff --git a/app/src/main/java/org/openclone/app/clone/DexPackageStringRewriter.kt b/app/src/main/java/org/openclone/app/clone/DexPackageStringRewriter.kt
+index 810f60b..60871a0 100644
+--- a/app/src/main/java/org/openclone/app/clone/DexPackageStringRewriter.kt
++++ b/app/src/main/java/org/openclone/app/clone/DexPackageStringRewriter.kt
+@@ -24,18 +24,31 @@ import org.jf.dexlib2.rewriter.Rewriters
+ object DexPackageStringRewriter {
+     data class Result(val replacements: Int)
+ 
+-    fun rewrite(input: File, output: File, oldPackage: String, newPackage: String, ensureActive: () -> Unit = {}): Result {
++    private const val PROGRESS_INTERVAL = 20_000L
++
++    fun rewrite(
++        input: File,
++        output: File,
++        oldPackage: String,
++        newPackage: String,
++        ensureActive: () -> Unit = {},
++        /** Called every [PROGRESS_INTERVAL] visited instructions with the running total. */
++        onInstructions: (Long) -> Unit = {}
++    ): Result {
+         require(input.isFile && input.canRead()) { "DEX input is missing or unreadable." }
+         require(oldPackage.isNotBlank() && newPackage.isNotBlank() && oldPackage != newPackage) {
+             "A distinct source and target package ID is required for DEX rewriting."
+         }
+         val replacements = AtomicInteger()
++        val visited = java.util.concurrent.atomic.AtomicLong()
+         val rewriter = DexRewriter(object : RewriterModule() {
+             override fun getInstructionRewriter(rewriters: Rewriters): Rewriter<Instruction> {
+                 val delegate = super.getInstructionRewriter(rewriters)
+                 return object : Rewriter<Instruction> {
+                     override fun rewrite(value: Instruction): Instruction {
+                         ensureActive()
++                        val count = visited.incrementAndGet()
++                        if (count % PROGRESS_INTERVAL == 0L) onInstructions(count)
+                         val instruction = delegate.rewrite(value)
+                         val reference = ((instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)?.reference) as? org.jf.dexlib2.iface.reference.StringReference
+                         if (reference == null) return instruction
+diff --git a/app/src/test/java/org/openclone/app/clone/DexPackageStringRewriterDexTest.kt b/app/src/test/java/org/openclone/app/clone/DexPackageStringRewriterDexTest.kt
+new file mode 100644
+index 0000000..39cc475
+--- /dev/null
++++ b/app/src/test/java/org/openclone/app/clone/DexPackageStringRewriterDexTest.kt
+@@ -0,0 +1,195 @@
++package org.openclone.app.clone
++
++import java.io.File
++import java.nio.file.Files
++import org.jf.dexlib2.AccessFlags
++import org.jf.dexlib2.DexFileFactory
++import org.jf.dexlib2.Opcode
++import org.jf.dexlib2.Opcodes
++import org.jf.dexlib2.builder.MutableMethodImplementation
++import org.jf.dexlib2.builder.instruction.BuilderInstruction10x
++import org.jf.dexlib2.builder.instruction.BuilderInstruction21c
++import org.jf.dexlib2.builder.instruction.BuilderInstruction35c
++import org.jf.dexlib2.iface.instruction.ReferenceInstruction
++import org.jf.dexlib2.iface.reference.StringReference
++import org.jf.dexlib2.immutable.reference.ImmutableMethodReference
++import org.jf.dexlib2.immutable.value.ImmutableStringEncodedValue
++import org.jf.dexlib2.writer.builder.BuilderField
++import org.jf.dexlib2.writer.builder.BuilderMethod
++import org.jf.dexlib2.writer.builder.DexBuilder
++import org.jf.dexlib2.writer.io.FileDataStore
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++/**
++ * Runs the rewriter over real DEX files built here, so what is checked is the instruction and
++ * encoded-value rewriting, not just the string helper. A passing run still does not show that a
++ * given app works: that needs the real app's DEX (see DexComponentScanner) and a device.
++ */
++class DexPackageStringRewriterDexTest {
++    private val old = "com.whatsapp"
++    private val clone = "com.whatsapp.clone"
++    private val registerPhone = "com.whatsapp.registration.app.phonenumberentry.RegisterPhone"
++    private val stringType = "Ljava/lang/String;"
++    private val componentInit = ImmutableMethodReference(
++        "Landroid/content/ComponentName;", "<init>", listOf(stringType, stringType), "V"
++    )
++
++    private fun dexOf(build: (DexBuilder) -> Unit): File {
++        val file = Files.createTempFile("openclone-fixture-", ".dex").toFile().also { it.deleteOnExit() }
++        val builder = DexBuilder(Opcodes.getDefault())
++        build(builder)
++        builder.writeTo(FileDataStore(file))
++        return file
++    }
++
++    private fun DexBuilder.addClass(type: String, methods: List<BuilderMethod>, fields: List<BuilderField> = emptyList()) =
++        internClassDef(type, AccessFlags.PUBLIC.value, "Ljava/lang/Object;", emptyList(), null, emptySet(), fields, methods)
++
++    private fun DexBuilder.addMethod(type: String, name: String, registers: Int, code: MutableMethodImplementation.() -> Unit) =
++        internMethod(
++            type, name, emptyList(), "V", AccessFlags.PUBLIC.value or AccessFlags.STATIC.value,
++            emptySet(), emptySet(), MutableMethodImplementation(registers).apply(code)
++        )
++
++    private fun MutableMethodImplementation.constString(b: DexBuilder, register: Int, value: String) =
++        addInstruction(BuilderInstruction21c(Opcode.CONST_STRING, register, b.internStringReference(value)))
++
++    private fun MutableMethodImplementation.newComponent(b: DexBuilder, package_: Int, class_: Int) =
++        addInstruction(BuilderInstruction35c(Opcode.INVOKE_DIRECT, 3, 2, package_, class_, 0, 0, b.internMethodReference(componentInit)))
++
++    private fun MutableMethodImplementation.finish() = addInstruction(BuilderInstruction10x(Opcode.RETURN_VOID))
++
++    private fun literalsOf(dex: File): List<String> {
++        val result = mutableListOf<String>()
++        for (classDef in DexFileFactory.loadDexFile(dex, Opcodes.getDefault()).classes) {
++            for (method in classDef.methods) {
++                method.implementation?.instructions?.forEach {
++                    ((it as? ReferenceInstruction)?.reference as? StringReference)?.let { ref -> result += ref.string }
++                }
++            }
++        }
++        return result
++    }
++
++    private fun staticFieldStrings(dex: File): List<String> {
++        val result = mutableListOf<String>()
++        for (classDef in DexFileFactory.loadDexFile(dex, Opcodes.getDefault()).classes) {
++            for (field in classDef.staticFields) {
++                (field.initialValue as? org.jf.dexlib2.iface.value.StringEncodedValue)?.let { result += it.value }
++            }
++        }
++        return result
++    }
++
++    private fun rewrite(input: File): Pair<File, DexPackageStringRewriter.Result> {
++        val output = Files.createTempFile("openclone-rewritten-", ".dex").toFile().also { it.deleteOnExit() }
++        return output to DexPackageStringRewriter.rewrite(input, output, old, clone)
++    }
++
++    @Test
++    fun separatePackageAndClassLiteralsTargetTheCloneAndKeepTheClass() {
++        val dex = dexOf { b ->
++            val m = b.addMethod("Lcom/whatsapp/Launcher;", "open", 3) {
++                constString(b, 0, old); constString(b, 1, registerPhone); newComponent(b, 0, 1); finish()
++            }
++            b.addClass("Lcom/whatsapp/Launcher;", listOf(m))
++        }
++        val (out, result) = rewrite(dex)
++        assertEquals(1, result.replacements)
++        assertEquals(listOf(clone, registerPhone), literalsOf(out))
++    }
++
++    @Test
++    fun flattenedComponentTargetsTheCloneWithTheFullyQualifiedOriginalClass() {
++        val dex = dexOf { b ->
++            val m = b.addMethod("Lcom/whatsapp/Launcher;", "open", 1) {
++                constString(b, 0, "com.whatsapp/.registration.app.phonenumberentry.RegisterPhone"); finish()
++            }
++            b.addClass("Lcom/whatsapp/Launcher;", listOf(m))
++        }
++        val (out, result) = rewrite(dex)
++        assertEquals(1, result.replacements)
++        assertEquals(listOf("$clone/$registerPhone"), literalsOf(out))
++    }
++
++    @Test
++    fun staticFieldStringValuesAreRewritten() {
++        val dex = dexOf { b ->
++            val f = b.internField("Lcom/whatsapp/Consts;", "PKG", stringType, AccessFlags.PUBLIC.value or AccessFlags.STATIC.value or AccessFlags.FINAL.value, ImmutableStringEncodedValue(old), emptySet(), emptySet())
++            b.addClass("Lcom/whatsapp/Consts;", emptyList(), listOf(f))
++        }
++        val (out, result) = rewrite(dex)
++        assertEquals(1, result.replacements)
++        assertEquals(listOf(clone), staticFieldStrings(out))
++    }
++
++    @Test
++    fun otherIdentifiersThatStartWithThePackageAreLeftAlone() {
++        val untouched = listOf("com.whatsapp.permission.BROADCAST", "com.whatsapp.provider.media", "com.whatsapp_preferences", registerPhone)
++        val dex = dexOf { b ->
++            val m = b.addMethod("Lcom/whatsapp/Names;", "all", 1) {
++                untouched.forEach { constString(b, 0, it) }; finish()
++            }
++            b.addClass("Lcom/whatsapp/Names;", listOf(m))
++        }
++        val (out, result) = rewrite(dex)
++        assertEquals(0, result.replacements)
++        assertEquals(untouched, literalsOf(out))
++    }
++
++    @Test
++    fun classAndMethodStructureIsPreserved() {
++        val dex = dexOf { b ->
++            val m = b.addMethod("Lcom/whatsapp/registration/app/phonenumberentry/RegisterPhone;", "run", 1) {
++                constString(b, 0, old); finish()
++            }
++            b.addClass("Lcom/whatsapp/registration/app/phonenumberentry/RegisterPhone;", listOf(m))
++        }
++        val (out, _) = rewrite(dex)
++        val loaded = DexFileFactory.loadDexFile(out, Opcodes.getDefault()).classes.toList()
++        assertEquals(listOf("Lcom/whatsapp/registration/app/phonenumberentry/RegisterPhone;"), loaded.map { it.type })
++        assertEquals(listOf("run"), loaded.single().methods.map { it.name })
++    }
++
++    @Test
++    fun scannerSeparatesFlattenedSeparateAndDynamicShapes() {
++        val dex = dexOf { b ->
++            val separate = b.addMethod("Lcom/whatsapp/A;", "separate", 3) {
++                constString(b, 0, old); constString(b, 1, registerPhone); newComponent(b, 0, 1); finish()
++            }
++            val flattened = b.addMethod("Lcom/whatsapp/A;", "flattened", 1) {
++                constString(b, 0, "com.whatsapp/.registration.app.phonenumberentry.RegisterPhone"); finish()
++            }
++            val dynamic = b.addMethod("Lcom/whatsapp/A;", "dynamic", 2) {
++                constString(b, 0, old); constString(b, 1, "/.registration.app.phonenumberentry.RegisterPhone"); finish()
++            }
++            b.addClass("Lcom/whatsapp/A;", listOf(separate, flattened, dynamic))
++        }
++        val byMethod = DexComponentScanner.scan(dex, old).associateBy { it.method.substringAfter("->") }
++        assertEquals(DexComponentScanner.Shape.SEPARATE_LITERALS, byMethod.getValue("separate").shape)
++        assertEquals(DexComponentScanner.Shape.FLATTENED, byMethod.getValue("flattened").shape)
++        assertEquals(DexComponentScanner.Shape.DYNAMIC, byMethod.getValue("dynamic").shape)
++        assertTrue("ComponentName-><init>" in byMethod.getValue("separate").componentApis)
++    }
++
++    /**
++     * Documents a known limit rather than hiding it: the exact package literal is rewritten but a
++     * separate relative fragment is not, so a class built as package + ".X" would resolve under the
++     * clone package. The scanner flags that shape so it is visible in a real app's DEX.
++     */
++    @Test
++    fun relativeFragmentBesideTheBarePackageIsFlaggedAsDynamic() {
++        val dex = dexOf { b ->
++            val m = b.addMethod("Lcom/whatsapp/B;", "build", 2) {
++                constString(b, 0, old); constString(b, 1, ".registration.X"); finish()
++            }
++            b.addClass("Lcom/whatsapp/B;", listOf(m))
++        }
++        val (out, _) = rewrite(dex)
++        assertEquals(listOf(clone, ".registration.X"), literalsOf(out))
++        assertFalse(DexComponentScanner.scan(dex, old).none { it.shape == DexComponentScanner.Shape.DYNAMIC })
++    }
++}
+diff --git a/tools/verify_clone.sh b/tools/verify_clone.sh
+new file mode 100755
+index 0000000..6ab4248
+--- /dev/null
++++ b/tools/verify_clone.sh
+@@ -0,0 +1,33 @@
++#!/usr/bin/env bash
++# Static check of a built clone. Usage:
++#   tools/verify_clone.sh original.apk clone.apk com.whatsapp com.whatsapp.clone \
++#       com.whatsapp.registration.app.phonenumberentry.RegisterPhone
++# Heuristic only: it shows what the build changed, it does not prove the app works.
++set -euo pipefail
++orig=$1; clone=$2; old=$3; new=$4; component=$5
++work=$(mktemp -d); trap 'rm -rf "$work"' EXIT
++count() { # apk, needle, mode(x=exact line, f=contains)
++  local apk=$1 needle=$2 mode=$3 total=0 d n
++  mkdir -p "$work/d"; rm -f "$work"/d/*
++  unzip -qo "$apk" 'classes*.dex' -d "$work/d" 2>/dev/null || { echo 0; return; }
++  for d in "$work"/d/classes*.dex; do
++    [ -e "$d" ] || continue
++    if [ "$mode" = x ]; then n=$(strings -n 4 "$d" | grep -cFx -- "$needle" || true)
++    else n=$(strings -n 4 "$d" | grep -cF -- "$needle" || true); fi
++    total=$((total + n))
++  done
++  echo "$total"
++}
++echo "== DEX strings (heuristic; length-prefix bytes can hide some matches)"
++echo "exact '$old'        original: $(count "$orig" "$old" x)   clone: $(count "$clone" "$old" x)"
++echo "exact '$new'        original: $(count "$orig" "$new" x)   clone: $(count "$clone" "$new" x)"
++echo "contains '$old/'    original: $(count "$orig" "$old/" f)  clone: $(count "$clone" "$old/" f)"
++echo "== Manifest declares the component in the clone?"
++if command -v aapt2 >/dev/null; then
++  aapt2 dump xmltree --file AndroidManifest.xml "$clone" | grep -F -- "$component" >/dev/null \
++    && echo "yes: $component" || echo "NO: $component missing from clone manifest"
++else
++  echo "aapt2 not found; run: apkanalyzer manifest print $clone | grep $component"
++fi
++echo "== Not covered by the DEX rewrite (inspect by hand): res/xml shortcuts/widgets, resources.arsc strings, native libs"
++echo "== Device: adb logcat -c; reproduce; adb logcat -d | grep -E 'Permission Denial|ActivityNotFound|FATAL|cmp='"
+-- 
+2.43.0
+
