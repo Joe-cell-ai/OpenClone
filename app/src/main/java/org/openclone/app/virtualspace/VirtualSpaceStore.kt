@@ -15,7 +15,9 @@ data class VirtualAppInstance(
     val label: String,
     val apkFiles: List<File>,
     val privateDataDirectory: File,
-    val createdAtMillis: Long,\n    val components: List<GuestComponentDeclaration>\n) {
+    val createdAtMillis: Long,
+    val components: List<GuestComponentDeclaration>
+) {
     val apkFile: File get() = apkFiles.first()
 }
 
@@ -154,9 +156,11 @@ class VirtualSpaceStore(rootDirectory: File) {
     }
 
     private companion object {
-        const val FORMAT_VERSION = 3\n        val SUPPORTED_FORMAT_VERSIONS = setOf(2, FORMAT_VERSION)
+        const val FORMAT_VERSION = 3
+        val SUPPORTED_FORMAT_VERSIONS = setOf(2, FORMAT_VERSION)
         const val METADATA_FILE = "instance.properties"
-        const val MAX_APK_PARTS = 128\n        const val MAX_COMPONENTS = 4096
+        const val MAX_APK_PARTS = 128
+        const val MAX_COMPONENTS = 4096
         val UUID_PATTERN = Regex("[0-9a-fA-F-]{36}")
         val PACKAGE_ID = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
     }
