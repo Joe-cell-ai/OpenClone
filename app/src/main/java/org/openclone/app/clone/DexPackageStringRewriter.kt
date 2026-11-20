@@ -12,6 +12,7 @@ import org.jf.dexlib2.iface.instruction.formats.Instruction21c
 import org.jf.dexlib2.iface.instruction.formats.Instruction31c
 import org.jf.dexlib2.iface.value.EncodedValue
 import org.jf.dexlib2.iface.value.StringEncodedValue
+import org.jf.dexlib2.immutable.ImmutableDexFile
 import org.jf.dexlib2.immutable.instruction.ImmutableInstruction21c
 import org.jf.dexlib2.immutable.instruction.ImmutableInstruction31c
 import org.jf.dexlib2.immutable.value.ImmutableStringEncodedValue
@@ -98,7 +99,9 @@ object DexPackageStringRewriter {
         })
         ensureActive()
         val dex = DexFileFactory.loadDexFile(input, Opcodes.getDefault())
-        val rewritten = rewriter.dexFileRewriter.rewrite(dex)
+        // DexRewriter returns lazy wrappers. Snapshot them into immutable DEX models before
+        // writing so every rewritten instruction is actually traversed and materialized.
+        val rewritten = ImmutableDexFile.of(rewriter.dexFileRewriter.rewrite(dex))
         output.parentFile?.mkdirs()
         ensureActive()
         DexFileFactory.writeDexFile(output.absolutePath, rewritten)
