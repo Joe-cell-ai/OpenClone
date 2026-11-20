@@ -40,6 +40,8 @@ class VirtualSpaceStore(rootDirectory: File) {
         require(PACKAGE_ID.matches(originalPackage)) { "Invalid Android package name." }
         require(label.isNotBlank() && label.length <= 100) { "App name must contain 1–100 characters." }
         require(sourceApks.isNotEmpty() && sourceApks.size <= MAX_APK_PARTS) { "The APK set is empty or contains too many split files." }
+        require(components.size <= MAX_COMPONENTS) { "The APK declares too many Android components." }
+        require(components.all { COMPONENT_CLASS.matches(it.className) }) { "The APK contains an invalid component class name." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files are unavailable." }
 
         val id = UUID.randomUUID().toString()
@@ -133,7 +135,7 @@ class VirtualSpaceStore(rootDirectory: File) {
         val componentCount = properties.getProperty("componentCount")?.toIntOrNull()?.takeIf { it in 0..MAX_COMPONENTS } ?: 0
         val components = (0 until componentCount).mapNotNull { index ->
             val prefix = "component.$index."
-            val className = properties.getProperty(prefix + "className") ?: return@mapNotNull null
+            val className = properties.getProperty(prefix + "className")?.takeIf { COMPONENT_CLASS.matches(it) } ?: return@mapNotNull null
             val kind = properties.getProperty(prefix + "kind")?.let {
                 runCatching { GuestComponentDeclaration.Kind.valueOf(it) }.getOrNull()
             } ?: return@mapNotNull null
@@ -163,5 +165,6 @@ class VirtualSpaceStore(rootDirectory: File) {
         const val MAX_COMPONENTS = 4096
         val UUID_PATTERN = Regex("[0-9a-fA-F-]{36}")
         val PACKAGE_ID = Regex("[A-Za-z][A-Za-z0-9_]*(\\.[A-Za-z][A-Za-z0-9_]*)+")
+        val COMPONENT_CLASS = Regex("[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)+")
     }
 }
