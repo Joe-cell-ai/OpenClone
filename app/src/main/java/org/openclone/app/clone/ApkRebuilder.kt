@@ -81,6 +81,15 @@ object ApkRebuilder {
                         }
                     }
                 }
+                fun copyPlain(input: java.io.InputStream, output: OutputStream) {
+                    val buffer = ByteArray(1 shl 16)
+                    while (true) {
+                        onStep?.invoke()
+                        val count = input.read(buffer)
+                        if (count < 0) break
+                        output.write(buffer, 0, count)
+                    }
+                }
                 // Patched up front: the resource table needs the old package name, and nothing
                 // says the manifest comes before it in the archive.
                 val manifest = zip.getEntry(MANIFEST)?.let { entry ->
@@ -155,11 +164,17 @@ object ApkRebuilder {
                         val sourceDex = File.createTempFile("openclone-source-", ".dex", target.parentFile)
                         val rewrittenDex = File.createTempFile("openclone-rewritten-", ".dex", target.parentFile)
                         try {
-                            zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyWithProgress(input, output) } }
+                            zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyPlain(input, output) } }
                             onStep?.invoke()
                             val rewrite = DexPackageStringRewriter.rewrite(
                                 sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {}
-                            )
+                            ) { instructions ->
+                                // DEX instruction count is unknown before parsing. Ease toward 90%
+                                // of this entry's byte share; final output copying accounts for bytes once.
+                                val share = entry.size.coerceAtLeast(0L)
+                                val partial = (share * 0.9 * (1.0 - kotlin.math.exp(-instructions / 1_500_000.0))).toLong()
+                                onProgress((((processedBytes + partial) * 95L) / totalBytes).toInt().coerceIn(0, 95))
+                            }
                             onStep?.invoke()
                             onEntry?.invoke("${entry.name}: DEX rewrite complete; replacements=${rewrite.replacements}", entry.size, entryIndex + 1, totalEntries)
                             val selectedDex = if (rewrite.replacements > 0) rewrittenDex else sourceDex
