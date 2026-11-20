@@ -1134,34 +1134,49 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     item {
                         Card(
                             modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
+                            shape = RoundedCornerShape(20.dp),
                             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
                         ) {
                             Column(
-                                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                                modifier = Modifier.fillMaxWidth().padding(20.dp),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("App Cloner", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
-                                Text("Create independent copies of installed applications.", color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                Text("${apps.size} apps available  ·  ${clones.size} installed clones", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.labelMedium)
+                                Text("OPENCLONE", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                Text("App Cloner", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.Bold)
+                                Text("Create independent copies of installed applications.", color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyMedium)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)) {
+                                        Text("${apps.size} apps", modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.72f)) {
+                                        Text("${clones.size} clones", modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurface)
+                                    }
+                                }
                             }
                         }
                     }
-                    item { Text("App Cloner", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
                     item {
-                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Column(Modifier.weight(1f)) {
+                                Text("Workspace", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                                Text("Choose what you want to clone or manage", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                    }
+                    item {
+                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 HomeActionTile("Apps", "Clone installed apps", Modifier.weight(1f)) { currentTab = "Apps" }
                                 HomeActionTile("APKs", "Clone APK files", Modifier.weight(1f)) { currentTab = "APKs" }
                             }
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 HomeActionTile("Cloned apps", "Manage installed clones", Modifier.weight(1f)) { currentTab = "Cloned apps" }
                                 HomeActionTile("Cloned APKs", "Manage generated APKs", Modifier.weight(1f)) { currentTab = "Cloned APKs" }
                             }
                         }
                     }
                     item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             HomeActionTile("Extensions", "Ad Shield and secure remote tools", Modifier.weight(1f)) { currentTab = "Extensions" }
                             HomeActionTile("Settings", "Appearance, profiles and security", Modifier.weight(1f)) { showSettings = true }
                         }
@@ -1170,15 +1185,15 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         Text("Extension availability is shown inside Extensions. Each tool identifies its current Android/API limitations before activation.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                "Apps" -> Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                "Apps" -> Column(Modifier.weight(1f).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
                         Text("Installed applications", style = MaterialTheme.typography.titleMedium)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text("System apps", style = MaterialTheme.typography.labelSmall)
                             Switch(checked = includeSystem, onCheckedChange = { includeSystem = it })
                         }
                     }
-                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().focusRequester(listSearchFocusRequester), singleLine = true, label = { Text("Search apps or package ID") })
+                    OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().focusRequester(listSearchFocusRequester), singleLine = true, shape = RoundedCornerShape(16.dp), label = { Text("Search apps or package ID") })
                     when {
                         loading -> Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { CircularProgressIndicator(); Text("Loading apps…") }
                         visibleApps.isEmpty() -> Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) { Text("No matching apps found.") }
@@ -1234,7 +1249,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     OutlinedTextField(value = query, onValueChange = { query = it }, modifier = Modifier.fillMaxWidth().focusRequester(listSearchFocusRequester),
-                        singleLine = true, label = { Text("Search clone name or package ID") })
+                        singleLine = true, shape = RoundedCornerShape(16.dp), label = { Text("Search clone name or package ID") })
                     if (filteredClones.isEmpty()) {
                         Column(Modifier.fillMaxWidth().weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                             Text("🧬", style = MaterialTheme.typography.displayMedium)
@@ -1459,9 +1474,15 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
             text = {
                 Column(
                     modifier = Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text("Original: $sourcePackage · $sourceLabel", style = MaterialTheme.typography.bodyMedium)
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), shape = RoundedCornerShape(16.dp)) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("SOURCE APPLICATION", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Text(sourceLabel, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer, fontWeight = FontWeight.SemiBold)
+                            Text(sourcePackage, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        }
+                    }
                     Text(
                         if (cloneUpdateMode) "OpenClone will rebuild this clone using its existing package ID and signing identity." else "OpenClone will create a separate copy using the recommended app name and package ID. Default clone settings will be applied automatically.",
                         style = MaterialTheme.typography.bodySmall,
@@ -1658,7 +1679,12 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                 progress = { cloneProgress / 100f },
                                 modifier = Modifier.fillMaxWidth()
                             )
-                            Text("Building and signing APKs… $cloneProgress%")
+                            Text(
+                        if (cloneProgress > 0) "Building and signing APKs… $cloneProgress%" else "Preparing clone build…",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold
+                    )
                         } else {
                             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                             Text("Preparing and rebuilding APKs… This can take several minutes for large apps.")
@@ -1794,9 +1820,10 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
             onDismissRequest = { },
             title = { Text("Clone build in progress") },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("BUILD STATUS", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                     LinearProgressIndicator(
-                        progress = { cloneProgress / 100f },
+                        progress = { cloneProgress.coerceIn(0, 100) / 100f },
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text("Building and signing APKs… $cloneProgress%")
@@ -2024,9 +2051,9 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
             text = {
                 Column(
                     Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                    verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
-                    Text("Manage OpenClone preferences and information.")
+                    Text("Manage OpenClone preferences and information.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Text("Appearance", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Text("Choose how OpenClone looks. Changes apply immediately and are saved on this device.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     OpenCloneThemeMode.values().forEach { option ->
@@ -2417,7 +2444,7 @@ private fun suggestedClonePackage(original: String, packageManager: android.cont
 private fun HomeActionTile(title: String, subtitle: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(
@@ -2441,18 +2468,18 @@ private fun InstalledAppRow(app: InstalledApp, onClick: () -> Unit, subtitle: St
     }
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(8.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (iconBitmap != null) {
-                Image(iconBitmap, contentDescription = null, modifier = Modifier.size(44.dp))
+                Image(iconBitmap, contentDescription = null, modifier = Modifier.size(52.dp))
             } else {
-                Text("A", modifier = Modifier.size(44.dp), style = MaterialTheme.typography.headlineMedium)
+                Text("A", modifier = Modifier.size(52.dp), style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(app.label, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -2470,7 +2497,7 @@ private fun InstalledAppRow(app: InstalledApp, onClick: () -> Unit, subtitle: St
                     )
                 }
             }
-            Text("›", style = MaterialTheme.typography.headlineMedium)
+            Text("›", style = MaterialTheme.typography.headlineMedium, color = MaterialTheme.colorScheme.primary)
         }
     }
 }
