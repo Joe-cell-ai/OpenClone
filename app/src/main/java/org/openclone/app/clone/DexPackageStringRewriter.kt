@@ -49,23 +49,27 @@ object DexPackageStringRewriter {
                         ensureActive()
                         val count = visited.incrementAndGet()
                         if (count % PROGRESS_INTERVAL == 0L) onInstructions(count)
-                        val instruction = delegate.rewrite(value)
-                        val reference = ((instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)?.reference) as? org.jf.dexlib2.iface.reference.StringReference
-                        if (reference == null) return instruction
-                        val changed = replacePackageIdentityToken(reference.string, oldPackage, newPackage)
-                        if (changed == reference.string) return instruction
-                        replacements.incrementAndGet()
-                        return when (instruction) {
+                        val originalReference =
+                            (value as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)
+                                ?.reference as? org.jf.dexlib2.iface.reference.StringReference
+                        if (originalReference == null) return delegate.rewrite(value)
+                        val changed = replacePackageIdentityToken(
+                            originalReference.string, oldPackage, newPackage
+                        )
+                        if (changed == originalReference.string) return delegate.rewrite(value)
+                        val rewritten = when (value) {
                             is Instruction21c -> ImmutableInstruction21c(
-                                instruction.opcode, instruction.registerA,
+                                value.opcode, value.registerA,
                                 org.jf.dexlib2.immutable.reference.ImmutableStringReference(changed)
                             )
                             is Instruction31c -> ImmutableInstruction31c(
-                                instruction.opcode, instruction.registerA,
+                                value.opcode, value.registerA,
                                 org.jf.dexlib2.immutable.reference.ImmutableStringReference(changed)
                             )
-                            else -> instruction
+                            else -> return delegate.rewrite(value)
                         }
+                        replacements.incrementAndGet()
+                        return rewritten
                     }
                 }
             }
