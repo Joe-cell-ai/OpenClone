@@ -31,6 +31,18 @@ class DexPackageStringRewriterTest {
     }
 
     @Test
+    fun rewritesWhatsAppStyleFlattenedRegistrationIntentToClonePackage() {
+        assertEquals(
+            "com.whatsapp.clone/com.whatsapp.registration.app.phonenumberentry.RegisterPhone",
+            DexPackageStringRewriter.replacePackageIdentityToken(
+                "com.whatsapp/.registration.app.phonenumberentry.RegisterPhone",
+                "com.whatsapp",
+                "com.whatsapp.clone"
+            )
+        )
+    }
+
+    @Test
     fun preservesUnrelatedComponentPackages() {
         assertEquals(
             "com.other.app/.MainActivity",
