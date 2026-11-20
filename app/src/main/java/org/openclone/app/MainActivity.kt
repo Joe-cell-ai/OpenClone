@@ -394,7 +394,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var cloneWorkInfo by remember { mutableStateOf<WorkInfo?>(null) }
     var cloneProgress by remember { mutableStateOf(0) }
     var markCloneIcon by remember { mutableStateOf(true) }
-    var rewriteDexPackageStrings by remember { mutableStateOf(false) }
+    var rewriteDexPackageStrings by remember { mutableStateOf(true) }
     var customIconPath by rememberSaveable { mutableStateOf<String?>(null) }
     var badgePosition by remember { mutableStateOf(BadgePosition.BOTTOM_RIGHT) }
     var requestedPermissions by remember { mutableStateOf<List<String>>(emptyList()) }
@@ -700,7 +700,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         cloneError = null
                         cloneUpdateMode = false
                         markCloneIcon = true
-                        rewriteDexPackageStrings = false
+                        rewriteDexPackageStrings = true
                         customIconPath = null
                         badgePosition = BadgePosition.BOTTOM_RIGHT
                         statusMessage = "Imported ${source.apkFiles.size} APK component(s) and ${source.obbFiles.size} OBB file(s) from ${source.archiveName}."
@@ -1459,7 +1459,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         Column(Modifier.weight(1f)) {
                             Text("Keep internal launches inside this clone", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "Optional compatibility rewrite. It can use substantial memory and slow large APK builds, so it is off by default. Class names remain unchanged; apps that verify their original package identity may still need app-specific compatibility work.",
+                                "Recommended for installed-app clones: rewrites package identity strings and flattened explicit component targets so internal intents target the clone package. It does not rename classes or bypass Android exported-component, signature, or integrity checks. Disable only if an app requires its original package identity.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
