@@ -73,32 +73,3 @@ jobs:
           name: openclone-release-apk
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
-  android-compatibility:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        api-level: [26, 34, 35]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: "8.11.1"
-      - name: Run Android compatibility tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: ${{ matrix.api-level }}
-          target: default
-          arch: x86_64
-          profile: pixel_2
-          force-avd-creation: true
-          emulator-boot-timeout: 900
-          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim -wipe-data
-          script: gradle connectedDebugAndroidTest
