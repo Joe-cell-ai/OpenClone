@@ -1462,9 +1462,9 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             onCheckedChange = { rewriteDexPackageStrings = it }
                         )
                         Column(Modifier.weight(1f)) {
-                            Text("Keep internal launches inside this clone", style = MaterialTheme.typography.bodyMedium)
+                            Text("Experimental DEX package-string rewrite", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "Recommended for installed-app clones: rewrites package identity strings and flattened explicit component targets so internal intents target the clone package. It does not rename classes or bypass Android exported-component, signature, or integrity checks. Disable only if an app requires its original package identity.",
+                                "Off by default. When enabled, rewrites matching package-identity string constants and flattened explicit component targets across DEX files. This may break apps that depend on their original package identity. It does not rename classes or bypass Android exported-component, signature, or integrity checks.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

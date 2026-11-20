@@ -24,7 +24,7 @@ This document tracks the feature set described by the App Cloner reference proje
 | Persistent build progress and cancellation | Supported | WorkManager jobs survive Activity recreation and can be recovered. |
 | Persistent generated APK build history | Supported | The Cloned APKs tab stores recent APK/OBB output paths and build metadata in app-private preferences, supports install/export/remove, and flags missing output files. The history is capped at 30 entries; APK bytes remain in app-private storage. |
 | Rebuild after original app update | Supported | Requires original app still installed and matching saved signing identity. |
-| Deep package-string rewriting in DEX | Partial | A DEX pass rewrites matching package-name string constants and encoded string values in every classes*.dex file with token-boundary checks. It preserves class/type descriptors and cannot cover dynamically assembled or obfuscated identities. |
+| Deep package-string rewriting in DEX | Partial — experimental opt-in | Disabled by default. The pass rewrites matching package-identity string constants and encoded string values in every classes*.dex file with token-boundary checks. Per-DEX start/completion diagnostics and cancellation checkpoints are present; APK-level regression fixtures cover multidex entries, encoded static values, unrelated package-like tokens and unchanged class descriptors. It cannot cover dynamically assembled or obfuscated identities. |
 | DEX processing in an isolated worker with explicit heap budgeting | Partial | Build work is already backgrounded and has a heap preflight; DEX-specific memory isolation/budgeting is not implemented. |
 | OBB / expansion-data handling | Partial | OBB files included in imported XAPK/ZIP bundles are preserved, renamed when package-bound, and included in exported ZIPs under Android/obb/<clone-package>. Installed-source OBB discovery and automatic placement are not implemented. |
 | Broad icon-format replacement (vector, nested layers, adaptive backgrounds) | Partial | Unsupported source icon structures retain original artwork. |
@@ -32,7 +32,7 @@ This document tracks the feature set described by the App Cloner reference proje
 
 ## Implementation sequence
 
-1. **DEX package rewrite hardening** — expose an advanced opt-in setting, add cancellation checkpoints and per-DEX diagnostics, and expand fixtures for multidex, encoded values, and package-like unrelated strings.
+1. [ ] **DEX package rewrite hardening** — the advanced opt-in is off by default; cancellation checkpoints and per-DEX diagnostics are present. This run adds APK-level fixtures for multidex rewriting, encoded static values, package-like unrelated strings, unchanged class descriptors, and cancellation propagation. Completion awaits the Android CI run for this commit.
 2. **Icon pipeline** — expand custom replacement beyond direct PNG foregrounds to vector XML, nested layer lists, density variants and monochrome resources; add per-resource diagnostics so unsupported formats are reported instead of silently retaining the source artwork.
 3. **OBB support** — investigate Android-version-appropriate access to installed-source expansion files, while keeping export/import behavior explicit and permission-safe.
 4. **Compatibility analysis** — add fixture-backed checks for package-bound Google services, Firebase/FCM, signature dependencies, shared-user constraints and known runtime limitations.
