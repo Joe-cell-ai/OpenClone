@@ -104,8 +104,11 @@ class DexPackageStringRewriterDexTest {
             emptyList(),
             listOf(method)
         )
-        FileDataStore(file).use { dataStore ->
+        val dataStore = FileDataStore(file)
+        try {
             builder.writeTo(dataStore)
+        } finally {
+            dataStore.close()
         }
     }
 }
