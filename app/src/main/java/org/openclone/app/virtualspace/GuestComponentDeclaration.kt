@@ -1,7 +1,9 @@
 package org.openclone.app.virtualspace
 
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageInfo
-import android.content.pm.ComponentInfo
+import android.content.pm.ProviderInfo
+import android.content.pm.ServiceInfo
 
 /**
  * A manifest-declared guest component. This is inventory metadata for the virtual runtime;
@@ -24,13 +26,13 @@ data class GuestComponentDeclaration(
             packageInfo.receivers.orEmpty().forEach { add(it.toDeclaration(Kind.RECEIVER)) }
             packageInfo.services.orEmpty().forEach { add(it.toDeclaration(Kind.SERVICE)) }
             packageInfo.providers.orEmpty().forEach { provider ->
-                add(provider.toDeclaration(Kind.PROVIDER).copy(authority = provider.authority))
+                add(provider.toDeclaration().copy(authority = provider.authority))
             }
         }.distinctBy { it.kind to it.className }
     }
 }
 
-private fun ComponentInfo.toDeclaration(kind: GuestComponentDeclaration.Kind) =
+private fun ActivityInfo.toDeclaration(kind: GuestComponentDeclaration.Kind) =
     GuestComponentDeclaration(
         className = name,
         kind = kind,
@@ -38,4 +40,25 @@ private fun ComponentInfo.toDeclaration(kind: GuestComponentDeclaration.Kind) =
         enabled = enabled,
         permission = permission,
         processName = processName
+    )
+
+private fun ServiceInfo.toDeclaration(kind: GuestComponentDeclaration.Kind) =
+    GuestComponentDeclaration(
+        className = name,
+        kind = kind,
+        exported = exported,
+        enabled = enabled,
+        permission = permission,
+        processName = processName
+    )
+
+private fun ProviderInfo.toDeclaration() =
+    GuestComponentDeclaration(
+        className = name,
+        kind = GuestComponentDeclaration.Kind.PROVIDER,
+        exported = exported,
+        enabled = enabled,
+        permission = readPermission ?: writePermission,
+        processName = processName,
+        authority = authority
     )
