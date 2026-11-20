@@ -52,6 +52,30 @@ class DexPackageStringRewriterTest {
         )
     }
 
+
+    @Test
+    fun doesNotRewriteFlattenedComponentWhenPackageIsPartOfLongerIdentifier() {
+        val value = "xcom.whatsapp/.registration.RegisterPhone"
+        assertEquals(
+            value,
+            DexPackageStringRewriter.replacePackageIdentityToken(
+                value, "com.whatsapp", "com.whatsapp.clone"
+            )
+        )
+    }
+
+    @Test
+    fun rewritesFlattenedComponentWhenEmbeddedAfterNonPackageDelimiter() {
+        assertEquals(
+            "component=com.whatsapp.clone/com.whatsapp.registration.RegisterPhone",
+            DexPackageStringRewriter.replacePackageIdentityToken(
+                "component=com.whatsapp/.registration.RegisterPhone",
+                "com.whatsapp",
+                "com.whatsapp.clone"
+            )
+        )
+    }
+
     @Test
     fun replacesExactDottedPackageTokens() {
         assertEquals(
