@@ -1131,7 +1131,13 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         }
                     }
                     item {
-                        Text("Advanced tools such as isolated WebView, per-clone VPN/proxy, tunnel manager, remote control and MCP server are roadmap items; they are not enabled yet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            HomeActionTile("Extensions", "Ad Shield and secure remote tools", Modifier.weight(1f)) { currentTab = "Extensions" }
+                            HomeActionTile("Settings", "Appearance, profiles and security", Modifier.weight(1f)) { showSettings = true }
+                        }
+                    }
+                    item {
+                        Text("Extension availability is shown inside Extensions. Each tool identifies its current Android/API limitations before activation.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
                 "Apps" -> Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
@@ -1269,7 +1275,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         }
                     }
                 }
-                else -> if (currentTab == "Store") ExtensionToolsScreen(
+                else -> if (currentTab == "Extensions") ExtensionToolsScreen(
                     onOpenSettings = { showSettings = true },
                     onOpenProfiles = { showProfiles = true },
                     onOpenApps = { currentTab = "Apps" },
@@ -1350,7 +1356,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    listOf("Home", "Apps", "APKs", "Cloned apps", "Cloned APKs", "Store").forEach { tab ->
+                    listOf("Home", "Apps", "APKs", "Cloned apps", "Cloned APKs", "Extensions").forEach { tab ->
                         NavigationBarItem(
                             selected = currentTab == tab,
                             onClick = { currentTab = tab; query = "" },
@@ -2081,7 +2087,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     Card(
                         modifier = Modifier.fillMaxWidth().clickable {
                             showSettings = false
-                            currentTab = "Store"
+                            currentTab = "Extensions"
                         },
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
                     ) {
