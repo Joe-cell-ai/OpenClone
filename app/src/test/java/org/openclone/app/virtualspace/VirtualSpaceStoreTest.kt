@@ -1,6 +1,7 @@
 package org.openclone.app.virtualspace
 
 import java.io.File
+import java.util.Properties
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -75,6 +76,42 @@ class VirtualSpaceStoreTest {
 
         assertNotNull(restored)
         assertEquals(declarations, restored!!.components)
+    }
+
+    @Test fun readsLegacyVersionTwoInstancesWithoutComponentCatalog() {
+        val source = temporaryFolder.newFile("legacy.apk").apply { writeText("apk") }
+        val root = File(temporaryFolder.root, "legacy-store")
+        val store = VirtualSpaceStore(root)
+        val created = store.createInstance("com.example.legacy", "Legacy", source)
+        val metadataFile = File(created.privateDataDirectory.parentFile, "instance.properties")
+        val properties = Properties().apply {
+            metadataFile.inputStream().use { load(it) }
+            setProperty("formatVersion", "2")
+            remove("componentCount")
+        }
+        metadataFile.outputStream().use { properties.store(it, "legacy v2 fixture") }
+
+        val restored = store.findInstance(created.id)
+        assertNotNull(restored)
+        assertTrue(restored!!.components.isEmpty())
+        assertEquals("com.example.legacy", restored.originalPackage)
+    }
+
+    @Test fun rejectsInvalidGuestComponentClassNames() {
+        val source = temporaryFolder.newFile("invalid-component.apk").apply { writeText("apk") }
+        val store = VirtualSpaceStore(File(temporaryFolder.root, "invalid-component-store"))
+        val invalid = GuestComponentDeclaration(
+            className = "../outside",
+            kind = GuestComponentDeclaration.Kind.ACTIVITY,
+            exported = true,
+            enabled = true,
+            permission = null,
+            processName = null
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            store.createInstance("com.example.invalid", "Invalid", listOf(source), listOf(invalid))
+        }
+        assertTrue(store.listInstances().isEmpty())
     }
 
     @Test fun deletingAnInstanceDoesNotTouchItsSourceApk() {
