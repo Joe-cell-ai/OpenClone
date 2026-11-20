@@ -42,34 +42,19 @@ object DexPackageStringRewriter {
         val replacements = AtomicInteger()
         val visited = java.util.concurrent.atomic.AtomicLong()
         val rewriter = DexRewriter(object : RewriterModule() {
-            override fun getInstructionRewriter(rewriters: Rewriters): Rewriter<Instruction> {
-                val delegate = super.getInstructionRewriter(rewriters)
-                return object : Rewriter<Instruction> {
-                    override fun rewrite(value: Instruction): Instruction {
+            override fun getReferenceRewriter(rewriters: Rewriters): Rewriter<org.jf.dexlib2.iface.reference.Reference> {
+                val delegate = super.getReferenceRewriter(rewriters)
+                return object : Rewriter<org.jf.dexlib2.iface.reference.Reference> {
+                    override fun rewrite(value: org.jf.dexlib2.iface.reference.Reference): org.jf.dexlib2.iface.reference.Reference {
                         ensureActive()
-                        val count = visited.incrementAndGet()
-                        if (count % PROGRESS_INTERVAL == 0L) onInstructions(count)
-                        val originalReference =
-                            (value as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)
-                                ?.reference as? org.jf.dexlib2.iface.reference.StringReference
-                        if (originalReference == null) return delegate.rewrite(value)
-                        val changed = replacePackageIdentityToken(
-                            originalReference.string, oldPackage, newPackage
-                        )
-                        if (changed == originalReference.string) return delegate.rewrite(value)
-                        val rewritten = when (value) {
-                            is Instruction21c -> ImmutableInstruction21c(
-                                value.opcode, value.registerA,
-                                org.jf.dexlib2.immutable.reference.ImmutableStringReference(changed)
-                            )
-                            is Instruction31c -> ImmutableInstruction31c(
-                                value.opcode, value.registerA,
-                                org.jf.dexlib2.immutable.reference.ImmutableStringReference(changed)
-                            )
-                            else -> return delegate.rewrite(value)
+                        if (value is org.jf.dexlib2.iface.reference.StringReference) {
+                            val changed = replacePackageIdentityToken(value.string, oldPackage, newPackage)
+                            if (changed != value.string) {
+                                replacements.incrementAndGet()
+                                return org.jf.dexlib2.immutable.reference.ImmutableStringReference(changed)
+                            }
                         }
-                        replacements.incrementAndGet()
-                        return rewritten
+                        return delegate.rewrite(value)
                     }
                 }
             }
