@@ -1409,7 +1409,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     versionCodeOverride = ""
                     cloneError = null
                     markCloneIcon = true
-                    rewriteDexPackageStrings = false
+                    rewriteDexPackageStrings = true
                     customIconPath = null
                     badgePosition = BadgePosition.BOTTOM_RIGHT
                     cloneUpdateMode = false
