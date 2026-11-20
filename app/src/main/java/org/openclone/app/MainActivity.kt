@@ -701,7 +701,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         cloneError = null
                         cloneUpdateMode = false
                         markCloneIcon = true
-                        rewriteDexPackageStrings = true
+                        rewriteDexPackageStrings = false
                         customIconPath = null
                         badgePosition = BadgePosition.BOTTOM_RIGHT
                         statusMessage = "Imported ${source.apkFiles.size} APK component(s) and ${source.obbFiles.size} OBB file(s) from ${source.archiveName}."
@@ -1414,7 +1414,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     versionCodeOverride = ""
                     cloneError = null
                     markCloneIcon = true
-                    rewriteDexPackageStrings = true
+                    rewriteDexPackageStrings = false
                     customIconPath = null
                     badgePosition = BadgePosition.BOTTOM_RIGHT
                     cloneUpdateMode = false
