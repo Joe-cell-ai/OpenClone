@@ -14,7 +14,7 @@ class GuestActivityResolverTest {
         return VirtualSpaceStore(File(temporaryFolder.root, "store")).createInstance(
             "com.example.guest",
             "Guest",
-            apk,
+            listOf(apk),
             listOf(
                 GuestComponentDeclaration(
                     "com.example.guest.HomeActivity",
