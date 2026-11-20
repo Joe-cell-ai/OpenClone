@@ -14,25 +14,40 @@ class DiagnosticLog(
     @Synchronized
     fun write(message: String, essential: Boolean = false) {
         runCatching {
-            val routineCeiling = limitBytes
-            val totalCeiling = limitBytes + reserveBytes
-            var current = file.length()
-            if (!essential && current >= routineCeiling) {
-                if (!noticeWritten && current < totalCeiling) {
-                    appendBounded("LOG LIMIT REACHED ($limitBytes bytes): routine messages are dropped; essential failure details may use the reserve.", totalCeiling - current)
-                    noticeWritten = true
-                }
+            val routineCeiling = limitBytes.coerceAtLeast(0L)
+            val totalCeiling = routineCeiling + reserveBytes.coerceAtLeast(0L)
+            val current = file.length()
+
+            if (essential) {
+                val remaining = (totalCeiling - current).coerceAtLeast(0L)
+                appendBounded(message, remaining)
                 return
             }
-            val ceiling = if (essential) totalCeiling else routineCeiling
-            val remaining = ceiling - current
-            if (remaining > 0L) appendBounded(message, remaining)
+
+            // Routine diagnostics, including the limit notice, must never consume
+            // the reserved space intended for failure details.
+            val remaining = (routineCeiling - current).coerceAtLeast(0L)
+            if (remaining == 0L) return
+
+            val lineSize = formattedLine(message).size.toLong()
+            if (lineSize > remaining && !noticeWritten) {
+                appendBounded(
+                    "LOG LIMIT REACHED ($routineCeiling bytes): routine messages are dropped; essential failure details may use the reserve.",
+                    remaining
+                )
+                noticeWritten = true
+            } else if (lineSize <= remaining) {
+                appendBounded(message, remaining)
+            }
         }
     }
 
+    private fun formattedLine(message: String): ByteArray =
+        ("[${Instant.now()}] " + message + "\\n").toByteArray(Charsets.UTF_8)
+
     private fun appendBounded(message: String, remaining: Long) {
         if (remaining <= 0L) return
-        val line = ("[${Instant.now()}] " + message + "\n").toByteArray(Charsets.UTF_8)
+        val line = formattedLine(message)
         val count = minOf(line.size.toLong(), remaining, Int.MAX_VALUE.toLong()).toInt()
         if (count <= 0) return
         file.parentFile?.mkdirs()
