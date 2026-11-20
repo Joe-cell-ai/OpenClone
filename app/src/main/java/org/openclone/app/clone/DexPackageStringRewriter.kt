@@ -33,9 +33,17 @@ object DexPackageStringRewriter {
         oldPackage: String,
         newPackage: String,
         ensureActive: () -> Unit = {},
+        /** Diagnostic only: called at each phase boundary with elapsed time and heap use. */
+        onStage: (String) -> Unit = {},
         /** Called every [PROGRESS_INTERVAL] visited instructions with the running total. */
         onInstructions: (Long) -> Unit = {}
     ): Result {
+        val startedAt = System.nanoTime()
+        fun stage(name: String) {
+            val runtime = Runtime.getRuntime()
+            val usedMb = (runtime.totalMemory() - runtime.freeMemory()) shr 20
+            onStage(name + " (+" + ((System.nanoTime() - startedAt) / 1_000_000) + " ms, heap " + usedMb + "/" + (runtime.maxMemory() shr 20) + " MB)")
+        }
         require(input.isFile && input.canRead()) { "DEX input is missing or unreadable." }
         require(oldPackage.isNotBlank() && newPackage.isNotBlank() && oldPackage != newPackage) {
             "A distinct source and target package ID is required for DEX rewriting."
@@ -98,16 +106,24 @@ object DexPackageStringRewriter {
             }
         })
         ensureActive()
+        stage("load start")
         val dex = DexFileFactory.loadDexFile(input, Opcodes.getDefault())
+        stage("load done")
         // DexRewriter returns lazy wrappers. Snapshot them into immutable DEX models before
         // writing so every rewritten instruction is actually traversed and materialized.
+        stage("materialize start")
         val rewritten = ImmutableDexFile.of(rewriter.dexFileRewriter.rewrite(dex))
+        stage("materialize done; instructions=" + visited.get())
         output.parentFile?.mkdirs()
         ensureActive()
+        stage("write start")
         DexFileFactory.writeDexFile(output.absolutePath, rewritten)
+        stage("write done; bytes=" + output.length())
         ensureActive()
         require(output.isFile && output.length() > 0L) { "DEX rewriting produced an empty output file." }
+        stage("verify start")
         DexFileFactory.loadDexFile(output, Opcodes.getDefault())
+        stage("verify done")
         return Result(replacements.get())
     }
 
