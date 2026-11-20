@@ -32,7 +32,7 @@ This document tracks the feature set described by the App Cloner reference proje
 
 ## Implementation sequence
 
-1. [ ] **DEX package rewrite hardening** — the advanced opt-in is off by default; cancellation checkpoints and per-DEX diagnostics are present. This run adds APK-level fixtures for multidex rewriting, encoded static values, package-like unrelated strings, unchanged class descriptors, and cancellation propagation. Completion awaits the Android CI run for this commit.
+1. [ ] **DEX package rewrite hardening** — the advanced opt-in is off by default; cancellation checkpoints and per-DEX diagnostics are present. This run adds APK-level fixtures for multidex rewriting, encoded static values, package-like unrelated strings, unchanged class descriptors, and cancellation propagation. Initial CI run #479 found that the single-DEX fixture correctly counted both its instruction and encoded-field replacements; the expected count is corrected here and verification remains pending.
 2. **Icon pipeline** — expand custom replacement beyond direct PNG foregrounds to vector XML, nested layer lists, density variants and monochrome resources; add per-resource diagnostics so unsupported formats are reported instead of silently retaining the source artwork.
 3. **OBB support** — investigate Android-version-appropriate access to installed-source expansion files, while keeping export/import behavior explicit and permission-safe.
 4. **Compatibility analysis** — add fixture-backed checks for package-bound Google services, Firebase/FCM, signature dependencies, shared-user constraints and known runtime limitations.

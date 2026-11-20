@@ -43,7 +43,8 @@ class DexPackageStringRewriterDexTest {
                 newPackage = "com.whatsapp.clone"
             )
 
-            assertEquals(1, result.replacements)
+            // One replacement is in the const-string instruction and one is in the encoded static field value.
+            assertEquals(2, result.replacements)
             val rewritten = readDex(output)
             assertTrue(rewritten.instructionStrings.contains(
                 "com.whatsapp.clone/com.whatsapp.registration.app.phonenumberentry.RegisterPhone"
@@ -110,7 +111,7 @@ class DexPackageStringRewriterDexTest {
     }
 
     @Test
-    fun propagatesCancellationDuringInstructionTraversalBeforeWritingOutput() {
+    fun propagatesCancellationDuringDexGraphMaterializationBeforeWritingOutput() {
         val directory = createTempDir(prefix = "openclone-dex-cancel-test-")
         val input = File(directory, "input.dex")
         val output = File(directory, "output.dex")
@@ -137,7 +138,7 @@ class DexPackageStringRewriterDexTest {
                 cancelled = true
             }
 
-            assertTrue("cancellation should be observed during DEX traversal", cancelled)
+            assertTrue("cancellation should be observed while the DEX model is materialized", cancelled)
             assertTrue("the traversal checkpoint should have run", checkpoints >= 2)
             assertFalse("cancelled rewrite must not create an output DEX", output.exists())
         } finally {
