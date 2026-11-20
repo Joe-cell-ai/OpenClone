@@ -53,6 +53,6 @@ class GuestActivityResolver {
     }
 
     private companion object {
-        val CLASS_NAME = Regex("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+")
+        val CLASS_NAME = Regex("[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*)+")
     }
 }
