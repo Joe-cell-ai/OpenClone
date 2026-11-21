@@ -10,9 +10,16 @@ object DexRewritePolicy {
     fun defaultEnabledFor(originalPackage: String): Boolean =
         originalPackage == WHATSAPP_PACKAGE
 
-    /** Uses the app-specific default only when the build request did not supply an override. */
+    /**
+     * WhatsApp's registration flow launches internal activities through explicit component
+     * intents. Leaving those package identities unchanged makes Android resolve them against
+     * the original installation, where non-exported activities cannot be launched by the clone.
+     * Therefore this rewrite is mandatory for WhatsApp and cannot be disabled by a stale or
+     * unchecked UI/worker override. Other apps continue to respect the caller's choice.
+     */
     fun resolveEnabled(originalPackage: String, requestedOverride: Boolean?): Boolean =
-        requestedOverride ?: defaultEnabledFor(originalPackage)
+        if (originalPackage == WHATSAPP_PACKAGE) true
+        else requestedOverride ?: defaultEnabledFor(originalPackage)
 
     const val WHATSAPP_PACKAGE = "com.whatsapp"
 }
