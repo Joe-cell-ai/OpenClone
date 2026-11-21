@@ -20,8 +20,16 @@ class DexRewritePolicyTest {
     }
 
     @Test
-    fun explicitWorkerOverrideAlwaysWins() {
-        assertFalse(DexRewritePolicy.resolveEnabled("com.whatsapp", false))
+    fun whatsappRewriteCannotBeDisabledByWorkerOverride() {
+        assertTrue(DexRewritePolicy.resolveEnabled("com.whatsapp", false))
+        assertTrue(DexRewritePolicy.resolveEnabled("com.whatsapp", true))
+        assertTrue(DexRewritePolicy.resolveEnabled("com.whatsapp", null))
+    }
+
+    @Test
+    fun nonWhatsAppAppsStillRespectExplicitWorkerOverride() {
+        assertFalse(DexRewritePolicy.resolveEnabled("com.example.app", false))
         assertTrue(DexRewritePolicy.resolveEnabled("com.example.app", true))
+        assertFalse(DexRewritePolicy.resolveEnabled("com.example.app", null))
     }
 }
