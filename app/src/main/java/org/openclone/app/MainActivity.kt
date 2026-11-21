@@ -1554,7 +1554,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(cloneName.ifBlank { "Clone name preview" }, fontWeight = FontWeight.SemiBold)
                                 Text(clonePackage.ifBlank { "package.id.preview" }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                Text(if (customIconPath == null) "Original app icon" else "Custom PNG icon selected", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                                Text(if (customIconPath == null) "Original app icon" else "Custom image selected", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -1899,7 +1899,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     DetailLine("Package ID", result.clonePackage)
                     DetailLine("APK files", result.apks.size.toString())
                     DetailLine("Icon badge", if (result.iconBadgeApplied) "Applied" else "Not applied")
-                    if (customIconPath != null) DetailLine("Custom icon", if (result.customIconApplied) "Applied" else "Not supported by this app's icon resources")
+                    if (customIconPath != null) DetailLine("Custom icon", if (result.customIconApplied) "Applied" else "Not applied; see build log for resource-level details")
                     Text(
                         "All output APKs passed signature verification. Android will still show its own install confirmation. Some apps depend on their original signature, package name, or server registration and may not work as clones.",
                         style = MaterialTheme.typography.bodySmall

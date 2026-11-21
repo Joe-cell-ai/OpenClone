@@ -37,66 +37,330 @@ enum class BadgePosition(val centerX: Float, val centerY: Float) {
 class IconBadger(private val context: Context) {
 
     /**
-     * Files of the base APK to replace, by path inside it, to mark the icon of [app]. Empty when
-     * the icon is built in a way this cannot safely rewrite. [seed] picks the colour of the dot.
+     * Returns safe file replacements and a bounded report for every attempted icon resource.
+     * Unsupported resources are left untouched; [seed] picks the colour of the clone badge.
      */
-    fun replacements(app: ApplicationInfo, seed: String, position: BadgePosition = BadgePosition.BOTTOM_RIGHT, customIconFile: File? = null, addBadge: Boolean = true): Map<String, ByteArray> {
+    fun replacements(
+        app: ApplicationInfo,
+        seed: String,
+        position: BadgePosition = BadgePosition.BOTTOM_RIGHT,
+        customIconFile: File? = null,
+        addBadge: Boolean = true
+    ): IconReplacementResult {
         val packageManager = context.packageManager
         val resources = packageManager.getResourcesForApplication(app)
         val color = Color.HSVToColor(floatArrayOf(((seed.hashCode() and 0x7FFFFFFF) % 360).toFloat(), 0.75f, 0.9f))
-        val customBitmap = customIconFile?.takeIf { it.isFile && it.canRead() }?.let { BitmapFactory.decodeFile(it.absolutePath) }
+        val customBitmap = customIconFile?.takeIf { it.isFile && it.canRead() }
+            ?.let { file -> runCatching { BitmapFactory.decodeFile(file.absolutePath) }.getOrNull() }
+
+        val diagnostics = ArrayList<IconReplacementDiagnostic>()
+        var omittedDiagnostics = 0
+        fun record(
+            action: IconReplacementAction,
+            resourceId: Int,
+            resourcePath: String?,
+            densityDpi: Int,
+            status: IconDiagnosticStatus,
+            detail: String
+        ) {
+            if (diagnostics.size < MAX_DIAGNOSTICS) {
+                diagnostics += IconReplacementDiagnostic(action, resourceId, resourcePath, densityDpi, status, detail)
+            } else {
+                omittedDiagnostics++
+            }
+        }
+
+        if (customIconFile != null && customBitmap == null) {
+            record(
+                IconReplacementAction.CUSTOM_ICON, 0, null, 0, IconDiagnosticStatus.FAILED,
+                "The selected image is missing, unreadable, or could not be decoded."
+            )
+        }
 
         // Activities may carry an icon of their own, which the launcher prefers.
         val activityIcons = runCatching {
             packageManager.getPackageArchiveInfo(app.sourceDir, PackageManager.GET_ACTIVITIES)
                 ?.activities?.map { it.icon }
         }.getOrNull().orEmpty()
+        val iconIds = (listOf(app.icon) + activityIcons).filter { it != 0 }.distinct()
+        val replacements = LinkedHashMap<String, ByteArray>()
+        val visitedIconPaths = HashSet<String>()
+        val visitedForegroundPaths = HashSet<String>()
+        var badgeApplied = false
+        var customIconApplied = false
 
-        val result = HashMap<String, ByteArray>()
-        for (icon in (listOf(app.icon) + activityIcons).filter { it != 0 }.distinct()) {
-            // A launcher asks for the icon at a density of its own choosing, usually a higher
-            // one than the screen's, and so may be handed a different file than the settings
-            // are. Every file the icon can resolve to is replaced.
-            for (density in DENSITIES) {
-                runCatching {
+        try {
+            if (iconIds.isEmpty()) {
+                if (customBitmap != null) {
+                    record(
+                        IconReplacementAction.CUSTOM_ICON, 0, null, 0, IconDiagnosticStatus.UNSUPPORTED,
+                        "No launcher icon resource IDs were declared for this application."
+                    )
+                }
+                if (addBadge) {
+                    record(
+                        IconReplacementAction.BADGE, 0, null, 0, IconDiagnosticStatus.UNSUPPORTED,
+                        "No launcher icon resource IDs were declared for this application."
+                    )
+                }
+            }
+
+            for (icon in iconIds) {
+                // Launchers may request a density different from the screen's density. Resolve
+                // each qualifier separately and report each distinct resource path once.
+                for (density in DENSITIES) {
                     val value = TypedValue()
-                    if (density == 0) resources.getValue(icon, value, true) else resources.getValueForDensity(icon, density, value, true)
-                    val path = value.string?.toString() ?: return@runCatching
-                    if (path in result) return@runCatching
-                    val replacement = if (path.endsWith(".xml")) {
-                        // Adaptive icons keep their XML, background, and mask. When the foreground
-                        // resolves directly to PNG resources, replace those raster layers instead.
+                    val resolvedPath = runCatching {
+                        if (density == 0) resources.getValue(icon, value, true)
+                        else resources.getValueForDensity(icon, density, value, true)
+                        value.string?.toString()
+                    }
+                    if (resolvedPath.isFailure) {
+                        val error = resolvedPath.exceptionOrNull()
+                        val reason = error?.message ?: error?.javaClass?.simpleName ?: "unknown error"
                         if (customBitmap != null) {
-                            adaptiveForegroundId(resources, icon)?.let { foreground ->
-                                for (layerDensity in DENSITIES) {
-                                    runCatching {
-                                        val layerValue = TypedValue()
-                                        if (layerDensity == 0) resources.getValue(foreground, layerValue, true)
-                                        else resources.getValueForDensity(foreground, layerDensity, layerValue, true)
-                                        val layerPath = layerValue.string?.toString() ?: return@runCatching
-                                        if (layerPath.endsWith(".png", ignoreCase = true) && layerPath !in result) {
-                                            result[layerPath] = bitmapIcon(
-                                                resources, foreground, layerDensity, color, position,
-                                                customBitmap, addBadge = false
-                                            )
-                                        }
-                                    }
+                            record(
+                                IconReplacementAction.CUSTOM_ICON, icon, null, density, IconDiagnosticStatus.FAILED,
+                                "Could not resolve the icon resource: " + reason.take(120)
+                            )
+                        }
+                        if (addBadge) {
+                            record(
+                                IconReplacementAction.BADGE, icon, null, density, IconDiagnosticStatus.FAILED,
+                                "Could not resolve the icon resource: " + reason.take(120)
+                            )
+                        }
+                        continue
+                    }
+
+                    val path = resolvedPath.getOrNull()
+                    if (path.isNullOrBlank()) {
+                        if (customBitmap != null) {
+                            record(
+                                IconReplacementAction.CUSTOM_ICON, icon, null, density, IconDiagnosticStatus.FAILED,
+                                "The resource did not resolve to a file-backed drawable."
+                            )
+                        }
+                        if (addBadge) {
+                            record(
+                                IconReplacementAction.BADGE, icon, null, density, IconDiagnosticStatus.FAILED,
+                                "The resource did not resolve to a file-backed drawable."
+                            )
+                        }
+                        continue
+                    }
+                    if (!visitedIconPaths.add(path)) continue
+
+                    when (IconResourceKind.fromPath(path)) {
+                        IconResourceKind.PNG -> {
+                            if (customBitmap == null && !addBadge) continue
+                            val replacement = runCatching {
+                                bitmapIcon(resources, icon, density, color, position, customBitmap, addBadge)
+                            }
+                            if (replacement.isSuccess) {
+                                replacements[path] = replacement.getOrThrow()
+                                if (customBitmap != null) {
+                                    customIconApplied = true
+                                    record(
+                                        IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.APPLIED,
+                                        "Replaced the raster launcher icon."
+                                    )
+                                }
+                                if (addBadge) {
+                                    badgeApplied = true
+                                    record(
+                                        IconReplacementAction.BADGE, icon, path, density, IconDiagnosticStatus.APPLIED,
+                                        "Added the clone badge to the raster launcher icon."
+                                    )
+                                }
+                            } else {
+                                val error = replacement.exceptionOrNull()
+                                val reason = error?.message ?: error?.javaClass?.simpleName ?: "unknown error"
+                                if (customBitmap != null) {
+                                    record(
+                                        IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.FAILED,
+                                        "Could not render the replacement image: " + reason.take(120)
+                                    )
+                                }
+                                if (addBadge) {
+                                    record(
+                                        IconReplacementAction.BADGE, icon, path, density, IconDiagnosticStatus.FAILED,
+                                        "Could not render the clone badge: " + reason.take(120)
+                                    )
                                 }
                             }
                         }
-                        if (addBadge) adaptiveIcon(resources, icon, color, position) else null
-                    } else if (path.endsWith(".png", ignoreCase = true) && (addBadge || customBitmap != null)) {
-                        bitmapIcon(
-                            resources, icon, density, color, position,
-                            customBitmap,
-                            addBadge
-                        )
-                    } else null
-                    if (replacement != null) result[path] = replacement
+
+                        IconResourceKind.XML -> {
+                            if (customBitmap != null) {
+                                val foregroundResult = runCatching { adaptiveForegroundId(resources, icon) }
+                                val foreground = foregroundResult.getOrNull()
+                                if (foregroundResult.isFailure) {
+                                    val error = foregroundResult.exceptionOrNull()
+                                    record(
+                                        IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.FAILED,
+                                        "Could not inspect the adaptive icon foreground: " +
+                                            (error?.message ?: error?.javaClass?.simpleName ?: "unknown error").take(120)
+                                    )
+                                } else if (foreground == null) {
+                                    val root = runCatching { xmlRootName(resources, icon) }.getOrNull() ?: "unknown"
+                                    record(
+                                        IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.UNSUPPORTED,
+                                        "XML root <" + root + "> is not a plain adaptive icon with a direct foreground reference."
+                                    )
+                                } else {
+                                    var resolvedForeground = false
+                                    for (layerDensity in DENSITIES) {
+                                        val layerValue = TypedValue()
+                                        val layerPathResult = runCatching {
+                                            if (layerDensity == 0) resources.getValue(foreground, layerValue, true)
+                                            else resources.getValueForDensity(foreground, layerDensity, layerValue, true)
+                                            layerValue.string?.toString()
+                                        }
+                                        if (layerPathResult.isFailure) {
+                                            val error = layerPathResult.exceptionOrNull()
+                                            record(
+                                                IconReplacementAction.CUSTOM_ICON, foreground, null, layerDensity, IconDiagnosticStatus.FAILED,
+                                                "Could not resolve the adaptive foreground: " +
+                                                    (error?.message ?: error?.javaClass?.simpleName ?: "unknown error").take(120)
+                                            )
+                                            continue
+                                        }
+                                        val layerPath = layerPathResult.getOrNull()
+                                        if (layerPath.isNullOrBlank()) {
+                                            record(
+                                                IconReplacementAction.CUSTOM_ICON, foreground, null, layerDensity, IconDiagnosticStatus.FAILED,
+                                                "The adaptive foreground did not resolve to a file-backed drawable."
+                                            )
+                                            continue
+                                        }
+                                        resolvedForeground = true
+                                        if (!visitedForegroundPaths.add(layerPath)) continue
+
+                                        when (IconResourceKind.fromPath(layerPath)) {
+                                            IconResourceKind.PNG -> {
+                                                val replacement = runCatching {
+                                                    bitmapIcon(
+                                                        resources, foreground, layerDensity, color, position,
+                                                        customBitmap, addBadge = false
+                                                    )
+                                                }
+                                                if (replacement.isSuccess) {
+                                                    replacements[layerPath] = replacement.getOrThrow()
+                                                    customIconApplied = true
+                                                    record(
+                                                        IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity, IconDiagnosticStatus.APPLIED,
+                                                        "Replaced a direct PNG adaptive-icon foreground."
+                                                    )
+                                                } else {
+                                                    val error = replacement.exceptionOrNull()
+                                                    record(
+                                                        IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity, IconDiagnosticStatus.FAILED,
+                                                        "Could not render the adaptive foreground: " +
+                                                            (error?.message ?: error?.javaClass?.simpleName ?: "unknown error").take(120)
+                                                    )
+                                                }
+                                            }
+
+                                            IconResourceKind.XML -> {
+                                                val root = runCatching { xmlRootName(resources, foreground) }.getOrNull() ?: "unknown"
+                                                val detail = when (root) {
+                                                    "vector" -> "VectorDrawable foreground replacement is not implemented yet."
+                                                    "layer-list" -> "Nested layer-list foreground traversal is not implemented yet."
+                                                    else -> "XML foreground type <" + root + "> is not supported yet."
+                                                }
+                                                record(
+                                                    IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity, IconDiagnosticStatus.UNSUPPORTED,
+                                                    detail
+                                                )
+                                            }
+
+                                            IconResourceKind.OTHER -> {
+                                                val extension = layerPath.substringAfterLast('.', "").ifBlank { "unknown" }
+                                                record(
+                                                    IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity, IconDiagnosticStatus.UNSUPPORTED,
+                                                    "Adaptive foreground resource type ." + extension + " is not supported yet."
+                                                )
+                                            }
+                                        }
+                                    }
+                                    if (!resolvedForeground) {
+                                        record(
+                                            IconReplacementAction.CUSTOM_ICON, foreground, path, density, IconDiagnosticStatus.UNSUPPORTED,
+                                            "No file-backed adaptive foreground variant could be resolved."
+                                        )
+                                    }
+                                }
+                            }
+
+                            if (addBadge) {
+                                val replacement = runCatching { adaptiveIcon(resources, icon, color, position) }
+                                when {
+                                    replacement.isSuccess && replacement.getOrNull() != null -> {
+                                        replacements[path] = replacement.getOrThrow()!!
+                                        badgeApplied = true
+                                        record(
+                                            IconReplacementAction.BADGE, icon, path, density, IconDiagnosticStatus.APPLIED,
+                                            "Updated the adaptive-icon wrapper while retaining its background and supported layers."
+                                        )
+                                    }
+                                    replacement.isFailure -> {
+                                        val error = replacement.exceptionOrNull()
+                                        record(
+                                            IconReplacementAction.BADGE, icon, path, density, IconDiagnosticStatus.FAILED,
+                                            "Could not rewrite the adaptive-icon XML: " +
+                                                (error?.message ?: error?.javaClass?.simpleName ?: "unknown error").take(120)
+                                        )
+                                    }
+                                    else -> record(
+                                        IconReplacementAction.BADGE, icon, path, density, IconDiagnosticStatus.UNSUPPORTED,
+                                        "The XML is not a plain adaptive icon with direct background and foreground references."
+                                    )
+                                }
+                            }
+                        }
+
+                        IconResourceKind.OTHER -> {
+                            val extension = path.substringAfterLast('.', "").ifBlank { "unknown" }
+                            if (customBitmap != null) {
+                                record(
+                                    IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.UNSUPPORTED,
+                                    "Launcher resource type ." + extension + " is not supported for custom replacement yet."
+                                )
+                            }
+                            if (addBadge) {
+                                record(
+                                    IconReplacementAction.BADGE, icon, path, density, IconDiagnosticStatus.UNSUPPORTED,
+                                    "Clone badge injection supports PNG resources and plain adaptive-icon XML only."
+                                )
+                            }
+                        }
+                    }
                 }
             }
+        } finally {
+            customBitmap?.recycle()
         }
-        return result
+
+        return IconReplacementResult(
+            replacements = replacements.toMap(),
+            badgeApplied = badgeApplied,
+            customIconApplied = customIconApplied,
+            diagnostics = diagnostics.toList(),
+            omittedDiagnostics = omittedDiagnostics
+        )
+    }
+
+    private fun xmlRootName(resources: Resources, resourceId: Int): String? {
+        var root: String? = null
+        resources.getXml(resourceId).use { parser ->
+            var event = parser.eventType
+            while (event != XmlPullParser.START_TAG && event != XmlPullParser.END_DOCUMENT) {
+                event = parser.next()
+            }
+            if (event == XmlPullParser.START_TAG) root = parser.name
+        }
+        return root
     }
 
     /** Returns the direct foreground resource ID of a plain adaptive-icon XML resource. */
@@ -296,6 +560,7 @@ class IconBadger(private val context: Context) {
 
         /** Just above what a launcher still counts as a visible pixel. */
         const val FRAME_ALPHA = 48
+        const val MAX_DIAGNOSTICS = 64
 
         const val MIN_BITMAP = 48
         const val MAX_BITMAP = 512

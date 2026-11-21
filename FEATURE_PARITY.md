@@ -15,7 +15,7 @@ This document tracks the feature set described by the App Cloner reference proje
 | Change package ID | Supported with limitations | Binary manifest and resource table are rewritten; matching package-name strings in multidex DEX files are optionally rewritten experimentally, but class/type descriptors and dynamically assembled strings are not changed. |
 | Add a coloured launcher badge | Partial | Four-corner badge support exists for supported icon resource formats. |
 | Remove requested permissions from a clone | Supported | Clone setup lists declared permissions and can remove selected declarations from the rebuilt binary manifest before signing. Apps may stop working if a required permission is removed. |
-| Replace launcher icon | Partial | Custom PNG replacement supports a limited set of direct PNG/adaptive-icon resource layouts. |
+| Replace launcher icon | Partial | Custom replacement supports direct PNG resources and direct PNG adaptive-icon foregrounds. Per-resource build diagnostics identify applied, unsupported, or failed icon paths and density variants; vector XML, nested layer lists, and non-PNG source resources remain unsupported. |
 | Select and manage signing identities | Supported | Multiple identities are stored using Android Keystore protection. |
 | Import/export signing identity backup | Supported | Password-protected PKCS#12 backup flow exists. |
 | Re-sign rebuilt APKs | Supported | APKs are signed and verified before install is offered. |
@@ -33,7 +33,9 @@ This document tracks the feature set described by the App Cloner reference proje
 ## Implementation sequence
 
 1. [x] **DEX package rewrite hardening** — the advanced opt-in is off by default; cancellation checkpoints and per-DEX start/completion diagnostics are present. APK-level fixtures cover multidex rewriting, encoded static values, package-like unrelated strings, unchanged class descriptors, and cancellation propagation. Verified on 2026-11-20 by full CI run #480 for commit `e7b012d` (`testDebugUnitTest`, `lintDebug`, and `assembleDebug` all passed).
-2. **Icon pipeline** — expand custom replacement beyond direct PNG foregrounds to vector XML, nested layer lists, density variants and monochrome resources; add per-resource diagnostics so unsupported formats are reported instead of silently retaining the source artwork.
+2. **Icon pipeline** — expand custom replacement beyond direct PNG foregrounds to vector XML, nested layer lists, density variants and monochrome resources.
+   - [ ] **Per-resource diagnostics** — implementation added in this commit; verification pending. Report resource path, ID, density, operation and outcome for each attempted icon replacement, with bounded logs.
+   - [ ] **Format expansion** — safely support vector XML, nested layer lists, density variants and monochrome resources where the resource table can be updated without changing unrelated app resources.
 3. **OBB support** — investigate Android-version-appropriate access to installed-source expansion files, while keeping export/import behavior explicit and permission-safe.
 4. **Compatibility analysis** — add fixture-backed checks for package-bound Google services, Firebase/FCM, signature dependencies, shared-user constraints and known runtime limitations.
 5. **Build controls and resilience** — add per-stage diagnostics, cancellation checkpoints during DEX/OBB processing, bounded temporary-file cleanup and clearer memory estimates without weakening APK signature verification.

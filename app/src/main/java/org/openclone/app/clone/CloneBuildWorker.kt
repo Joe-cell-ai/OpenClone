@@ -126,7 +126,8 @@ class CloneBuildWorker(
                 versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 },
                 onEntry = { name, size, index, total ->
                     logDiagnostic("APK entry [$index/$total]: $name; size=$size bytes")
-                }
+                },
+                onIconDiagnostic = { message -> logDiagnostic(message) }
             ) } finally { heartbeat.interrupt() }
             logDiagnostic("APK rebuild/signing completed; preparing OBB outputs.")
             reportProgress(99)

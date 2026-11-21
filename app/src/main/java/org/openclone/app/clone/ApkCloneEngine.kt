@@ -48,11 +48,12 @@ class ApkCloneEngine(context: Context) {
         removedPermissions: Set<String> = emptySet(),
         versionNameOverride: String? = null,
         versionCodeOverride: Int? = null,
-        onEntry: ((String, Long, Int, Int) -> Unit)? = null
+        onEntry: ((String, Long, Int, Int) -> Unit)? = null,
+        onIconDiagnostic: (String) -> Unit = {}
     ): CloneBuildResult {
         val paths = listOfNotNull(applicationInfo.sourceDir) + applicationInfo.splitSourceDirs.orEmpty()
         val sourceApks = paths.map(::File)
-        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon || customIconFile != null }, allowUpdate, ensureActive, badgePosition, markIcon, customIconFile, rewriteDexPackageStrings, removedPermissions, versionNameOverride, versionCodeOverride, onEntry)
+        return build(sourceApks, originalPackage, newPackage, newLabel, outputDirectory, onProgress, applicationInfo.takeIf { markIcon || customIconFile != null }, allowUpdate, ensureActive, badgePosition, markIcon, customIconFile, rewriteDexPackageStrings, removedPermissions, versionNameOverride, versionCodeOverride, onEntry, onIconDiagnostic)
     }
 
     @Suppress("DEPRECATION")
@@ -73,7 +74,8 @@ class ApkCloneEngine(context: Context) {
         removedPermissions: Set<String> = emptySet(),
         versionNameOverride: String? = null,
         versionCodeOverride: Int? = null,
-        onEntry: ((String, Long, Int, Int) -> Unit)? = null
+        onEntry: ((String, Long, Int, Int) -> Unit)? = null,
+        onIconDiagnostic: (String) -> Unit = {}
     ): CloneBuildResult {
         require(sourceApks.isNotEmpty()) { "No APK files were supplied." }
         require(sourceApks.all { it.isFile && it.canRead() }) { "One or more source APK files cannot be read." }
@@ -134,11 +136,32 @@ class ApkCloneEngine(context: Context) {
                 ensureActive()
                 onProgress(10 + (index * 80 / sourceApks.size))
                 val replacements = if (index == 0 && iconSource != null && (markIcon || customIconFile != null)) {
-                    runCatching {
+                    val report = runCatching {
                         IconBadger(appContext).replacements(iconSource, newPackage, badgePosition, customIconFile, markIcon)
-                    }.getOrDefault(emptyMap()).also { entries ->
-                        iconBadgeApplied = markIcon && entries.isNotEmpty()
-                        customIconApplied = customIconFile?.isFile == true && entries.keys.any { it.endsWith(".png", ignoreCase = true) }
+                    }.onFailure { error ->
+                        onIconDiagnostic(
+                            "ICON processing failed; original artwork was retained: " +
+                                error.javaClass.simpleName + ": " + (error.message ?: "no message")
+                        )
+                    }.getOrNull()
+                    if (report == null) {
+                        emptyMap()
+                    } else {
+                        report.diagnostics.forEach { onIconDiagnostic(it.toLogLine()) }
+                        if (report.omittedDiagnostics > 0) {
+                            onIconDiagnostic(
+                                "ICON diagnostics truncated: " + report.omittedDiagnostics +
+                                    " additional resource message(s) were omitted to keep the build log bounded."
+                            )
+                        }
+                        onIconDiagnostic(
+                            "ICON summary: replacements=" + report.replacements.size +
+                                "; badgeApplied=" + report.badgeApplied +
+                                "; customIconApplied=" + report.customIconApplied
+                        )
+                        iconBadgeApplied = report.badgeApplied
+                        customIconApplied = report.customIconApplied
+                        report.replacements
                     }
                 } else emptyMap()
                 val metadataEntry: (() -> Pair<String, ByteArray>)? = if (index == 0) {
