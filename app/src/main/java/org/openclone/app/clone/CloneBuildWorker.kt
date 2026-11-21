@@ -98,9 +98,13 @@ class CloneBuildWorker(
             }
             reportProgress(0)
             logDiagnostic("Starting APK rebuild and signing. Output directory is app-private.")
-            val rewriteRequested = inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, DEFAULT_REWRITE_DEX_PACKAGE_STRINGS)
+            val rewriteOverride = if (inputData.keyValueMap.containsKey(KEY_REWRITE_DEX_PACKAGE_STRINGS)) {
+                inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, false)
+            } else null
+            val rewriteDefault = DexRewritePolicy.defaultEnabledFor(originalPackage)
+            val rewriteRequested = DexRewritePolicy.resolveEnabled(originalPackage, rewriteOverride)
             logDiagnostic("DEX package-string rewrite: requested=" + rewriteRequested +
-                "; default=" + DEFAULT_REWRITE_DEX_PACKAGE_STRINGS + "; original=" + originalPackage +
+                "; default=" + rewriteDefault + "; original=" + originalPackage +
                 "; clone=" + clonePackage + "; effective=" + (rewriteRequested && originalPackage != clonePackage))
             val heartbeat = startHeartbeat(Thread.currentThread())
             val result = try { ApkCloneEngine(applicationContext).build(
@@ -120,7 +124,7 @@ class CloneBuildWorker(
                 badgePosition = position,
                 markIcon = markIcon,
                 customIconFile = customIconFile,
-                rewriteDexPackageStrings = inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, DEFAULT_REWRITE_DEX_PACKAGE_STRINGS),
+                rewriteDexPackageStrings = rewriteRequested,
                 removedPermissions = inputData.getStringArray(KEY_REMOVED_PERMISSIONS).orEmpty().toSet(),
                 versionNameOverride = inputData.getString(KEY_VERSION_NAME_OVERRIDE)?.takeIf { it.isNotBlank() },
                 versionCodeOverride = inputData.getInt(KEY_VERSION_CODE_OVERRIDE, 0).takeIf { it > 0 },
@@ -185,7 +189,6 @@ class CloneBuildWorker(
         const val KEY_CLONE_LABEL = "clone_label"
         const val KEY_MARK_ICON = "mark_icon"
         const val KEY_REWRITE_DEX_PACKAGE_STRINGS = "rewrite_dex_package_strings"
-        const val DEFAULT_REWRITE_DEX_PACKAGE_STRINGS = false
         const val KEY_REMOVED_PERMISSIONS = "removed_permissions"
         const val KEY_VERSION_NAME_OVERRIDE = "version_name_override"
         const val KEY_VERSION_CODE_OVERRIDE = "version_code_override"

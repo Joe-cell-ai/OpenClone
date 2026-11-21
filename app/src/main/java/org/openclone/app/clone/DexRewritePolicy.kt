@@ -10,5 +10,9 @@ object DexRewritePolicy {
     fun defaultEnabledFor(originalPackage: String): Boolean =
         originalPackage == WHATSAPP_PACKAGE
 
+    /** Uses the app-specific default only when the build request did not supply an override. */
+    fun resolveEnabled(originalPackage: String, requestedOverride: Boolean?): Boolean =
+        requestedOverride ?: defaultEnabledFor(originalPackage)
+
     const val WHATSAPP_PACKAGE = "com.whatsapp"
 }
