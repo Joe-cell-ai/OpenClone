@@ -202,9 +202,11 @@ object ApkRebuilder {
                                         "cloneFlattenedComponents=${audit.cloneFlattenedComponentReferences}",
                                     selectedDex.length(), entryIndex + 1, totalEntries
                                 )
-                                check(audit.oldPackageLiterals == 0 && audit.oldFlattenedComponentReferences == 0) {
-                                    "${entry.name} still contains ${audit.oldPackageLiterals} original package literals and " +
-                                        "${audit.oldFlattenedComponentReferences} original flattened component references after DEX rewriting."
+                                // Exact package-name literals can be legitimate app data or API
+                                // arguments. Report them, but only block a stale flattened
+                                // package/class component identity that would target the original app.
+                                check(audit.oldFlattenedComponentReferences == 0) {
+                                    "${entry.name} still contains ${audit.oldFlattenedComponentReferences} original flattened component references after DEX rewriting."
                                 }
                             }
                             if (entry.method == ZipEntry.STORED) {

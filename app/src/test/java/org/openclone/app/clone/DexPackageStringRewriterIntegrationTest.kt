@@ -292,5 +292,49 @@ class DexPackageStringRewriterIntegrationTest {
             directory.deleteRecursively()
         }
     }
+    @Test
+    fun auditReportsButDoesNotTreatStandaloneOriginalPackageLiteralAsFlattenedComponent() {
+        val directory = createTempDir(prefix = "openclone-dex-audit-literal-only-")
+        val input = File(directory, "literal-only.dex")
+        try {
+            val dexBuilder = DexBuilder(Opcodes.getDefault())
+            val implementation = MethodImplementationBuilder(1).apply {
+                addInstruction(BuilderInstruction21c(
+                    Opcode.CONST_STRING, 0, dexBuilder.internString("com.whatsapp")
+                ))
+                addInstruction(BuilderInstruction10x(Opcode.RETURN_VOID))
+            }.methodImplementation
+            val method = dexBuilder.internMethod(
+                "Lcom/example/Metadata;",
+                "originalPackageName",
+                emptyList(),
+                "V",
+                AccessFlags.PUBLIC.value or AccessFlags.STATIC.value,
+                emptySet(),
+                emptySet(),
+                implementation
+            )
+            dexBuilder.internClassDef(
+                "Lcom/example/Metadata;",
+                AccessFlags.PUBLIC.value,
+                "Ljava/lang/Object;",
+                emptyList(),
+                null,
+                null,
+                emptyList(),
+                listOf(method)
+            )
+            dexBuilder.writeTo(input.absolutePath)
+
+            val audit = DexPackageStringRewriter.auditComponentReferences(
+                input, "com.whatsapp", "com.whatsapp.clone"
+            )
+
+            assertEquals(1, audit.oldPackageLiterals)
+            assertEquals(0, audit.oldFlattenedComponentReferences)
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
 
 }
