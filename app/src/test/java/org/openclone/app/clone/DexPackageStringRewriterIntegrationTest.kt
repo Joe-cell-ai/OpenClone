@@ -4,6 +4,7 @@ import java.io.File
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes
 import org.jf.dexlib2.writer.builder.DexBuilder
+import org.jf.dexlib2.writer.io.FileDataStore
 import org.jf.dexlib2.builder.MethodImplementationBuilder
 import org.jf.dexlib2.builder.instruction.BuilderInstruction10x
 import org.jf.dexlib2.builder.instruction.BuilderInstruction21c
@@ -29,7 +30,7 @@ class DexPackageStringRewriterIntegrationTest {
                     BuilderInstruction21c(
                         Opcode.CONST_STRING,
                         0,
-                        dexBuilder.internString(
+                        dexBuilder.internStringReference(
                             "com.whatsapp/.registration.app.phonenumberentry.RegisterPhone"
                         )
                     )
@@ -52,11 +53,11 @@ class DexPackageStringRewriterIntegrationTest {
                 "Ljava/lang/Object;",
                 emptyList(),
                 null,
-                null,
+                emptySet(),
                 emptyList(),
                 listOf(method)
             )
-            dexBuilder.writeTo(input.absolutePath)
+            dexBuilder.writeTo(FileDataStore(input))
 
             val result = DexPackageStringRewriter.rewrite(
                 input = input,
@@ -102,7 +103,7 @@ class DexPackageStringRewriterIntegrationTest {
                     BuilderInstruction31c(
                         Opcode.CONST_STRING_JUMBO,
                         0,
-                        dexBuilder.internString(
+                        dexBuilder.internStringReference(
                             "com.whatsapp/.registration.app.phonenumberentry.RegisterPhone"
                         )
                     )
@@ -125,11 +126,11 @@ class DexPackageStringRewriterIntegrationTest {
                 "Ljava/lang/Object;",
                 emptyList(),
                 null,
-                null,
+                emptySet(),
                 emptyList(),
                 listOf(method)
             )
-            dexBuilder.writeTo(input.absolutePath)
+            dexBuilder.writeTo(FileDataStore(input))
 
             val result = DexPackageStringRewriter.rewrite(
                 input = input,
@@ -169,7 +170,7 @@ class DexPackageStringRewriterIntegrationTest {
                     BuilderInstruction21c(
                         Opcode.CONST_STRING,
                         0,
-                        dexBuilder.internString(component)
+                        dexBuilder.internStringReference(component)
                     )
                 )
                 addInstruction(BuilderInstruction10x(Opcode.RETURN_VOID))
@@ -190,11 +191,11 @@ class DexPackageStringRewriterIntegrationTest {
                 "Ljava/lang/Object;",
                 emptyList(),
                 null,
-                null,
+                emptySet(),
                 emptyList(),
                 listOf(method)
             )
-            dexBuilder.writeTo(input.absolutePath)
+            dexBuilder.writeTo(FileDataStore(input))
 
             val result = DexPackageStringRewriter.rewrite(
                 input = input,
@@ -234,11 +235,11 @@ class DexPackageStringRewriterIntegrationTest {
             val implementation = MethodImplementationBuilder(2).apply {
                 // Apps can construct ComponentName(packageName, className) from two strings.
                 addInstruction(BuilderInstruction21c(
-                    Opcode.CONST_STRING, 0, dexBuilder.internString("com.whatsapp")
+                    Opcode.CONST_STRING, 0, dexBuilder.internStringReference("com.whatsapp")
                 ))
                 addInstruction(BuilderInstruction21c(
                     Opcode.CONST_STRING, 1,
-                    dexBuilder.internString(".registration.app.phonenumberentry.RegisterPhone")
+                    dexBuilder.internStringReference(".registration.app.phonenumberentry.RegisterPhone")
                 ))
                 addInstruction(BuilderInstruction10x(Opcode.RETURN_VOID))
             }.methodImplementation
@@ -258,11 +259,11 @@ class DexPackageStringRewriterIntegrationTest {
                 "Ljava/lang/Object;",
                 emptyList(),
                 null,
-                null,
+                emptySet(),
                 emptyList(),
                 listOf(method)
             )
-            dexBuilder.writeTo(input.absolutePath)
+            dexBuilder.writeTo(FileDataStore(input))
 
             val result = DexPackageStringRewriter.rewrite(
                 input = input,
@@ -300,7 +301,7 @@ class DexPackageStringRewriterIntegrationTest {
             val dexBuilder = DexBuilder(Opcodes.getDefault())
             val implementation = MethodImplementationBuilder(1).apply {
                 addInstruction(BuilderInstruction21c(
-                    Opcode.CONST_STRING, 0, dexBuilder.internString("com.whatsapp")
+                    Opcode.CONST_STRING, 0, dexBuilder.internStringReference("com.whatsapp")
                 ))
                 addInstruction(BuilderInstruction10x(Opcode.RETURN_VOID))
             }.methodImplementation
@@ -320,11 +321,11 @@ class DexPackageStringRewriterIntegrationTest {
                 "Ljava/lang/Object;",
                 emptyList(),
                 null,
-                null,
+                emptySet(),
                 emptyList(),
                 listOf(method)
             )
-            dexBuilder.writeTo(input.absolutePath)
+            dexBuilder.writeTo(FileDataStore(input))
 
             val audit = DexPackageStringRewriter.auditComponentReferences(
                 input, "com.whatsapp", "com.whatsapp.clone"
