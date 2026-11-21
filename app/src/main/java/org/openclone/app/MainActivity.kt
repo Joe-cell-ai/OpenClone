@@ -726,7 +726,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         cloneError = null
                         cloneUpdateMode = false
                         markCloneIcon = true
-                        rewriteDexPackageStrings = false
+                        rewriteDexPackageStrings = org.openclone.app.clone.DexRewritePolicy.defaultEnabledFor(source.packageName)
                         customIconPath = null
                         badgePosition = BadgePosition.BOTTOM_RIGHT
                         statusMessage = "Imported ${source.apkFiles.size} APK component(s) and ${source.obbFiles.size} OBB file(s) from ${source.archiveName}."
@@ -1455,7 +1455,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     versionCodeOverride = ""
                     cloneError = null
                     markCloneIcon = true
-                    rewriteDexPackageStrings = false
+                    rewriteDexPackageStrings = org.openclone.app.clone.DexRewritePolicy.defaultEnabledFor(app.packageName)
                     customIconPath = null
                     badgePosition = BadgePosition.BOTTOM_RIGHT
                     cloneUpdateMode = false
@@ -1512,7 +1512,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         Column(Modifier.weight(1f)) {
                             Text("Experimental DEX package-string rewrite", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "Off by default. When enabled, rewrites matching package-identity string constants and flattened explicit component targets across DEX files. This may break apps that depend on their original package identity. It does not rename classes or bypass Android exported-component, signature, or integrity checks.",
+                                "Automatically enabled for WhatsApp clones to rewrite explicit registration component targets. Optional for other apps. This changes matching package-identity strings only; it does not rename classes or bypass Android exported-component, signature, or integrity checks.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1763,6 +1763,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                                         removedPermissions = emptySet()
                                                         cloneName = profile.cloneLabel
                                                         clonePackage = profile.clonePackage
+                                                        rewriteDexPackageStrings = org.openclone.app.clone.DexRewritePolicy.defaultEnabledFor(profile.originalPackage)
                                                         markCloneIcon = profile.markIcon
                                                         badgePosition = runCatching { BadgePosition.valueOf(profile.badgePosition) }.getOrDefault(BadgePosition.BOTTOM_RIGHT)
                                                         customIconPath = null
@@ -2030,6 +2031,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                 removedPermissions = emptySet()
                                 cloneName = clone.cloneLabel
                                 clonePackage = clone.clonePackage
+                                rewriteDexPackageStrings = org.openclone.app.clone.DexRewritePolicy.defaultEnabledFor(clone.originalPackage)
                                 versionNameOverride = ""
                                 versionCodeOverride = ""
                                 cloneUpdateMode = true
