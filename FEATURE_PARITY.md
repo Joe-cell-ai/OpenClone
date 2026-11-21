@@ -34,7 +34,7 @@ This document tracks the feature set described by the App Cloner reference proje
 
 1. [x] **DEX package rewrite hardening** — the advanced opt-in is off by default; cancellation checkpoints and per-DEX start/completion diagnostics are present. APK-level fixtures cover multidex rewriting, encoded static values, package-like unrelated strings, unchanged class descriptors, and cancellation propagation. Verified on 2026-11-20 by full CI run #480 for commit `e7b012d` (`testDebugUnitTest`, `lintDebug`, and `assembleDebug` all passed).
 2. **Icon pipeline** — expand custom replacement beyond direct PNG foregrounds to vector XML, nested layer lists, density variants and monochrome resources.
-   - [ ] **Per-resource diagnostics** — implementation added in this commit; verification pending. Report resource path, ID, density, operation and outcome for each attempted icon replacement, with bounded logs.
+   - [x] **Per-resource diagnostics** — report resource path, ID, density, operation and outcome for each attempted icon replacement, with bounded logs. Verified 2026-11-21 by full Android CI run [#488](https://github.com/Joe-cell-ai/OpenClone/actions/runs/44886406841) for commit `9a199db` (`testDebugUnitTest`, `lintDebug`, and `assembleDebug` all passed).
    - [ ] **Format expansion** — safely support vector XML, nested layer lists, density variants and monochrome resources where the resource table can be updated without changing unrelated app resources.
 3. **OBB support** — investigate Android-version-appropriate access to installed-source expansion files, while keeping export/import behavior explicit and permission-safe.
 4. **Compatibility analysis** — add fixture-backed checks for package-bound Google services, Firebase/FCM, signature dependencies, shared-user constraints and known runtime limitations.
@@ -53,3 +53,5 @@ This audit is based on the reference project's publicly described feature behavi
 ## Completed task log
 
 - [x] 2026-11-20 — DEX rewrite hardening test coverage and safer opt-in wording. Commit: `e7b012d198f29d0d2670fa1bc8b17abc192a5647`. Full Android CI run [#480](https://github.com/Joe-cell-ai/OpenClone/actions/runs/44710402654) passed unit tests, lint and debug APK assembly. This verifies build-time behavior only; it is not a device/runtime compatibility claim.
+
+- [x] 2026-11-21 — Icon replacement per-resource diagnostics. Commit: `9a199db5d7636d023209beaa674128a55c40d281`. Full Android CI run [#488](https://github.com/Joe-cell-ai/OpenClone/actions/runs/44886406841) passed `testDebugUnitTest`, `lintDebug`, and `assembleDebug`; the debug APK artifact was uploaded. Vector XML, nested layer-list traversal, non-PNG source resources and monochrome custom-icon replacement remain pending.
