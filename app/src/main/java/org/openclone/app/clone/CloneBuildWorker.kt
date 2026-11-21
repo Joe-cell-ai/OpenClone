@@ -98,8 +98,11 @@ class CloneBuildWorker(
             }
             reportProgress(0)
             logDiagnostic("Starting APK rebuild and signing. Output directory is app-private.")
+            val rewriteOverride = if (inputData.keyValueMap.containsKey(KEY_REWRITE_DEX_PACKAGE_STRINGS)) {
+                inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, false)
+            } else null
             val rewriteDefault = DexRewritePolicy.defaultEnabledFor(originalPackage)
-            val rewriteRequested = inputData.getBoolean(KEY_REWRITE_DEX_PACKAGE_STRINGS, rewriteDefault)
+            val rewriteRequested = DexRewritePolicy.resolveEnabled(originalPackage, rewriteOverride)
             logDiagnostic("DEX package-string rewrite: requested=" + rewriteRequested +
                 "; default=" + rewriteDefault + "; original=" + originalPackage +
                 "; clone=" + clonePackage + "; effective=" + (rewriteRequested && originalPackage != clonePackage))
