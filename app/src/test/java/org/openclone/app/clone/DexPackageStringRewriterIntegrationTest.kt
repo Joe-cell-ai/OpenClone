@@ -66,6 +66,12 @@ class DexPackageStringRewriterIntegrationTest {
             )
 
             assertEquals(1, result.replacements)
+            val audit = DexPackageStringRewriter.auditComponentReferences(
+                output, "com.whatsapp", "com.whatsapp.clone"
+            )
+            assertEquals(0, audit.oldPackageLiterals)
+            assertEquals(0, audit.oldFlattenedComponentReferences)
+            assertTrue(audit.clonePackageLiterals > 0)
             val rewrittenDex = DexFileFactory.loadDexFile(output, Opcodes.getDefault())
             val rewrittenClass = rewrittenDex.classes.single()
             assertEquals("Lcom/whatsapp/Registration;", rewrittenClass.type)
