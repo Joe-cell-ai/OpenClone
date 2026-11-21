@@ -3,7 +3,7 @@ package org.openclone.app.clone
 import java.io.File
 import org.jf.dexlib2.DexFileFactory
 import org.jf.dexlib2.Opcodes
-import org.jf.dexlib2.builder.DexBuilder
+import org.jf.dexlib2.writer.builder.DexBuilder
 import org.jf.dexlib2.builder.MethodImplementationBuilder
 import org.jf.dexlib2.builder.instruction.BuilderInstruction10x
 import org.jf.dexlib2.builder.instruction.BuilderInstruction21c
