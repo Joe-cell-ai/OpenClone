@@ -189,6 +189,24 @@ object ApkRebuilder {
                             onStep?.invoke()
                             onEntry?.invoke("${entry.name}: DEX rewrite complete; replacements=$replacementCount", entry.size, entryIndex + 1, totalEntries)
                             val selectedDex = if (replacementCount > 0) rewrittenDex else sourceDex
+                            if (dexPackageRewrite != null) {
+                                val audit = DexPackageStringRewriter.auditComponentReferences(
+                                    selectedDex,
+                                    dexPackageRewrite.first,
+                                    dexPackageRewrite.second
+                                )
+                                onEntry?.invoke(
+                                    "${entry.name}: DEX component audit; oldPackageLiterals=${audit.oldPackageLiterals}; " +
+                                        "oldFlattenedComponents=${audit.oldFlattenedComponentReferences}; " +
+                                        "clonePackageLiterals=${audit.clonePackageLiterals}; " +
+                                        "cloneFlattenedComponents=${audit.cloneFlattenedComponentReferences}",
+                                    selectedDex.length(), entryIndex + 1, totalEntries
+                                )
+                                check(audit.oldPackageLiterals == 0 && audit.oldFlattenedComponentReferences == 0) {
+                                    "${entry.name} still contains ${audit.oldPackageLiterals} original package literals and " +
+                                        "${audit.oldFlattenedComponentReferences} original flattened component references after DEX rewriting."
+                                }
+                            }
                             if (entry.method == ZipEntry.STORED) {
                                 val checksum = CRC32()
                                 selectedDex.inputStream().use { input -> copyChecked(input, CheckedOutputStream(Discard, checksum), onStep) }
