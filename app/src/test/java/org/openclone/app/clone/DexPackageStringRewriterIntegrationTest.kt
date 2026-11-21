@@ -150,4 +150,71 @@ class DexPackageStringRewriterIntegrationTest {
         }
     }
 
+    @Test
+    fun rewritesFullyQualifiedWhatsAppComponentWithoutChangingItsClassName() {
+        val directory = createTempDir(prefix = "openclone-dex-qualified-test-")
+        val input = File(directory, "classes.dex")
+        val output = File(directory, "rewritten.dex")
+        try {
+            val dexBuilder = DexBuilder(Opcodes.getDefault())
+            val component = "com.whatsapp/com.whatsapp.registration.app.phonenumberentry.RegisterPhone"
+            val implementation = MethodImplementationBuilder(1).apply {
+                addInstruction(
+                    BuilderInstruction21c(
+                        Opcode.CONST_STRING,
+                        0,
+                        dexBuilder.internString(component)
+                    )
+                )
+                addInstruction(BuilderInstruction10x(Opcode.RETURN_VOID))
+            }.methodImplementation
+            val method = dexBuilder.internMethod(
+                "Lcom/whatsapp/Registration;",
+                "launchFullyQualifiedRegistration",
+                emptyList(),
+                "V",
+                AccessFlags.PUBLIC.value or AccessFlags.STATIC.value,
+                emptySet(),
+                emptySet(),
+                implementation
+            )
+            dexBuilder.internClassDef(
+                "Lcom/whatsapp/Registration;",
+                AccessFlags.PUBLIC.value,
+                "Ljava/lang/Object;",
+                emptyList(),
+                null,
+                null,
+                emptyList(),
+                listOf(method)
+            )
+            dexBuilder.writeTo(input.absolutePath)
+
+            val result = DexPackageStringRewriter.rewrite(
+                input = input,
+                output = output,
+                oldPackage = "com.whatsapp",
+                newPackage = "com.whatsapp.clone"
+            )
+
+            assertEquals(1, result.replacements)
+            val rewrittenDex = DexFileFactory.loadDexFile(output, Opcodes.getDefault())
+            val rewrittenClass = rewrittenDex.classes.single()
+            assertEquals("Lcom/whatsapp/Registration;", rewrittenClass.type)
+            val strings = rewrittenClass.methods
+                .flatMap { it.implementation?.instructions?.toList().orEmpty() }
+                .mapNotNull { instruction ->
+                    (instruction as? ReferenceInstruction)?.reference as? StringReference
+                }
+                .map { it.string }
+            assertTrue(
+                strings.contains(
+                    "com.whatsapp.clone/com.whatsapp.registration.app.phonenumberentry.RegisterPhone"
+                )
+            )
+        } finally {
+            directory.deleteRecursively()
+        }
+    }
+
 }
