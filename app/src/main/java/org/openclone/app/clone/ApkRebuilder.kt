@@ -166,24 +166,29 @@ object ApkRebuilder {
                         try {
                             zip.getInputStream(entry).use { input -> sourceDex.outputStream().use { output -> copyPlain(input, output) } }
                             onStep?.invoke()
-                            var lastLoggedInstructions = 0L
-                            val rewrite = DexPackageStringRewriter.rewrite(
-                                sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {},
-                                onStage = { stage -> onEntry?.invoke("${entry.name}: DEX $stage", entry.size, entryIndex + 1, totalEntries) }
-                            ) { instructions ->
-                                if (instructions >= lastLoggedInstructions + 400_000L) {
-                                    lastLoggedInstructions = instructions
-                                    onEntry?.invoke("${entry.name}: DEX instructions visited=$instructions", entry.size, entryIndex + 1, totalEntries)
-                                }
-                                // DEX instruction count is unknown before parsing. Ease toward 90%
-                                // of this entry's byte share; final output copying accounts for bytes once.
-                                val share = entry.size.coerceAtLeast(0L)
-                                val partial = (share * 0.9 * (1.0 - kotlin.math.exp(-instructions / 1_500_000.0))).toLong()
-                                onProgress((((processedBytes + partial) * 95L) / totalBytes).toInt().coerceIn(0, 95))
+                            val replacementCount = if (!DexStringPrefilter.mayContainRewritableStrings(sourceDex, dexPackageRewrite.first)) {
+                                onEntry?.invoke("${entry.name}: DEX rewrite skipped; no string in this file can change", entry.size, entryIndex + 1, totalEntries)
+                                0
+                            } else {
+                                var lastLoggedInstructions = 0L
+                                DexPackageStringRewriter.rewrite(
+                                    sourceDex, rewrittenDex, dexPackageRewrite.first, dexPackageRewrite.second, onStep ?: {},
+                                    onStage = { stage -> onEntry?.invoke("${entry.name}: DEX $stage", entry.size, entryIndex + 1, totalEntries) }
+                                ) { instructions ->
+                                    if (instructions >= lastLoggedInstructions + 400_000L) {
+                                        lastLoggedInstructions = instructions
+                                        onEntry?.invoke("${entry.name}: DEX instructions visited=$instructions", entry.size, entryIndex + 1, totalEntries)
+                                    }
+                                    // DEX instruction count is unknown before parsing. Ease toward 90%
+                                    // of this entry's byte share; final output copying accounts for bytes once.
+                                    val share = entry.size.coerceAtLeast(0L)
+                                    val partial = (share * 0.9 * (1.0 - kotlin.math.exp(-instructions / 1_500_000.0))).toLong()
+                                    onProgress((((processedBytes + partial) * 95L) / totalBytes).toInt().coerceIn(0, 95))
+                                }.replacements
                             }
                             onStep?.invoke()
-                            onEntry?.invoke("${entry.name}: DEX rewrite complete; replacements=${rewrite.replacements}", entry.size, entryIndex + 1, totalEntries)
-                            val selectedDex = if (rewrite.replacements > 0) rewrittenDex else sourceDex
+                            onEntry?.invoke("${entry.name}: DEX rewrite complete; replacements=$replacementCount", entry.size, entryIndex + 1, totalEntries)
+                            val selectedDex = if (replacementCount > 0) rewrittenDex else sourceDex
                             if (entry.method == ZipEntry.STORED) {
                                 val checksum = CRC32()
                                 selectedDex.inputStream().use { input -> copyChecked(input, CheckedOutputStream(Discard, checksum), onStep) }
