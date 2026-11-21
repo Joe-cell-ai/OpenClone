@@ -1506,13 +1506,22 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(
-                            checked = rewriteDexPackageStrings,
+                            checked = rewriteDexPackageStrings || sourcePackage == org.openclone.app.clone.DexRewritePolicy.WHATSAPP_PACKAGE,
+                            enabled = sourcePackage != org.openclone.app.clone.DexRewritePolicy.WHATSAPP_PACKAGE,
                             onCheckedChange = { rewriteDexPackageStrings = it }
                         )
                         Column(Modifier.weight(1f)) {
-                            Text("Experimental DEX package-string rewrite", style = MaterialTheme.typography.bodyMedium)
                             Text(
-                                "Automatically enabled for WhatsApp clones to rewrite explicit registration component targets. Optional for other apps. This changes matching package-identity strings only; it does not rename classes or bypass Android exported-component, signature, or integrity checks.",
+                                if (sourcePackage == org.openclone.app.clone.DexRewritePolicy.WHATSAPP_PACKAGE)
+                                    "Required WhatsApp component routing"
+                                else "Experimental DEX package-string rewrite",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                if (sourcePackage == org.openclone.app.clone.DexRewritePolicy.WHATSAPP_PACKAGE)
+                                    "Always enabled for WhatsApp. Internal registration intents must target the clone package so Android does not try to launch non-exported activities from the original installation."
+                                else
+                                    "Optional for other apps. This changes matching package-identity strings only; it does not rename classes or bypass Android exported-component, signature, or integrity checks.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
