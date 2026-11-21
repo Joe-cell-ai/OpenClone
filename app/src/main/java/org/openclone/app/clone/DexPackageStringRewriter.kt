@@ -127,6 +127,45 @@ object DexPackageStringRewriter {
         return Result(replacements.get())
     }
 
+    data class AuditResult(
+        val oldPackageLiterals: Int,
+        val oldFlattenedComponentReferences: Int,
+        val clonePackageLiterals: Int,
+        val cloneFlattenedComponentReferences: Int
+    )
+
+    /**
+     * Audits const-string references in a rebuilt DEX. Exact package literals matter because
+     * callers may construct ComponentName(packageName, className) from separate strings.
+     */
+    fun auditComponentReferences(
+        dexFile: File,
+        oldPackage: String,
+        newPackage: String
+    ): AuditResult {
+        val dex = DexFileFactory.loadDexFile(dexFile, Opcodes.getDefault())
+        var oldLiterals = 0
+        var oldFlattened = 0
+        var newLiterals = 0
+        var newFlattened = 0
+        for (classDef in dex.classes) {
+            for (method in classDef.methods) {
+                val implementation = method.implementation ?: continue
+                for (instruction in implementation.instructions) {
+                    val reference = (instruction as? org.jf.dexlib2.iface.instruction.ReferenceInstruction)
+                        ?.reference as? org.jf.dexlib2.iface.reference.StringReference ?: continue
+                    when (reference.string) {
+                        oldPackage -> oldLiterals++
+                        newPackage -> newLiterals++
+                    }
+                    if (reference.string.startsWith("$oldPackage/")) oldFlattened++
+                    if (reference.string.startsWith("$newPackage/")) newFlattened++
+                }
+            }
+        }
+        return AuditResult(oldLiterals, oldFlattened, newLiterals, newFlattened)
+    }
+
     /**
      * Rewrites only an app-package identity, not a Java/Kotlin class name that merely starts
      * with the same package prefix. A flattened component such as
