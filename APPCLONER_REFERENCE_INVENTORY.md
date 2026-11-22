@@ -20,7 +20,7 @@ This inventory was extracted from the user-provided JADX archive `Documents.zip`
 
 ### Icon and launcher surfaces
 - UI strings expose icon replacement, clone badges, icon color and size controls, rotation/flip, icon-pack selection, generated app icons, and Android 13+ themed-icon generation. These labels are inventory evidence; the protected/obfuscated archive does not prove every option's complete implementation contract.
-- OpenClone currently replaces direct PNG icon resources and direct PNG adaptive-icon foregrounds, and can add badges to direct PNG and plain adaptive-icon resources. Per-resource build diagnostics report resource path, ID, density, action, and whether the operation was applied, unsupported, or failed. Vector XML, nested layer-list traversal, non-PNG source resources, icon packs, and generated/themed icon workflows remain pending or unsupported.
+- OpenClone replaces direct PNG icon resources and direct PNG adaptive-icon foregrounds, and can add badges to direct PNG and plain adaptive-icon resources. Custom replacement also supports direct VectorDrawable resources and VectorDrawable adaptive-icon foregrounds by converting the selected raster artwork to a bounded 48x48 vector with at most 32 colours; the conversion is intentionally lossy to limit APK resource size. Per-resource build diagnostics report resource path, ID, density, action, and whether the operation was applied, unsupported, or failed. Nested layer-list traversal, other non-PNG source resources, icon packs, and generated/themed icon workflows remain pending or unsupported.
 
 ### Background and network services
 - AppCloner service, VPN service, logcat dump service, HTTP server service, and audio recording service.

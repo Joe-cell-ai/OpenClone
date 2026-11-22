@@ -204,10 +204,29 @@ class IconBadger(private val context: Context) {
                                     )
                                 } else if (foreground == null) {
                                     val root = runCatching { xmlRootName(resources, icon) }.getOrNull() ?: "unknown"
-                                    record(
-                                        IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.UNSUPPORTED,
-                                        "XML root <" + root + "> is not a plain adaptive icon with a direct foreground reference."
-                                    )
+                                    if (root == "vector") {
+                                        val replacement = runCatching { vectorIcon(customBitmap) }
+                                        if (replacement.isSuccess) {
+                                            replacements[path] = replacement.getOrThrow()
+                                            customIconApplied = true
+                                            record(
+                                                IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.APPLIED,
+                                                "Replaced a direct VectorDrawable using a bounded 48x48 raster-to-vector conversion (maximum 32 colors)."
+                                            )
+                                        } else {
+                                            val error = replacement.exceptionOrNull()
+                                            record(
+                                                IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.FAILED,
+                                                "Could not convert the custom image to VectorDrawable paths: " +
+                                                    (error?.message ?: error?.javaClass?.simpleName ?: "unknown error").take(120)
+                                            )
+                                        }
+                                    } else {
+                                        record(
+                                            IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.UNSUPPORTED,
+                                            "XML root <" + root + "> is not a plain adaptive icon with a direct foreground reference or a direct vector drawable."
+                                        )
+                                    }
                                 } else {
                                     var resolvedForeground = false
                                     for (layerDensity in DENSITIES) {
@@ -264,15 +283,34 @@ class IconBadger(private val context: Context) {
 
                                             IconResourceKind.XML -> {
                                                 val root = runCatching { xmlRootName(resources, foreground) }.getOrNull() ?: "unknown"
-                                                val detail = when (root) {
-                                                    "vector" -> "VectorDrawable foreground replacement is not implemented yet."
-                                                    "layer-list" -> "Nested layer-list foreground traversal is not implemented yet."
-                                                    else -> "XML foreground type <" + root + "> is not supported yet."
+                                                if (root == "vector") {
+                                                    val replacement = runCatching { vectorIcon(customBitmap) }
+                                                    if (replacement.isSuccess) {
+                                                        replacements[layerPath] = replacement.getOrThrow()
+                                                        customIconApplied = true
+                                                        record(
+                                                            IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity, IconDiagnosticStatus.APPLIED,
+                                                            "Replaced a VectorDrawable adaptive foreground using a bounded 48x48 raster-to-vector conversion (maximum 32 colors)."
+                                                        )
+                                                    } else {
+                                                        val error = replacement.exceptionOrNull()
+                                                        record(
+                                                            IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity, IconDiagnosticStatus.FAILED,
+                                                            "Could not convert the custom image to VectorDrawable paths: " +
+                                                                (error?.message ?: error?.javaClass?.simpleName ?: "unknown error").take(120)
+                                                        )
+                                                    }
+                                                } else {
+                                                    val detail = if (root == "layer-list") {
+                                                        "Nested layer-list foreground traversal is not implemented yet."
+                                                    } else {
+                                                        "XML foreground type <" + root + "> is not supported yet."
+                                                    }
+                                                    record(
+                                                        IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity, IconDiagnosticStatus.UNSUPPORTED,
+                                                        detail
+                                                    )
                                                 }
-                                                record(
-                                                    IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity, IconDiagnosticStatus.UNSUPPORTED,
-                                                    detail
-                                                )
                                             }
 
                                             IconResourceKind.OTHER -> {
@@ -446,6 +484,38 @@ class IconBadger(private val context: Context) {
         }.newElement("shape")
         shape.value("shape", android.R.attr.shape, ValueType.DEC, SHAPE_OVAL)
         shape.newElement("solid").value("color", android.R.attr.color, ValueType.COLOR_ARGB8, color)
+    }
+
+    /**
+     * Re-encodes the selected raster image as a compact VectorDrawable so resource-table entries
+     * that point to XML keep their expected drawable type. The bounded 48px viewport and 32-colour
+     * palette intentionally trade a little fidelity for predictable APK size and parse cost.
+     */
+    private fun vectorIcon(customBitmap: Bitmap): ByteArray {
+        val size = VectorIconPathEncoder.VIEWPORT_SIZE
+        val raster = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        try {
+            val scale = minOf(size.toFloat() / customBitmap.width, size.toFloat() / customBitmap.height)
+            val width = customBitmap.width * scale
+            val height = customBitmap.height * scale
+            val destination = android.graphics.RectF(
+                (size - width) / 2f,
+                (size - height) / 2f,
+                (size + width) / 2f,
+                (size + height) / 2f
+            )
+            Canvas(raster).drawBitmap(
+                customBitmap,
+                null,
+                destination,
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            )
+            val pixels = IntArray(size * size)
+            raster.getPixels(pixels, 0, size, 0, 0, size, size)
+            return VectorDrawableXmlEncoder.encode(size, size, pixels)
+        } finally {
+            raster.recycle()
+        }
     }
 
     /** A plain bitmap icon: the same picture, redrawn with the dot on it. */
