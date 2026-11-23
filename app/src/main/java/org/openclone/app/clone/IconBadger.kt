@@ -86,8 +86,74 @@ class IconBadger(private val context: Context) {
         val replacements = LinkedHashMap<String, ByteArray>()
         val visitedIconPaths = HashSet<String>()
         val visitedForegroundPaths = HashSet<String>()
+        val visitedLayerPaths = HashSet<String>()
         var badgeApplied = false
         var customIconApplied = false
+
+        fun replacePrimaryLayerListResource(rootResourceId: Int, densityDpi: Int, rootPath: String): Boolean {
+            val selectedBitmap = customBitmap ?: return false
+            val leaf = LayerListIconTraversal.findFirstReplaceableLeaf(rootResourceId) { resourceId ->
+                val layerValue = TypedValue()
+                if (densityDpi == 0) resources.getValue(resourceId, layerValue, true)
+                else resources.getValueForDensity(resourceId, densityDpi, layerValue, true)
+                val layerPath = layerValue.string?.toString()?.takeIf { it.isNotBlank() }
+                    ?: return@findFirstReplaceableLeaf null
+                val kind = IconResourceKind.fromPath(layerPath)
+                val rootName = if (kind == IconResourceKind.XML) {
+                    runCatching { xmlRootName(resources, resourceId) }.getOrNull()
+                } else null
+                val references = if (kind == IconResourceKind.XML) {
+                    runCatching { layerListReferences(resources, resourceId) }.getOrNull()
+                } else null
+                LayerListDrawableResource(
+                    resourceId = resourceId,
+                    path = layerPath,
+                    rootName = rootName,
+                    containsLayerList = references?.containsLayerList == true,
+                    childResourceIds = references?.resourceIds.orEmpty()
+                )
+            }
+
+            if (leaf == null) {
+                record(
+                    IconReplacementAction.CUSTOM_ICON, rootResourceId, rootPath, densityDpi,
+                    IconDiagnosticStatus.UNSUPPORTED,
+                    "No supported file-backed PNG or VectorDrawable layer was found; the original drawable layers were retained."
+                )
+                return false
+            }
+            if (!visitedLayerPaths.add(leaf.path)) return replacements.containsKey(leaf.path)
+
+            val replacement = runCatching {
+                when (IconResourceKind.fromPath(leaf.path)) {
+                    IconResourceKind.PNG -> bitmapIcon(
+                        resources, leaf.resourceId, densityDpi, color, position,
+                        customBitmap = selectedBitmap, addBadge = false
+                    )
+                    IconResourceKind.XML -> vectorIcon(selectedBitmap)
+                    IconResourceKind.OTHER -> error("The selected layer is not a supported PNG or VectorDrawable resource.")
+                }
+            }
+            if (replacement.isSuccess) {
+                replacements[leaf.path] = replacement.getOrThrow()
+                customIconApplied = true
+                record(
+                    IconReplacementAction.CUSTOM_ICON, leaf.resourceId, leaf.path, densityDpi,
+                    IconDiagnosticStatus.APPLIED,
+                    "Replaced the first supported image layer in the nested drawable graph; remaining layers were preserved."
+                )
+                return true
+            }
+
+            val error = replacement.exceptionOrNull()
+            record(
+                IconReplacementAction.CUSTOM_ICON, leaf.resourceId, leaf.path, densityDpi,
+                IconDiagnosticStatus.FAILED,
+                "Could not replace the selected nested icon layer: " +
+                    (error?.message ?: error?.javaClass?.simpleName ?: "unknown error").take(120)
+            )
+            return false
+        }
 
         try {
             if (iconIds.isEmpty()) {
@@ -221,10 +287,12 @@ class IconBadger(private val context: Context) {
                                                     (error?.message ?: error?.javaClass?.simpleName ?: "unknown error").take(120)
                                             )
                                         }
+                                    } else if (root != "adaptive-icon") {
+                                        replacePrimaryLayerListResource(icon, density, path)
                                     } else {
                                         record(
                                             IconReplacementAction.CUSTOM_ICON, icon, path, density, IconDiagnosticStatus.UNSUPPORTED,
-                                            "XML root <" + root + "> is not a plain adaptive icon with a direct foreground reference or a direct vector drawable."
+                                            "Inline adaptive-icon foreground content is not supported; a file-backed foreground reference is required."
                                         )
                                     }
                                 } else {
@@ -300,15 +368,13 @@ class IconBadger(private val context: Context) {
                                                                 (error?.message ?: error?.javaClass?.simpleName ?: "unknown error").take(120)
                                                         )
                                                     }
+                                                } else if (root != "adaptive-icon") {
+                                                    replacePrimaryLayerListResource(foreground, layerDensity, layerPath)
                                                 } else {
-                                                    val detail = if (root == "layer-list") {
-                                                        "Nested layer-list foreground traversal is not implemented yet."
-                                                    } else {
-                                                        "XML foreground type <" + root + "> is not supported yet."
-                                                    }
                                                     record(
-                                                        IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity, IconDiagnosticStatus.UNSUPPORTED,
-                                                        detail
+                                                        IconReplacementAction.CUSTOM_ICON, foreground, layerPath, layerDensity,
+                                                        IconDiagnosticStatus.UNSUPPORTED,
+                                                        "An adaptive-icon XML resource cannot be used as a nested foreground drawable."
                                                     )
                                                 }
                                             }
@@ -399,6 +465,59 @@ class IconBadger(private val context: Context) {
             if (event == XmlPullParser.START_TAG) root = parser.name
         }
         return root
+    }
+
+    private data class LayerListReferences(
+        val containsLayerList: Boolean,
+        val resourceIds: List<Int>
+    )
+
+    /**
+     * Finds resource references inside layer-list nodes while leaving selector state branches
+     * untouched. Only explicit @drawable references are followed; theme attributes and inline
+     * shapes are preserved rather than guessed or rewritten.
+     */
+    private fun layerListReferences(resources: Resources, resourceId: Int): LayerListReferences {
+        val references = linkedSetOf<Int>()
+        val layerListDepths = mutableListOf<Int>()
+        var ignoredSelectorDepth: Int? = null
+        var containsLayerList = false
+        var depth = 0
+
+        resources.getXml(resourceId).use { parser ->
+            var event = parser.eventType
+            while (event != XmlPullParser.END_DOCUMENT) {
+                when (event) {
+                    XmlPullParser.START_TAG -> {
+                        depth++
+                        if (ignoredSelectorDepth != null) {
+                            // Selector branches can represent state-specific artwork. Do not
+                            // replace only one state and accidentally change pressed/disabled icons.
+                        } else if (parser.name == "selector" || parser.name == "animated-selector") {
+                            ignoredSelectorDepth = depth
+                        } else {
+                            if (parser.name == "layer-list") {
+                                containsLayerList = true
+                                layerListDepths += depth
+                            }
+                            if (layerListDepths.isNotEmpty()) {
+                                val drawable = parser.getAttributeResourceValue(ANDROID_NS, "drawable", 0)
+                                val src = parser.getAttributeResourceValue(ANDROID_NS, "src", 0)
+                                if (drawable != 0 && references.size < MAX_LAYER_LIST_CHILDREN) references += drawable
+                                if (src != 0 && references.size < MAX_LAYER_LIST_CHILDREN) references += src
+                            }
+                        }
+                    }
+                    XmlPullParser.END_TAG -> {
+                        if (ignoredSelectorDepth == depth) ignoredSelectorDepth = null
+                        if (layerListDepths.lastOrNull() == depth) layerListDepths.removeAt(layerListDepths.lastIndex)
+                        depth--
+                    }
+                }
+                event = parser.next()
+            }
+        }
+        return LayerListReferences(containsLayerList, references.toList())
     }
 
     /** Returns the direct foreground resource ID of a plain adaptive-icon XML resource. */
@@ -631,6 +750,7 @@ class IconBadger(private val context: Context) {
         /** Just above what a launcher still counts as a visible pixel. */
         const val FRAME_ALPHA = 48
         const val MAX_DIAGNOSTICS = 64
+        const val MAX_LAYER_LIST_CHILDREN = LayerListIconTraversal.MAX_NODES
 
         const val MIN_BITMAP = 48
         const val MAX_BITMAP = 512
