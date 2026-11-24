@@ -63,10 +63,11 @@ class VirtualSpaceManager(context: Context) {
         return GuestExecutionState.RUNTIME_NOT_AVAILABLE
     }
 
-    fun launch(instanceId: String): Nothing {
-        requireNotNull(store.findInstance(instanceId)) { "Virtual app instance was not found." }
-        throw UnsupportedOperationException(
-            "The guest execution runtime is not implemented yet. The APK is safely stored, but it cannot launch inside OpenClone."
+    private val launchGate = GuestLaunchGate()
+
+    fun launch(instanceId: String): GuestLaunchResult =
+        launchGate.requestLaunch(
+            instanceId = instanceId,
+            instanceExists = store.findInstance(instanceId) != null
         )
-    }
 }
