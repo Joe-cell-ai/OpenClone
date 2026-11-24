@@ -2,6 +2,9 @@ package org.openclone.app.virtualspace
 
 import android.content.pm.PackageInfo
 import android.content.pm.ComponentInfo
+import android.content.pm.ActivityInfo
+import android.content.pm.ServiceInfo
+import android.content.pm.ProviderInfo
 
 /**
  * A manifest-declared guest component. This is inventory metadata for the virtual runtime;
@@ -36,6 +39,11 @@ private fun ComponentInfo.toDeclaration(kind: GuestComponentDeclaration.Kind) =
         kind = kind,
         exported = exported,
         enabled = enabled,
-        permission = permission,
+        permission = when (this) {
+            is ActivityInfo -> permission
+            is ServiceInfo -> permission
+            is ProviderInfo -> readPermission ?: writePermission
+            else -> null
+        },
         processName = processName
     )
