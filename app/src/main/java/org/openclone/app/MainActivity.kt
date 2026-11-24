@@ -1,5 +1,6 @@
 package org.openclone.app
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -9,6 +10,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Bundle
 import android.os.Build
+import android.os.Environment
 import android.provider.Settings
 import androidx.fragment.app.FragmentActivity
 import androidx.biometric.BiometricManager
@@ -103,6 +105,7 @@ import org.openclone.app.data.ExternalApkSet
 import org.openclone.app.data.ExternalApkImporter
 import org.openclone.app.data.InstalledApp
 import org.openclone.app.data.InstalledAppRepository
+import org.openclone.app.data.InstalledObbDiscovery
 import org.openclone.app.data.InstalledClone
 import org.openclone.app.data.InstalledCloneRepository
 import org.openclone.app.data.CloneBuildHistoryRepository
@@ -122,6 +125,25 @@ private const val THEME_PREFERENCES = "openclone_appearance"
 private const val THEME_MODE_KEY = "theme_mode"
 private const val CLONE_WORK_PREFERENCES = "openclone_clone_work"
 private const val ACTIVE_CLONE_WORK_ID = "active_clone_work_id"
+
+@Suppress("DEPRECATION")
+private fun inspectInstalledObb(context: Context, packageName: String): InstalledObbDiscovery.Result {
+    val sdkInt = Build.VERSION.SDK_INT
+    val hasReadPermission = sdkInt < Build.VERSION_CODES.M ||
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) ==
+        android.content.pm.PackageManager.PERMISSION_GRANTED
+    val storageState = runCatching { Environment.getExternalStorageState() }.getOrDefault("")
+    val storageReadable = storageState == Environment.MEDIA_MOUNTED ||
+        storageState == Environment.MEDIA_MOUNTED_READ_ONLY
+    val obbRoot = File(Environment.getExternalStorageDirectory(), "Android/obb")
+    return InstalledObbDiscovery.inspect(
+        packageName = packageName,
+        sdkInt = sdkInt,
+        hasReadPermission = hasReadPermission,
+        obbRoot = obbRoot,
+        storageReadable = storageReadable
+    )
+}
 
 private enum class OpenCloneThemeMode(val label: String) {
     SYSTEM("System default"), LIGHT("Light"), DARK("Dark"), AMOLED("AMOLED")
@@ -388,6 +410,8 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
     var bulkUninstallRequested by remember { mutableStateOf(false) }
 
     var cloneSource by remember { mutableStateOf<InstalledApp?>(null) }
+    var installedObbResult by remember { mutableStateOf<InstalledObbDiscovery.Result?>(null) }
+    var pendingObbPermissionPackage by remember { mutableStateOf<String?>(null) }
     var cloneName by remember { mutableStateOf("") }
     var clonePackage by remember { mutableStateOf("") }
     var cloneBuilding by remember { mutableStateOf(false) }
@@ -717,6 +741,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     onSuccess = { source ->
                         externalSource = source
                         cloneSource = null
+                        installedObbResult = null
                         requestedPermissions = source.apkFiles.firstOrNull()?.let { readArchivePermissions(context, it) }.orEmpty()
                         removedPermissions = emptySet()
                         cloneName = "${source.label} Clone".take(100)
@@ -734,6 +759,17 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                     onFailure = { statusMessage = it.message ?: "Could not import this APK bundle." }
                 )
                 loading = false
+            }
+        }
+    }
+
+    val requestObbPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val packageName = pendingObbPermissionPackage
+        pendingObbPermissionPackage = null
+        if (packageName != null) {
+            installedObbResult = inspectInstalledObb(context, packageName)
+            if (!granted) {
+                statusMessage = "Storage permission was not granted. The clone can still be built without installed OBB expansion files."
             }
         }
     }
@@ -912,6 +948,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
         val sourceApks = installedSource?.let { source ->
             (listOfNotNull(source.applicationInfo.sourceDir) + source.applicationInfo.splitSourceDirs.orEmpty()).map(::File)
         } ?: importedSource!!.apkFiles
+        val obbSources = importedSource?.obbFiles ?: installedObbResult?.files.orEmpty()
         val input = Data.Builder()
             .putStringArray(CloneBuildWorker.KEY_SOURCE_APKS, sourceApks.map { it.absolutePath }.toTypedArray())
             .putString(CloneBuildWorker.KEY_ORIGINAL_PACKAGE, sourcePackage)
@@ -925,7 +962,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
             .putBoolean(CloneBuildWorker.KEY_ALLOW_UPDATE, cloneUpdateMode)
             .putString(CloneBuildWorker.KEY_ICON_PACKAGE, installedSource?.packageName)
             .putString(CloneBuildWorker.KEY_CUSTOM_ICON_PATH, customIconPath.takeIf { installedSource != null })
-            .putStringArray(CloneBuildWorker.KEY_OBB_FILES, importedSource?.obbFiles?.map { it.absolutePath }?.toTypedArray() ?: emptyArray())
+            .putStringArray(CloneBuildWorker.KEY_OBB_FILES, obbSources.map { it.absolutePath }.toTypedArray())
             .putString(CloneBuildWorker.KEY_BADGE_POSITION, badgePosition.name)
             .build()
         val request = OneTimeWorkRequestBuilder<CloneBuildWorker>()
@@ -1014,6 +1051,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                     }
                                     cloneSource = null
                                     externalSource = null
+                                    installedObbResult = null
                                     statusMessage = if (cloneResult?.obbFiles?.isNotEmpty() == true) "Clone APK set built and signature-verified. OBB expansion data is included in ZIP export." else "Clone APK set built and signature-verified."
                                 } else {
                                     cloneError = "The background build finished without all expected APK files."
@@ -1447,6 +1485,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
             confirmButton = {
                 TextButton(onClick = {
                     cloneSource = app
+                    installedObbResult = inspectInstalledObb(context, app.packageName)
                     requestedPermissions = readInstalledPermissions(context, app.packageName)
                     removedPermissions = emptySet()
                     cloneName = "${app.label} Clone".take(100)
@@ -1471,7 +1510,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
         val sourceLabel = cloneSource?.label ?: externalSource!!.label
         AlertDialog(
             shape = RoundedCornerShape(24.dp),
-            onDismissRequest = { if (!cloneBuilding) { cloneSource = null; externalSource = null; cloneUpdateMode = false } },
+            onDismissRequest = { if (!cloneBuilding) { cloneSource = null; externalSource = null; installedObbResult = null; cloneUpdateMode = false } },
             title = { Text(if (cloneUpdateMode) "Update clone" else "Create clone") },
             text = {
                 Column(
@@ -1490,6 +1529,53 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                        shape = RoundedCornerShape(16.dp)
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                            Text("EXPANSION DATA (OBB)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            if (externalSource != null) {
+                                val files = externalSource!!.obbFiles
+                                Text(
+                                    if (files.isEmpty()) "No OBB expansion files were included in the imported bundle."
+                                    else "${files.size} OBB expansion file(s) imported and ready for ZIP export.",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                if (files.isNotEmpty()) {
+                                    Text(files.joinToString(" · ") { it.name }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
+                            } else {
+                                when (installedObbResult?.status) {
+                                    InstalledObbDiscovery.Status.FOUND -> {
+                                        val files = installedObbResult?.files.orEmpty()
+                                        Text("${files.size} installed OBB expansion file(s) found. They will be included in the exported clone bundle.", style = MaterialTheme.typography.bodySmall)
+                                        Text(files.joinToString(" · ") { it.name }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    }
+                                    InstalledObbDiscovery.Status.PERMISSION_REQUIRED -> {
+                                        Text("On Android 8–9, OpenClone needs read-only external-storage permission to check this app's OBB folder.", style = MaterialTheme.typography.bodySmall)
+                                        TextButton(onClick = {
+                                            pendingObbPermissionPackage = sourcePackage
+                                            requestObbPermission.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+                                        }) { Text("Allow OBB access") }
+                                    }
+                                    InstalledObbDiscovery.Status.SCOPED_STORAGE_RESTRICTED -> Text(
+                                        "Android 10+ restricts direct access to another app's Android/obb folder. Import a complete XAPK or ZIP bundle containing its OBB files instead.",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                    InstalledObbDiscovery.Status.NOT_FOUND -> Text("No installed OBB expansion files were found. The clone can be built without expansion data.", style = MaterialTheme.typography.bodySmall)
+                                    InstalledObbDiscovery.Status.STORAGE_UNAVAILABLE -> Text("Shared storage is not mounted. OBB discovery is unavailable right now.", style = MaterialTheme.typography.bodySmall)
+                                    InstalledObbDiscovery.Status.INACCESSIBLE -> Text("The OBB folder exists but its files are not readable. The clone can still be built without them.", style = MaterialTheme.typography.bodySmall)
+                                    InstalledObbDiscovery.Status.INVALID_PACKAGE, null -> Text("OBB discovery has not completed.", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                            Text(
+                                "OBB files are included in the exported ZIP under Android/obb/<clone package>. OpenClone does not write into another app's OBB folder or install expansion data automatically.",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                     OutlinedTextField(
                         value = cloneName,
                         onValueChange = { cloneName = it; cloneError = null },
@@ -1720,6 +1806,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                         } else {
                             cloneSource = null
                             externalSource = null
+                            installedObbResult = null
                             cloneUpdateMode = false
                         }
                     }
@@ -1768,6 +1855,7 @@ private fun OpenCloneHome(themeMode: OpenCloneThemeMode, accent: OpenCloneAccent
                                                     } else {
                                                         cloneSource = source
                                                         externalSource = null
+                                                        installedObbResult = inspectInstalledObb(context, source.packageName)
                                                         requestedPermissions = readInstalledPermissions(context, source.packageName)
                                                         removedPermissions = emptySet()
                                                         cloneName = profile.cloneLabel
